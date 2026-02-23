@@ -1,0 +1,31 @@
+{
+  "projectName": "my-project",
+  "stack": {
+    "backend": "node-express",
+    "frontend": "nextjs",
+    "database": "postgresql",
+    "orm": "prisma",
+    "testing": "jest",
+    "e2e": "playwright",
+    "validation": "zod",
+    "logger": "pino",
+    "cache": "redis",
+    "css": "tailwindcss"
+  },
+  "methodology": {
+    "tdd": true,
+    "ddd": true,
+    "codeReview": true,
+    "sprintTracking": true,
+    "conventionalCommits": true,
+    "specFirst": true
+  },
+  "monorepo": true,
+  "aiTools": ["claude", "gemini"],
+  "deployment": {
+    "ci": "github-actions",
+    "frontend": "vercel",
+    "backend": "render",
+    "containerize": true
+  }
+}

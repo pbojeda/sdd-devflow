@@ -1,0 +1,109 @@
+---
+description: Core development principles and methodology applicable to all agents and all layers of the project.
+alwaysApply: true
+---
+
+# Base Standards — Spec-Driven Development
+
+## 1. Core Principles
+
+- **Spec First**: NO implementation code without a prior approved specification.
+  - **Backend**: Update `docs/specs/api-spec.yaml` first.
+  - **Frontend**: Update `docs/specs/ui-components.md` first.
+- **Small Tasks**: Work in baby steps, one at a time. Never skip ahead.
+- **Test-Driven Development**: Write tests before implementation (Red-Green-Refactor).
+- **Type Safety**: Strict TypeScript. No `any`. Use runtime validation (Zod recommended).
+- **English Only**: All code, comments, docs, commits, and tickets in English.
+- **Reuse Over Recreate**: Always check existing code before proposing new files.
+
+## 2. Workflow — 6 Steps
+
+```
+1. SPEC    → spec-creator drafts/updates specs       → SPEC APPROVAL
+2. SETUP   → Branch, ticket, sprint tracker           → TICKET APPROVAL (Std/Cplx)
+3. PLAN    → Planner agent creates implementation plan → PLAN APPROVAL (Std/Cplx)
+4. IMPLEMENT → Developer agent, TDD, update docs
+5. FINALIZE → Tests/lint/build, production-validator   → COMMIT APPROVAL
+6. REVIEW  → PR, code-review-specialist, qa-engineer  → MERGE APPROVAL
+```
+
+### Complexity Tiers
+
+| Tier | Spec | Ticket | Plan | QA Engineer |
+|------|------|--------|------|-------------|
+| **Simple** | Skip | Skip | Skip | Skip |
+| **Standard** | Yes | Yes | Yes | Optional |
+| **Complex** | Yes | Yes + ADR review | Yes | Mandatory |
+
+## 3. Agent Roles
+
+| Agent | Responsibility |
+|-------|---------------|
+| `spec-creator` | Draft/update specs before planning |
+| `backend-planner` | Implementation plan for backend tasks |
+| `frontend-planner` | Implementation plan for frontend tasks |
+| `backend-developer` | TDD implementation for backend |
+| `frontend-developer` | TDD implementation for frontend |
+| `production-code-validator` | Pre-commit validation (debug code, TODOs, secrets) |
+| `code-review-specialist` | Pre-merge code review |
+| `qa-engineer` | Edge cases, spec verification, regression |
+| `database-architect` | Schema design, migrations, query optimization |
+
+## 4. Monorepo Rules
+
+<!-- CONFIG: Adjust directories to match your monorepo layout -->
+
+```
+project/
+├── backend/     ← Backend (own package.json)
+├── frontend/    ← Frontend (own package.json)
+└── docs/        ← Documentation
+    ├── specs/       ← API spec, UI spec
+    ├── tickets/     ← Task tickets
+    └── project_notes/ ← Memory system
+```
+
+**Critical Rules:**
+- NEVER install dependencies in the root directory
+- ALWAYS verify the current directory before running npm commands
+- Use absolute paths when running commands
+
+## 5. Pre-Commit Checklist
+
+1. Specs updated (`docs/specs/` reflects changes)
+2. Tests pass (`npm test`)
+3. Lint passes (`npm run lint`)
+4. Build succeeds (`npm run build`)
+5. Ticket updated (acceptance criteria marked `[x]`)
+
+## 6. Communication Style
+
+All agents MUST follow this execution pattern:
+
+1. **Acknowledge**: State what sub-task you are tackling
+2. **Execute**: Make changes transparently, step by step
+3. **Explain**: Detail what was done, which files, and the rationale
+4. **Gate**: Ask for user authorization before committing, pushing, or switching tasks
+
+## 7. Project Memory
+
+Institutional knowledge in `docs/project_notes/`:
+
+- **bugs.md** — Bug log with solutions and prevention
+- **decisions.md** — Architectural Decision Records (ADRs)
+- **key_facts.md** — Project configuration, ports, URLs
+- **sprint-X-tracker.md** — Sprint progress and completion log
+
+**Protocols:**
+- Before architectural changes → check `decisions.md`
+- When encountering bugs → search `bugs.md`
+- When looking up config → check `key_facts.md`
+- After completing tasks → update sprint tracker
+
+## 8. Git Conventions
+
+- **Commit format**: `<type>(<scope>): <description>` (conventional commits)
+- **Types**: feat, fix, docs, style, refactor, test, chore
+- **Branch naming**: `feature/sprint<N>-<task-id>-<description>`
+- **PR required** for Standard/Complex tasks
+- **Human review** required before merge (Std/Cplx)
