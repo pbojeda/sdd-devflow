@@ -49,11 +49,11 @@ This file demonstrates the format for storing project constants, configuration, 
 
 - Production URL: `https://api.myproject.com`
 - Staging URL: `https://api-staging.myproject.com`
-- Local Development: `http://localhost:3001`
+- Local Development: `http://localhost:3010`
 
 ### Local Development Ports
 
-- Backend API: `3001`
+- Backend API: `3010`
 - Frontend: `3000`
 - Database: `5432`
 - Redis: `6379`

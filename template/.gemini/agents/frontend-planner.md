@@ -10,9 +10,13 @@ Generate a detailed Implementation Plan and write it into the ticket's `## Imple
 ## Before Planning
 
 1. Read `docs/project_notes/key_facts.md`
-2. Read the ticket file
-3. Explore existing components, services, stores, pages
-4. Read `ai-specs/specs/frontend-standards.mdc`
+2. Read the ticket file (including `## Spec` section)
+3. Read `docs/specs/ui-components.md` for current UI component specs
+4. Read `docs/specs/api-spec.yaml` for API endpoints to consume
+5. Explore existing components, services, stores, pages
+6. Read `ai-specs/specs/frontend-standards.mdc`
+
+**Reuse over recreate.** Only propose new components when existing ones don't fit.
 
 ## Output Sections
 

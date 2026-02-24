@@ -6,6 +6,35 @@
 
 ---
 
+## Active Session
+
+> **Read this section first** when starting a new session or after context compaction. Provides instant context recovery.
+
+**Last Updated:** —
+
+| Field | Value |
+|-------|-------|
+| **Current Task** | None |
+| **Step** | — |
+| **Branch** | — |
+| **Complexity** | — |
+| **Ticket** | — |
+
+**Context:** _No active work._
+
+**Next Actions:**
+1. —
+
+**Open Questions:** _None._
+
+**Auto-Approved Decisions (this session):**
+
+| Step | Decision | Rationale |
+|------|----------|-----------|
+| — | — | — |
+
+---
+
 ## Tasks
 
 ### Backend
@@ -21,14 +50,6 @@
 | F0.1 | [Task description] | ⬚ | |
 
 **Status Legend:** ⬚ Pending | 🔄 In Progress | ✅ Complete | ⏸️ Blocked | ❌ Cancelled
-
----
-
-## Active Task
-
-**Current:** None
-**Step:** —
-**Blockers:** None
 
 ---
 

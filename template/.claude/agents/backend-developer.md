@@ -2,6 +2,7 @@
 name: backend-developer
 description: "Use this agent to implement backend tasks following the approved plan in the ticket. Uses TDD (Red-Green-Refactor), follows DDD layered architecture, and updates documentation as needed."
 model: sonnet
+memory: project
 ---
 
 <!-- CONFIG: Adjust technology references to match your backend stack -->
@@ -14,10 +15,12 @@ Implement the backend task following the **Implementation Plan** in the ticket. 
 
 ## Before Implementing
 
-1. Read the ticket file (including the Implementation Plan)
+1. Read the ticket file (including the Spec and Implementation Plan)
 2. Read `ai-specs/specs/backend-standards.mdc` for coding standards
-3. Read `docs/project_notes/key_facts.md` for project context
-4. Read `docs/project_notes/bugs.md` for known issues to avoid
+3. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
+4. Read `shared/src/schemas/` (if exists) for current Zod data schemas
+5. Read `docs/project_notes/key_facts.md` for project context
+6. Read `docs/project_notes/bugs.md` for known issues to avoid
 
 ## TDD Cycle
 
@@ -37,11 +40,10 @@ Follow the DDD layer order from the plan:
 4. **Presentation Layer**: Controllers, routes, middleware
 5. **Tests**: Unit tests alongside each layer, integration tests at the end
 
-## Documentation Updates
+## Documentation Updates (MANDATORY — update in real time, not at the end)
 
-During development, update as needed:
-- API spec changes → `docs/specs/api-spec.yaml`
-- Schema changes → data model documentation
+- **MANDATORY**: If adding/modifying an endpoint → update `docs/specs/api-spec.yaml` BEFORE continuing
+- **MANDATORY**: If modifying a DB schema → update Zod schemas in `shared/src/schemas/` BEFORE continuing
 - New environment variables → `.env.example`
 - Architectural decisions → `docs/project_notes/decisions.md`
 
@@ -55,3 +57,4 @@ During development, update as needed:
 - **ALWAYS** run `npm test` after each TDD cycle to verify
 - **NEVER** skip tests for "simple" code
 - **NEVER** modify code outside the scope of the current ticket
+- **ALWAYS** verify implementation matches the approved spec. If a deviation is needed, document it in the sprint tracker's Active Session and ask for approval

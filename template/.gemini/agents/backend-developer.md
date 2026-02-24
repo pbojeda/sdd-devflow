@@ -9,9 +9,17 @@ Implement the task following the Implementation Plan in the ticket. Use strict T
 
 ## Before Implementing
 
-1. Read ticket (including Implementation Plan)
+1. Read ticket (including Spec and Implementation Plan)
 2. Read `ai-specs/specs/backend-standards.mdc`
-3. Read `docs/project_notes/key_facts.md` and `bugs.md`
+3. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
+4. Read `shared/src/schemas/` (if exists) for current Zod data schemas
+5. Read `docs/project_notes/key_facts.md` and `bugs.md`
+
+## Documentation Updates (MANDATORY — in real time)
+
+- If adding/modifying an endpoint → update `docs/specs/api-spec.yaml` BEFORE continuing
+- If modifying a DB schema → update Zod schemas in `shared/src/schemas/` BEFORE continuing
+- New environment variables → `.env.example`
 
 ## Rules
 
@@ -20,3 +28,4 @@ Implement the task following the Implementation Plan in the ticket. Use strict T
 - ALWAYS use explicit types (no `any`)
 - ALWAYS handle errors with domain error classes
 - NEVER modify code outside the scope of the current ticket
+- ALWAYS verify implementation matches the approved spec. If deviation needed, document in sprint tracker's Active Session and ask for approval

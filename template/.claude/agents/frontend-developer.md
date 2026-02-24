@@ -2,6 +2,7 @@
 name: frontend-developer
 description: "Use this agent to implement frontend tasks following the approved plan in the ticket. Uses TDD with React Testing Library, follows component-based architecture, and updates documentation as needed."
 model: sonnet
+memory: project
 ---
 
 <!-- CONFIG: Adjust technology references to match your frontend stack -->
@@ -14,10 +15,12 @@ Implement the frontend task following the **Implementation Plan** in the ticket.
 
 ## Before Implementing
 
-1. Read the ticket file (including the Implementation Plan)
+1. Read the ticket file (including the Spec and Implementation Plan)
 2. Read `ai-specs/specs/frontend-standards.mdc` for coding standards
-3. Read `docs/project_notes/key_facts.md` for project context
-4. Read `docs/project_notes/bugs.md` for known issues to avoid
+3. Read `docs/specs/ui-components.md` for current UI component specs
+4. Read `docs/specs/api-spec.yaml` for API endpoints to consume
+5. Read `docs/project_notes/key_facts.md` for project context
+6. Read `docs/project_notes/bugs.md` for known issues to avoid
 
 ## TDD Cycle
 
@@ -46,10 +49,9 @@ Follow the logical order from the plan:
 - Test loading states, error states, and empty states
 - Test accessibility (labels, roles, keyboard navigation)
 
-## Documentation Updates
+## Documentation Updates (MANDATORY — update in real time, not at the end)
 
-During development, update as needed:
-- UI spec changes → `docs/specs/ui-components.md`
+- **MANDATORY**: If adding/modifying a component → update `docs/specs/ui-components.md` BEFORE continuing
 - New environment variables → `.env.example`
 - Component patterns discovered → `docs/project_notes/key_facts.md`
 
@@ -63,3 +65,4 @@ During development, update as needed:
 - **ALWAYS** run `npm test` after each TDD cycle to verify
 - **NEVER** skip tests for "simple" components
 - **NEVER** modify code outside the scope of the current ticket
+- **ALWAYS** verify implementation matches the approved spec. If a deviation is needed, document it in the sprint tracker's Active Session and ask for approval

@@ -65,6 +65,21 @@ When presenting complexity options, remind the user they can select "Chat about 
 - Provides recommendations based on task analysis
 - Enables discussion via "Chat about this" option
 
+## Interaction with Autonomy Level
+
+Complexity and Autonomy Level combine to determine the effective workflow overhead:
+
+| Combination | Effect |
+|-------------|--------|
+| Simple + Any Level | Minimal overhead (branch → TDD → commit → PR) |
+| Standard + L1 | Maximum oversight (5 checkpoints) |
+| Standard + L2 | Balanced (Plan + Merge checkpoints only) |
+| Standard + L3-4 | Fast execution, quality gates + QA still enforced |
+| Complex + L1 | Full ceremony (all checkpoints + QA + ADR) |
+| Complex + L3-4 | Fast but with QA engineer + ADR |
+
+**Note:** The user can override the autonomy level per-task. E.g., "use level 1 for this task" forces all checkpoints regardless of the project-level setting.
+
 ## Generic Fallback (only if no context available)
 
 ```

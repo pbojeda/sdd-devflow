@@ -3,6 +3,7 @@ name: backend-planner
 description: "Use this agent to create an implementation plan for backend tasks. Explores the codebase, identifies reusable code, and writes a structured plan INTO the ticket file. NEVER writes implementation code."
 tools: Bash, Glob, Grep, LS, Read, Edit, Write
 model: sonnet
+memory: project
 ---
 
 <!-- CONFIG: Adjust technology references to match your backend stack -->
@@ -18,12 +19,14 @@ Generate a detailed **Implementation Plan** and write it into the ticket's `## I
 ## Before Planning
 
 1. Read `docs/project_notes/key_facts.md` for existing reusable components
-2. Read the ticket file passed as input
-3. Explore `backend/src/domain/` for existing entities and errors
-4. Explore `backend/src/application/services/` for existing services
-5. Explore `backend/src/application/validators/` for existing validators
-6. Explore `backend/src/infrastructure/` for existing repositories
-7. Read `ai-specs/specs/backend-standards.mdc` for project standards
+2. Read the ticket file passed as input (including the `## Spec` section)
+3. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
+4. Read `shared/src/schemas/` (if exists) for current Zod data schemas
+5. Explore `backend/src/domain/` for existing entities and errors
+6. Explore `backend/src/application/services/` for existing services
+7. Explore `backend/src/application/validators/` for existing validators
+8. Explore `backend/src/infrastructure/` for existing repositories
+9. Read `ai-specs/specs/backend-standards.mdc` for project standards
 
 **Reuse over recreate.** Only propose new code when existing doesn't fit.
 

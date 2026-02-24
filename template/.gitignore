@@ -7,10 +7,14 @@ dist/
 out/
 build/
 
-# Environment
+# Environment — NEVER commit
 .env
 .env.local
+.env.*.local
+.env.development
+.env.staging
 .env.production
+.npmrc
 
 # OS
 .DS_Store
@@ -35,3 +39,10 @@ npm-debug.log*
 # Cache
 .turbo/
 .cache/
+
+# Secrets and keys
+*.pem
+*.key
+
+# Claude Code (local settings are personal — hooks, permissions, notifications)
+.claude/settings.local.json

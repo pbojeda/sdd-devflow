@@ -10,7 +10,7 @@ servers:
   - url: http://localhost:3010/api
     description: Local development
 
-# <!-- CONFIG: Add your API paths below -->
+# CONFIG: Add your API paths below
 
 paths:
   /health:
@@ -36,7 +36,7 @@ paths:
 
 components:
   schemas:
-    # <!-- CONFIG: Add your schemas below -->
+    # CONFIG: Add your schemas below
 
     ErrorResponse:
       type: object

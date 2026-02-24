@@ -133,21 +133,16 @@ export const userService = {
 
 ## API Types
 
-<!-- CONFIG: Adjust if not using OpenAPI code generation -->
+<!-- CONFIG: If using shared Zod schemas, import from @project/shared. If using OpenAPI code generation, uncomment the generate:api script below. -->
 
-Types are auto-generated from the OpenAPI spec:
+Import shared types from the `shared/` workspace (see base-standards.mdc § Shared Types):
 
-```bash
-cd frontend && npm run generate:api
-```
-
-Usage:
 ```typescript
-import type { components } from '@/lib/api/types';
-type User = components['schemas']['User'];
+import { UserSchema } from '@project/shared';
+import type { User } from '@project/shared';
 ```
 
-**Never edit `lib/api/types.ts` directly** — it will be overwritten.
+If your project uses OpenAPI code generation instead, configure `npm run generate:api` in `package.json`.
 
 ## UI Patterns
 

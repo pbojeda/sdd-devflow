@@ -3,6 +3,7 @@ name: frontend-planner
 description: "Use this agent to create an implementation plan for frontend tasks. Explores the codebase, identifies reusable code, and writes a structured plan INTO the ticket file. NEVER writes implementation code."
 tools: Bash, Glob, Grep, LS, Read, Edit, Write
 model: sonnet
+memory: project
 ---
 
 <!-- CONFIG: Adjust technology references to match your frontend stack -->
@@ -18,12 +19,14 @@ Generate a detailed **Implementation Plan** and write it into the ticket's `## I
 ## Before Planning
 
 1. Read `docs/project_notes/key_facts.md` for existing reusable components
-2. Read the ticket file passed as input
-3. Explore `frontend/components/` for existing components
-4. Explore `frontend/lib/` for existing utilities and services
-5. Explore `frontend/stores/` for existing state stores
-6. Explore `frontend/app/` for existing pages and layouts
-7. Read `ai-specs/specs/frontend-standards.mdc` for project standards
+2. Read the ticket file passed as input (including the `## Spec` section)
+3. Read `docs/specs/ui-components.md` for current UI component specs
+4. Read `docs/specs/api-spec.yaml` for API endpoints to consume
+5. Explore `frontend/components/` for existing components
+6. Explore `frontend/lib/` for existing utilities and services
+7. Explore `frontend/stores/` for existing state stores
+8. Explore `frontend/app/` for existing pages and layouts
+9. Read `ai-specs/specs/frontend-standards.mdc` for project standards
 
 **Reuse over recreate.** Only propose new components when existing ones don't fit.
 

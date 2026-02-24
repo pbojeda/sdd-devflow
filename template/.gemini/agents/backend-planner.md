@@ -10,9 +10,13 @@ Generate a detailed Implementation Plan and write it into the ticket's `## Imple
 ## Before Planning
 
 1. Read `docs/project_notes/key_facts.md`
-2. Read the ticket file
-3. Explore existing domain entities, services, validators, repositories
-4. Read `ai-specs/specs/backend-standards.mdc`
+2. Read the ticket file (including `## Spec` section)
+3. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
+4. Read `shared/src/schemas/` (if exists) for current Zod data schemas
+5. Explore existing domain entities, services, validators, repositories
+6. Read `ai-specs/specs/backend-standards.mdc`
+
+**Reuse over recreate.** Only propose new code when existing doesn't fit.
 
 ## Output Sections
 

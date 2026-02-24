@@ -14,6 +14,7 @@ Quick reference for project configuration, infrastructure details, and important
 - **Project Name**: [Your project name]
 - **Repository**: [URL]
 - **Primary Language**: TypeScript
+- **Branching Strategy**: github-flow <!-- Options: github-flow | gitflow — See .claude/skills/development-workflow/references/branching-strategy.md -->
 
 ## Technology Stack
 
