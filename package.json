@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Create a new SDD DevFlow project with AI-assisted development workflow",
   "bin": {
-    "create-sdd-project": "./bin/cli.js"
+    "create-sdd-project": "bin/cli.js"
   },
   "scripts": {
     "test": "node test/smoke.js",
@@ -36,6 +36,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pbojeda/sdd-devflow.git"
+    "url": "git+https://github.com/pbojeda/sdd-devflow.git"
+  },
+  "homepage": "https://github.com/pbojeda/sdd-devflow#readme",
+  "bugs": {
+    "url": "https://github.com/pbojeda/sdd-devflow/issues"
   }
 }
