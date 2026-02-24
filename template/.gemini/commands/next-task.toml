@@ -1,0 +1,2 @@
+description = "Start the next pending task in the current sprint"
+prompt = "Read the sprint tracker in docs/project_notes/ and start the next pending task. Follow the development-workflow skill in .gemini/skills/development-workflow/SKILL.md"

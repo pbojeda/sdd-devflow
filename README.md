@@ -145,6 +145,12 @@ project/
 │
 ├── .gemini/
 │   ├── agents/                          # 9 agents (Gemini format)
+│   ├── skills/
+│   │   ├── development-workflow/        # Main task workflow (Steps 0-6)
+│   │   │   └── references/              # Templates, guides, examples
+│   │   ├── bug-workflow/                # Bug triage and resolution
+│   │   └── project-memory/              # Memory system setup
+│   ├── commands/                        # Slash command shortcuts
 │   ├── settings.json                    # Gemini configuration
 │   └── styles/default.md               # Response style
 │

@@ -96,6 +96,15 @@ function testDefaults() {
   // Default autonomy L2
   assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 2 (Trusted)');
   assertFileContains(dest, 'GEMINI.md', 'Autonomy Level: 2 (Trusted)');
+
+  // Gemini skills and commands exist
+  assertExists(dest, '.gemini/skills/development-workflow/SKILL.md');
+  assertExists(dest, '.gemini/skills/bug-workflow/SKILL.md');
+  assertExists(dest, '.gemini/skills/project-memory/SKILL.md');
+  assertExists(dest, '.gemini/commands/start-task.toml');
+
+  // No internal files leaked
+  assertNotExists(dest, 'docs/project_notes/pending-improvements.md');
 }
 
 // --- Scenario 2: Backend only ---
@@ -182,6 +191,51 @@ function testClaudeOnly() {
   assertFileContains(dest, 'docs/project_notes/key_facts.md', 'gitflow');
 }
 
+// --- Scenario 4: Gemini only (verify skills + commands) ---
+
+function testGeminiOnly() {
+  const dest = path.join(TMP_BASE, 'test-gemini');
+
+  const { generate } = require('../lib/generator');
+  const { BACKEND_STACKS, FRONTEND_STACKS } = require('../lib/config');
+
+  silent(() => generate({
+    projectName: 'test-gemini',
+    projectDir: dest,
+    description: 'Gemini only test',
+    businessContext: '',
+    projectType: 'fullstack',
+    backendStack: 'express-prisma-pg',
+    backendPreset: BACKEND_STACKS[0],
+    frontendStack: 'nextjs-tailwind-radix',
+    frontendPreset: FRONTEND_STACKS[0],
+    aiTools: 'gemini',
+    autonomyLevel: 2,
+    autonomyName: 'Trusted',
+    branching: 'github-flow',
+    backendPort: 3010,
+    frontendPort: 3000,
+  }));
+
+  // Gemini files exist
+  assertExists(dest, 'GEMINI.md');
+  assertExists(dest, '.gemini/agents/backend-developer.md');
+  assertExists(dest, '.gemini/skills/development-workflow/SKILL.md');
+  assertExists(dest, '.gemini/skills/bug-workflow/SKILL.md');
+  assertExists(dest, '.gemini/skills/project-memory/SKILL.md');
+  assertExists(dest, '.gemini/commands/start-task.toml');
+  assertExists(dest, '.gemini/commands/fix-bug.toml');
+  assertExists(dest, '.gemini/skills/development-workflow/references/complexity-guide.md');
+  assertExists(dest, '.gemini/skills/project-memory/references/bugs_template.md');
+
+  // Claude files removed
+  assertNotExists(dest, 'CLAUDE.md');
+  assertNotExists(dest, '.claude');
+
+  // No pending-improvements.md
+  assertNotExists(dest, 'docs/project_notes/pending-improvements.md');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -192,6 +246,7 @@ try {
   run('Scenario 1: Default fullstack project', testDefaults);
   run('Scenario 2: Backend only project', testBackendOnly);
   run('Scenario 3: Claude only + custom config', testClaudeOnly);
+  run('Scenario 4: Gemini only + skills/commands', testGeminiOnly);
 } finally {
   cleanup();
 }

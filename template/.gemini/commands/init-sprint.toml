@@ -1,0 +1,2 @@
+description = "Initialize a new sprint tracker (e.g., /init-sprint 1)"
+prompt = "Initialize sprint {{args}}. Follow the sprint initialization template in .gemini/skills/development-workflow/references/sprint-init-template.md"
