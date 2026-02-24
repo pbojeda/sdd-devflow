@@ -1,0 +1,32 @@
+{
+  "name": "create-sdd-project",
+  "version": "0.1.0",
+  "description": "Create a new SDD DevFlow project with AI-assisted development workflow",
+  "bin": {
+    "create-sdd-project": "./bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "template/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "sdd",
+    "spec-driven-development",
+    "ai",
+    "claude",
+    "gemini",
+    "tdd",
+    "workflow",
+    "development-methodology"
+  ],
+  "author": "pbojeda",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pbojeda/sdd-devflow.git"
+  }
+}
