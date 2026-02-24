@@ -236,6 +236,185 @@ function testGeminiOnly() {
   assertNotExists(dest, 'docs/project_notes/pending-improvements.md');
 }
 
+// --- Scenario 5: --init on Express+Prisma project ---
+
+function testInitExpressPrisma() {
+  const dest = path.join(TMP_BASE, 'test-init-express');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express+Prisma project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-express-app',
+    description: 'An Express API',
+    dependencies: {
+      express: '^4.18.0',
+      '@prisma/client': '^5.0.0',
+    },
+    devDependencies: {
+      jest: '^29.0.0',
+      typescript: '^5.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'models'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'routes'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'middleware'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'), 'datasource db {\n  provider = "postgresql"\n  url = env("DATABASE_URL")\n}', 'utf8');
+  fs.writeFileSync(path.join(dest, '.env'), 'PORT=4000\nDATABASE_URL=postgresql://localhost:5432/mydb', 'utf8');
+  fs.writeFileSync(path.join(dest, '.gitignore'), 'node_modules\n.env\n', 'utf8');
+  // Add a couple test files
+  fs.mkdirSync(path.join(dest, 'src', '__tests__'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', '__tests__', 'user.test.ts'), '', 'utf8');
+
+  // Run --init with defaults
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // SDD files created
+  assertExists(dest, 'AGENTS.md');
+  assertExists(dest, 'CLAUDE.md');
+  assertExists(dest, 'GEMINI.md');
+  assertExists(dest, 'ai-specs/specs/base-standards.mdc');
+  assertExists(dest, 'ai-specs/specs/backend-standards.mdc');
+  assertExists(dest, 'docs/project_notes/key_facts.md');
+  assertExists(dest, 'docs/project_notes/sprint-0-tracker.md');
+  assertExists(dest, '.claude/agents/backend-developer.md');
+  assertExists(dest, '.gemini/agents/backend-developer.md');
+  assertExists(dest, '.gemini/skills/development-workflow/SKILL.md');
+  assertExists(dest, '.gemini/commands/start-task.toml');
+
+  // Scan detected correctly
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'my-express-app');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Express');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'MVC');
+
+  // Architecture detected as MVC
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Architecture — MVC');
+
+  // Prisma schema referenced in key_facts
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'prisma/schema.prisma');
+
+  // Sprint dates set
+  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '[YYYY-MM-DD]');
+
+  // Default autonomy L1 for init
+  assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 1 (Full Control)');
+
+  // .gitignore appended
+  assertFileContains(dest, '.gitignore', 'SDD DevFlow');
+
+  // Original project files untouched
+  assertExists(dest, 'package.json');
+  assertExists(dest, 'tsconfig.json');
+  assertExists(dest, 'src/controllers');
+  assertExists(dest, 'src/index.ts');
+}
+
+// --- Scenario 6: --init on Next.js-only project ---
+
+function testInitNextjsOnly() {
+  const dest = path.join(TMP_BASE, 'test-init-nextjs');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Next.js project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-nextjs-app',
+    dependencies: {
+      next: '^14.0.0',
+      react: '^18.0.0',
+      'react-dom': '^18.0.0',
+      tailwindcss: '^3.0.0',
+      zustand: '^4.0.0',
+    },
+    devDependencies: {
+      typescript: '^5.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'app'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'components'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'app', 'page.tsx'), '', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // Frontend standards adapted
+  assertExists(dest, 'ai-specs/specs/frontend-standards.mdc');
+  assertFileContains(dest, 'ai-specs/specs/frontend-standards.mdc', 'Next.js');
+  assertFileContains(dest, 'ai-specs/specs/frontend-standards.mdc', 'Tailwind CSS');
+  assertFileContains(dest, 'ai-specs/specs/frontend-standards.mdc', 'Zustand');
+
+  // key_facts has frontend stack
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Next.js');
+
+  // No backend agents (frontend-only detection)
+  assertNotExists(dest, '.claude/agents/backend-developer.md');
+  assertNotExists(dest, '.claude/agents/database-architect.md');
+  assertNotExists(dest, '.gemini/agents/backend-developer.md');
+
+  // Frontend agents exist
+  assertExists(dest, '.claude/agents/frontend-developer.md');
+  assertExists(dest, '.gemini/agents/frontend-developer.md');
+}
+
+// --- Scenario 7: --init with existing OpenAPI file ---
+
+function testInitWithOpenAPI() {
+  const dest = path.join(TMP_BASE, 'test-init-openapi');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock project with OpenAPI
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-api-project',
+    dependencies: { express: '^4.18.0' },
+  }), 'utf8');
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '', 'utf8');
+
+  // Create a swagger.json
+  const swaggerContent = JSON.stringify({ openapi: '3.0.0', info: { title: 'My API', version: '1.0.0' } });
+  fs.writeFileSync(path.join(dest, 'swagger.json'), swaggerContent, 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // OpenAPI imported to docs/specs/
+  assertExists(dest, 'docs/specs/api-spec.yaml');
+  assertFileContains(dest, 'docs/specs/api-spec.yaml', 'My API');
+
+  // SDD files created
+  assertExists(dest, 'AGENTS.md');
+  assertExists(dest, 'ai-specs/specs/base-standards.mdc');
+
+  // Retrofit testing suggested (no test files)
+  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'Retrofit Testing');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -243,10 +422,15 @@ console.log('\nSmoke tests\n');
 setup();
 
 try {
+  console.log('  New project scenarios:');
   run('Scenario 1: Default fullstack project', testDefaults);
   run('Scenario 2: Backend only project', testBackendOnly);
   run('Scenario 3: Claude only + custom config', testClaudeOnly);
   run('Scenario 4: Gemini only + skills/commands', testGeminiOnly);
+  console.log('\n  Init scenarios (existing projects):');
+  run('Scenario 5: --init Express+Prisma (MVC)', testInitExpressPrisma);
+  run('Scenario 6: --init Next.js only', testInitNextjsOnly);
+  run('Scenario 7: --init with existing OpenAPI', testInitWithOpenAPI);
 } finally {
   cleanup();
 }

@@ -94,33 +94,58 @@ Tracks institutional knowledge across sessions in `docs/project_notes/`:
 
 ## Quick Start
 
-### 1. Copy the template
+### Option A: New Project (recommended)
 
 ```bash
-cp -r template/ /path/to/your-project/
+npx create-sdd-project my-app
 ```
 
-### 2. Configure for your project
+The interactive wizard guides you through:
 
-Look for `<!-- CONFIG: ... -->` comments in these files:
+1. **Project basics** — name, description, business context
+2. **Tech stack** — backend (Express+Prisma+PG, Express+MongoDB, or custom), frontend (Next.js+Tailwind or custom), or both
+3. **Configuration** — AI tools (Claude/Gemini/both), autonomy level (L1-L4), branching strategy
 
-| File | What to configure |
-|------|-------------------|
-| `CLAUDE.md` / `GEMINI.md` | Autonomy level (1-4) |
-| `ai-specs/specs/backend-standards.mdc` | Backend tech stack |
-| `ai-specs/specs/frontend-standards.mdc` | Frontend tech stack |
-| `docs/project_notes/key_facts.md` | Project name, ports, URLs, branching strategy |
-| `docs/specs/api-spec.yaml` | Server URLs |
-| `AGENTS.md` | Monorepo layout |
+Non-interactive mode with defaults:
+```bash
+npx create-sdd-project my-app --yes
+```
 
-### 3. Initialize and start
+### Option B: Existing Project
+
+Add SDD DevFlow to a project that already has code:
+
+```bash
+cd your-existing-project
+npx create-sdd-project --init
+```
+
+The `--init` flag:
+- **Scans** your project: detects stack (Express, Next.js, Prisma, etc.), architecture (MVC, DDD, feature-based), tests, and existing docs
+- **Adapts** standards files to match your real architecture (not generic DDD defaults)
+- **Imports** existing OpenAPI/Swagger specs and references Prisma schemas
+- **Audits** test coverage and suggests retrofit testing tasks if coverage is low
+- **Never** modifies your existing code or overwrites existing files
+
+### After setup
 
 ```
+# Open in your AI coding tool and run:
 init sprint 0
 start task B0.1
 ```
 
 The workflow skill will guide you through each step with checkpoints based on your autonomy level.
+
+### Manual Setup (alternative)
+
+If you prefer manual configuration, copy the template directly:
+
+```bash
+cp -r template/ /path/to/your-project/
+```
+
+Then look for `<!-- CONFIG: ... -->` comments in the files to customize.
 
 ## Template Structure
 
@@ -203,7 +228,7 @@ These 6 principles apply to ALL tasks, ALL agents, ALL complexity levels:
 
 - **Agent Teams**: Parallel execution of independent tasks (waiting for Claude Code Agent Teams to stabilize)
 - **PM Agent + L5 Autonomous**: AI-driven sprint orchestration with human review at sprint boundaries
-- **Setup Script + npx**: Interactive installer (`npx create-sdd-project`) for automated setup
+- **Retrofit Testing**: Automated test generation for existing projects with low coverage
 
 ## License
 
