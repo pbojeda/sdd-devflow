@@ -5,6 +5,15 @@
   "bin": {
     "create-sdd-project": "./bin/cli.js"
   },
+  "scripts": {
+    "test": "node test/smoke.js",
+    "prepublishOnly": "npm test",
+    "preversion": "npm test",
+    "postversion": "git push origin main && git push origin main --tags && npm publish",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major"
+  },
   "files": [
     "bin/",
     "lib/",
