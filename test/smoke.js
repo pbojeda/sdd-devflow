@@ -572,6 +572,210 @@ function testInitFullstack() {
   assertFileNotContains(dest, '.env.example', 'postgresql://');
 }
 
+// --- Scenario 9: --init error conditions ---
+
+function testInitErrorConditions() {
+  const { scan } = require('../lib/scanner');
+
+  // Error: no package.json → CLI should reject (we test scanner returns empty)
+  const emptyDir = path.join(TMP_BASE, 'test-init-empty');
+  fs.mkdirSync(emptyDir, { recursive: true });
+  const emptyResult = scan(emptyDir);
+  assert.strictEqual(emptyResult.backend.detected, false, 'No backend detected in empty dir');
+  assert.strictEqual(emptyResult.frontend.detected, false, 'No frontend detected in empty dir');
+  assert.strictEqual(emptyResult.projectName, path.basename(emptyDir), 'Falls back to dir name');
+
+  // Error: CLI rejects --init without package.json
+  try {
+    execSync(`node ${CLI} --init --yes`, { cwd: emptyDir, stdio: 'pipe' });
+    assert.fail('Should have thrown for missing package.json');
+  } catch (err) {
+    assert.ok(err.stderr.toString().includes('No package.json'), 'Error mentions missing package.json');
+  }
+
+  // Error: CLI rejects --init when ai-specs/ already exists
+  const existingDir = path.join(TMP_BASE, 'test-init-existing');
+  fs.mkdirSync(existingDir, { recursive: true });
+  fs.writeFileSync(path.join(existingDir, 'package.json'), '{"name":"test"}', 'utf8');
+  fs.mkdirSync(path.join(existingDir, 'ai-specs'), { recursive: true });
+  try {
+    execSync(`node ${CLI} --init --yes`, { cwd: existingDir, stdio: 'pipe' });
+    assert.fail('Should have thrown for existing ai-specs/');
+  } catch (err) {
+    assert.ok(err.stderr.toString().includes('already'), 'Error mentions already installed');
+  }
+
+  // Error: CLI rejects --init with project name
+  const validDir = path.join(TMP_BASE, 'test-init-with-name');
+  fs.mkdirSync(validDir, { recursive: true });
+  fs.writeFileSync(path.join(validDir, 'package.json'), '{"name":"test"}', 'utf8');
+  try {
+    execSync(`node ${CLI} --init myproject`, { cwd: validDir, stdio: 'pipe' });
+    assert.fail('Should have thrown for --init with project name');
+  } catch (err) {
+    assert.ok(err.stderr.toString().includes('Cannot specify'), 'Error mentions cannot specify name');
+  }
+}
+
+// --- Scenario 10: Scanner edge cases ---
+
+function testScannerEdgeCases() {
+  const { scan } = require('../lib/scanner');
+
+  // Edge: Prisma schema with generator before datasource
+  const prismaDir = path.join(TMP_BASE, 'test-scanner-prisma');
+  fs.mkdirSync(path.join(prismaDir, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(prismaDir, 'package.json'), JSON.stringify({
+    name: 'test-prisma-order',
+    dependencies: { express: '^4.0.0', '@prisma/client': '^5.0.0' },
+  }), 'utf8');
+  fs.writeFileSync(path.join(prismaDir, 'prisma', 'schema.prisma'), [
+    'generator client {',
+    '  provider = "prisma-client-js"',
+    '}',
+    '',
+    'datasource db {',
+    '  provider = "mysql"',
+    '  url = env("DATABASE_URL")',
+    '}',
+  ].join('\n'), 'utf8');
+
+  const prismaResult = scan(prismaDir);
+  assert.strictEqual(prismaResult.backend.db, 'MySQL', 'Detects MySQL from datasource block, not generator');
+
+  // Edge: Quoted PORT value in .env
+  const quotedPortDir = path.join(TMP_BASE, 'test-scanner-port');
+  fs.mkdirSync(quotedPortDir, { recursive: true });
+  fs.writeFileSync(path.join(quotedPortDir, 'package.json'), JSON.stringify({
+    name: 'test-port', dependencies: { express: '^4.0.0' },
+  }), 'utf8');
+  fs.writeFileSync(path.join(quotedPortDir, '.env'), 'PORT="5000"\n', 'utf8');
+
+  const portResult = scan(quotedPortDir);
+  assert.strictEqual(portResult.backend.port, 5000, 'Detects quoted PORT value');
+
+  // Edge: MONGODB_URI in .env (no ORM)
+  const mongoEnvDir = path.join(TMP_BASE, 'test-scanner-mongo-env');
+  fs.mkdirSync(mongoEnvDir, { recursive: true });
+  fs.writeFileSync(path.join(mongoEnvDir, 'package.json'), JSON.stringify({
+    name: 'test-mongo-env', dependencies: { express: '^4.0.0' },
+  }), 'utf8');
+  fs.writeFileSync(path.join(mongoEnvDir, '.env'), 'MONGODB_URI=mongodb://localhost:27017/test\n', 'utf8');
+
+  const mongoResult = scan(mongoEnvDir);
+  assert.strictEqual(mongoResult.backend.db, 'MongoDB', 'Detects MongoDB from MONGODB_URI env var');
+
+  // Edge: Expanded framework detection
+  const expandedDir = path.join(TMP_BASE, 'test-scanner-expanded');
+  fs.mkdirSync(expandedDir, { recursive: true });
+  fs.writeFileSync(path.join(expandedDir, 'package.json'), JSON.stringify({
+    name: 'test-expanded',
+    dependencies: {
+      nuxt: '^3.0.0',
+      '@headlessui/react': '^1.0.0',
+      jotai: '^2.0.0',
+    },
+    devDependencies: {
+      '@playwright/test': '^1.0.0',
+    },
+  }), 'utf8');
+
+  const expandedResult = scan(expandedDir);
+  assert.strictEqual(expandedResult.frontend.framework, 'Nuxt', 'Detects Nuxt');
+  assert.strictEqual(expandedResult.frontend.components, 'Headless UI', 'Detects Headless UI');
+  assert.strictEqual(expandedResult.frontend.state, 'Jotai', 'Detects Jotai');
+  assert.strictEqual(expandedResult.tests.e2eFramework, 'playwright', 'Detects Playwright');
+
+  // Edge: Backend ORM without framework
+  const ormOnlyDir = path.join(TMP_BASE, 'test-scanner-orm-only');
+  fs.mkdirSync(ormOnlyDir, { recursive: true });
+  fs.writeFileSync(path.join(ormOnlyDir, 'package.json'), JSON.stringify({
+    name: 'test-orm-only',
+    dependencies: { knex: '^3.0.0' },
+  }), 'utf8');
+
+  const ormOnlyResult = scan(ormOnlyDir);
+  assert.strictEqual(ormOnlyResult.backend.detected, true, 'Backend detected from ORM alone');
+  assert.strictEqual(ormOnlyResult.backend.orm, 'Knex', 'Detects Knex');
+  assert.strictEqual(ormOnlyResult.backend.framework, null, 'No framework when only ORM');
+}
+
+// --- Scenario 11: --init with ORM-only project (no framework) ---
+
+function testInitOrmOnly() {
+  const dest = path.join(TMP_BASE, 'test-init-orm-only');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-orm-only-app',
+    dependencies: { knex: '^3.0.0' },
+    devDependencies: { typescript: '^5.0.0' },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // No "Unknown" anywhere in key_facts or backend-standards
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Unknown');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Unknown');
+
+  // Backend line shows just runtime, not "Unknown, Node.js"
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Node.js (TypeScript)');
+
+  // ORM detected
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Knex');
+
+  // backend-standards has no Framework line when framework is null
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', '**Framework**: Unknown');
+}
+
+// --- Scenario 12: --init with existing files (skip behavior) ---
+
+function testInitSkipExisting() {
+  const dest = path.join(TMP_BASE, 'test-init-skip');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-skip-app',
+    dependencies: { express: '^4.0.0' },
+  }), 'utf8');
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '', 'utf8');
+
+  // Pre-create some SDD files
+  fs.writeFileSync(path.join(dest, 'AGENTS.md'), '# Custom AGENTS\n', 'utf8');
+  fs.writeFileSync(path.join(dest, '.env.example'), 'CUSTOM=true\n', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // Existing files NOT overwritten
+  assertFileContains(dest, 'AGENTS.md', 'Custom AGENTS');
+  assertFileContains(dest, '.env.example', 'CUSTOM=true');
+
+  // But new files are still created
+  assertExists(dest, 'CLAUDE.md');
+  assertExists(dest, 'ai-specs/specs/base-standards.mdc');
+  assertExists(dest, 'docs/project_notes/key_facts.md');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -589,6 +793,11 @@ try {
   run('Scenario 6: --init Next.js only', testInitNextjsOnly);
   run('Scenario 7: --init with existing OpenAPI', testInitWithOpenAPI);
   run('Scenario 8: --init fullstack (Express + Next.js)', testInitFullstack);
+  console.log('\n  Edge cases & error conditions:');
+  run('Scenario 9: --init error conditions', testInitErrorConditions);
+  run('Scenario 10: Scanner edge cases', testScannerEdgeCases);
+  run('Scenario 11: --init ORM-only (no framework)', testInitOrmOnly);
+  run('Scenario 12: --init skip existing files', testInitSkipExisting);
 } finally {
   cleanup();
 }
