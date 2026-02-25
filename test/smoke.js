@@ -314,6 +314,41 @@ function testInitExpressPrisma() {
   // .gitignore appended
   assertFileContains(dest, '.gitignore', 'SDD DevFlow');
 
+  // Backend-only: no frontend sections in key_facts
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Frontend Hosting');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Frontend Port');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '### Frontend');
+
+  // Backend-only: no Frontend task table in sprint tracker
+  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Frontend');
+  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'F0.1');
+
+  // Test framework capitalized in backend-standards
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Jest');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Covers DDD');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'DDD Layered');
+
+  // Database line should not mix with app port
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'localhost, 4000');
+
+  // Placeholder API spec created for backend project
+  assertExists(dest, 'docs/specs/api-spec.yaml');
+
+  // No frontend standards for backend-only
+  assertNotExists(dest, 'ai-specs/specs/frontend-standards.mdc');
+
+  // AGENTS.md Standards References adapted (Prisma project keeps Prisma)
+  assertFileContains(dest, 'AGENTS.md', 'MVC, Express, Prisma');
+
+  // Prisma project keeps Prisma-specific advice in Security/Performance
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma handles this');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma `include`');
+
+  // .env.example adapted with correct port
+  assertExists(dest, '.env.example');
+  assertFileContains(dest, '.env.example', 'PORT=4000');
+  assertFileNotContains(dest, '.env.example', 'NEXT_PUBLIC');
+
   // Original project files untouched
   assertExists(dest, 'package.json');
   assertExists(dest, 'tsconfig.json');
@@ -373,6 +408,24 @@ function testInitNextjsOnly() {
   // Frontend agents exist
   assertExists(dest, '.claude/agents/frontend-developer.md');
   assertExists(dest, '.gemini/agents/frontend-developer.md');
+
+  // Frontend-only: no backend sections in key_facts
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Backend Port');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Database Port');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'API Base URL');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Backend Hosting');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Database Hosting');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '### Backend');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**ORM**');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**Database**');
+
+  // Frontend-only: no Backend task table in sprint tracker
+  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Backend');
+  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'B0.1');
+
+  // Frontend-only: no backend standards or API spec
+  assertNotExists(dest, 'ai-specs/specs/backend-standards.mdc');
+  assertNotExists(dest, 'docs/specs/api-spec.yaml');
 }
 
 // --- Scenario 7: --init with existing OpenAPI file ---
@@ -413,6 +466,110 @@ function testInitWithOpenAPI() {
 
   // Retrofit testing suggested (no test files)
   assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'Retrofit Testing');
+
+  // Express without ORM: no "Unknown (Unknown)" in backend-standards
+  assertExists(dest, 'ai-specs/specs/backend-standards.mdc');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Unknown');
+  // No ORM or Database lines in key_facts when not detected
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**ORM**');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**Database**');
+}
+
+// --- Scenario 8: --init on fullstack project (Express + Next.js) ---
+
+function testInitFullstack() {
+  const dest = path.join(TMP_BASE, 'test-init-fullstack');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock fullstack project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-fullstack-app',
+    description: 'A fullstack app',
+    dependencies: {
+      express: '^4.18.0',
+      mongoose: '^7.0.0',
+      next: '^14.0.0',
+      react: '^18.0.0',
+      'react-dom': '^18.0.0',
+      tailwindcss: '^3.0.0',
+    },
+    devDependencies: {
+      typescript: '^5.0.0',
+      vitest: '^1.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'models'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'app'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'components'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+  fs.writeFileSync(path.join(dest, 'app', 'page.tsx'), '', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // Both standards files created
+  assertExists(dest, 'ai-specs/specs/backend-standards.mdc');
+  assertExists(dest, 'ai-specs/specs/frontend-standards.mdc');
+
+  // Both agent sets exist
+  assertExists(dest, '.claude/agents/backend-developer.md');
+  assertExists(dest, '.claude/agents/frontend-developer.md');
+  assertExists(dest, '.gemini/agents/backend-developer.md');
+  assertExists(dest, '.gemini/agents/frontend-developer.md');
+
+  // key_facts has both stacks
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Express');
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Next.js');
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Backend Port');
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Frontend Port');
+
+  // Both Infrastructure hosting lines present
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Frontend Hosting');
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Backend Hosting');
+
+  // Both Reusable Components subsections present
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', '### Backend');
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', '### Frontend');
+
+  // Sprint tracker has both task tables
+  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Backend');
+  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Frontend');
+  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'B0.1');
+  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'F0.1');
+
+  // Vitest detected and capitalized
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Vitest');
+
+  // Mongoose detected — ORM line present, not Unknown
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'Mongoose');
+  assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Unknown');
+
+  // Prisma-specific advice replaced for Mongoose project
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma handles this');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma `include`');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'prevent injection');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'N+1 queries');
+
+  // AGENTS.md Standards References adapted
+  assertFileContains(dest, 'AGENTS.md', 'MVC, Express, Mongoose');
+  assertFileNotContains(dest, 'AGENTS.md', 'DDD, Express, Prisma');
+
+  // MongoDB-specific DB hosting examples
+  assertFileContains(dest, 'docs/project_notes/key_facts.md', 'MongoDB Atlas');
+
+  // .env.example adapted for MongoDB
+  assertExists(dest, '.env.example');
+  assertFileContains(dest, '.env.example', 'MONGODB_URI');
+  assertFileNotContains(dest, '.env.example', 'postgresql://');
 }
 
 // --- Run all ---
@@ -431,6 +588,7 @@ try {
   run('Scenario 5: --init Express+Prisma (MVC)', testInitExpressPrisma);
   run('Scenario 6: --init Next.js only', testInitNextjsOnly);
   run('Scenario 7: --init with existing OpenAPI', testInitWithOpenAPI);
+  run('Scenario 8: --init fullstack (Express + Next.js)', testInitFullstack);
 } finally {
   cleanup();
 }
