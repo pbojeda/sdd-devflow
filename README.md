@@ -1,18 +1,67 @@
 # SDD DevFlow
 
-**Spec-Driven Development workflow template for AI-assisted coding.**
+[![npm version](https://img.shields.io/npm/v/create-sdd-project)](https://www.npmjs.com/package/create-sdd-project)
+[![license](https://img.shields.io/npm/l/create-sdd-project)](LICENSE)
+[![node](https://img.shields.io/node/v/create-sdd-project)](package.json)
 
-A development methodology designed for Claude Code and Gemini that combines specialized AI agents, workflow orchestration with human checkpoints, and institutional memory. Built for creating robust, maintainable, and scalable TypeScript projects.
+**Spec-Driven Development workflow for AI-assisted coding.**
+
+A complete development methodology for Claude Code and Gemini that combines specialized AI agents, workflow orchestration with human checkpoints, and institutional memory. Works with new and existing TypeScript/JavaScript projects.
+
+## Quick Start
+
+### New Project
+
+```bash
+npx create-sdd-project my-app
+```
+
+The interactive wizard asks about your stack, AI tools, and autonomy level. For defaults (fullstack Express+Next.js):
+
+```bash
+npx create-sdd-project my-app --yes
+```
+
+### Existing Project
+
+```bash
+cd your-existing-project
+npx create-sdd-project --init
+```
+
+Scans your project, detects your stack and architecture, and installs SDD files adapted to your project. Never modifies existing code or overwrites existing files.
+
+### After Setup
+
+Open in your AI coding tool and run:
+
+```
+init sprint 0
+start task B0.1
+```
+
+The workflow skill guides you through each step with checkpoints based on your autonomy level.
+
+---
 
 ## What is SDD?
 
 SDD DevFlow combines three proven practices:
 
 1. **Spec-Driven Development** — Write specifications before code. Specs are the contract between planning and implementation.
-2. **Test-Driven Development** — Red-Green-Refactor cycle for every feature. Tests define expected behavior before implementation.
-3. **Human-in-the-Loop** — Strategic checkpoints (spec, ticket, plan, commit, merge) with configurable autonomy levels that reduce human intervention as trust increases.
+2. **Test-Driven Development** — Red-Green-Refactor cycle for every feature.
+3. **Human-in-the-Loop** — Strategic checkpoints with configurable autonomy levels that reduce human intervention as trust increases.
 
-## What's Inside
+### Why use SDD DevFlow?
+
+- **AI agents work better with structure.** Without guardrails, AI coding assistants produce inconsistent results. SDD provides the methodology, standards, and workflow that make AI output predictable and high-quality.
+- **Institutional memory across sessions.** Sprint trackers, bug logs, and decision records survive context compaction and session boundaries.
+- **Scales from solo to team.** Start at L1 (full control) while learning, scale to L4 (full auto) for repetitive tasks.
+- **Works with your stack.** Not opinionated about frameworks — detects and adapts to Express, Fastify, NestJS, Next.js, Nuxt, Vue, Angular, and many more.
+
+---
+
+## What's Included
 
 ### 9 Specialized Agents
 
@@ -26,34 +75,32 @@ SDD DevFlow combines three proven practices:
 | `qa-engineer` | Edge cases, spec verification | 5 |
 | `database-architect` | Schema design, optimization | Any |
 
+### 3 Skills (Slash Commands)
+
+| Skill | Trigger | What it does |
+|-------|---------|-------------|
+| `development-workflow` | `start task B0.1`, `next task`, `init sprint N` | Orchestrates the complete 7-step workflow |
+| `bug-workflow` | `report bug`, `fix bug`, `hotfix needed` | Bug triage, investigation, and resolution |
+| `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
+
 ### Workflow (Steps 0–6)
 
 ```
-0. SPEC      → spec-creator drafts specs        → Spec Approval (Std/Cplx)
-1. SETUP     → Branch, ticket, sprint tracker    → Ticket Approval (Std/Cplx)
-2. PLAN      → Planner creates implementation plan → Plan Approval (Std/Cplx)
+0. SPEC      → spec-creator drafts specs        → Spec Approval
+1. SETUP     → Branch, ticket, sprint tracker    → Ticket Approval
+2. PLAN      → Planner creates implementation plan → Plan Approval
 3. IMPLEMENT → Developer agent, TDD
 4. FINALIZE  → Tests/lint/build, validator       → Commit Approval
 5. REVIEW    → PR, code review, QA              → Merge Approval
 6. COMPLETE  → Clean up, update tracker
 ```
 
-**Step flow by complexity:**
-- **Simple**: 1 → 3 → 4 → 5 → 6
-- **Standard**: 0 → 1 → 2 → 3 → 4 → 5 (+QA) → 6
-- **Complex**: 0 → 1 (+ADR) → 2 → 3 → 4 → 5 (+QA) → 6
-
-### 3 Complexity Tiers
-
-| Tier | Spec | Ticket | Plan | QA |
-|------|:----:|:------:|:----:|:--:|
-| Simple | Skip | Skip | Skip | Skip |
-| Standard | Yes | Yes | Yes | Yes |
-| Complex | Yes | Yes + ADR | Yes | Yes |
+**By complexity:**
+- **Simple** (bug fixes, small tweaks): 1 → 3 → 4 → 5 → 6
+- **Standard** (features): 0 → 1 → 2 → 3 → 4 → 5 (+QA) → 6
+- **Complex** (architectural changes): 0 → 1 (+ADR) → 2 → 3 → 4 → 5 (+QA) → 6
 
 ### 4 Autonomy Levels
-
-Control how many human approval checkpoints are active:
 
 | Level | Name | Human Checkpoints | Best For |
 |-------|------|-------------------|----------|
@@ -63,13 +110,6 @@ Control how many human approval checkpoints are active:
 | L4 | Full Auto | None (CI/CD gates only) | Bulk simple tasks |
 
 Quality gates (tests, lint, build, validators) **always run** regardless of level.
-
-### Branching Strategy
-
-Configurable per-project in `key_facts.md`:
-
-- **GitHub Flow** (default): `main` + `feature/*` + `hotfix/*`. Best for MVPs.
-- **GitFlow** (scaled): `main` + `develop` + `feature/*` + `release/*` + `hotfix/*`. For larger projects.
 
 ### Project Memory
 
@@ -82,70 +122,39 @@ Tracks institutional knowledge across sessions in `docs/project_notes/`:
 
 ### Automated Hooks (Claude Code)
 
-- **Quick Scan** — After developer agents finish, a fast grep-based scan (~2s, no API calls) checks for debug code, secrets, and TODOs. Critical issues block; warnings pass through.
-- **Compaction Recovery** — After context compaction, injects a reminder to read the sprint tracker for context recovery.
-- **Notifications** — Personal notification hooks (macOS/Linux) in `.claude/settings.local.json`.
+- **Quick Scan** — After developer agents finish, a fast grep-based scan (~2s, no API calls) checks for debug code, secrets, and TODOs
+- **Compaction Recovery** — After context compaction, injects a reminder to read the sprint tracker for context recovery
 
 ### Multi-Tool Support
 
-- **Claude Code**: Full support with agents, skills, hooks, and settings (`.claude/`)
-- **Gemini**: Adapted agent format (`.gemini/`), same methodology via `ai-specs/specs/`
-- **Other tools**: `AGENTS.md` provides universal instructions readable by 21+ AI coding tools
+| Tool | Support Level |
+|------|--------------|
+| **Claude Code** | Full — agents, skills, hooks, settings (`.claude/`) |
+| **Gemini** | Full — agents, skills, commands, settings (`.gemini/`) |
+| **Other AI tools** | `AGENTS.md` provides universal instructions (Cursor, Copilot, Windsurf, etc.) |
 
-## Quick Start
+---
 
-### Option A: New Project (recommended)
+## `--init` Stack Detection
 
-```bash
-npx create-sdd-project my-app
-```
+When running `--init` on an existing project, the scanner automatically detects:
 
-The interactive wizard guides you through:
+| Category | Detected |
+|----------|----------|
+| **Backend frameworks** | Express, Fastify, Koa, NestJS, Hapi, AdonisJS |
+| **ORMs** | Prisma, Mongoose, TypeORM, Sequelize, Drizzle, Knex, MikroORM, Objection.js |
+| **Databases** | PostgreSQL, MySQL, SQLite, MongoDB, SQL Server, CockroachDB (from Prisma schema, `.env`, or dependencies) |
+| **Frontend frameworks** | Next.js, Nuxt, Remix, Astro, SolidJS, React, Vue, Angular, Svelte |
+| **Styling** | Tailwind CSS, styled-components, Emotion, Sass |
+| **Component libraries** | Radix UI, Headless UI, Material UI, Chakra UI, Ant Design |
+| **State management** | Zustand, Redux, Jotai, TanStack Query, Recoil, Pinia, MobX |
+| **Testing** | Jest, Vitest, Mocha (unit) + Playwright, Cypress (e2e) |
+| **Architecture** | MVC, DDD, feature-based, handler-based, flat |
+| **Project type** | Monorepo (workspaces, Lerna, Turbo, pnpm) or single-package |
 
-1. **Project basics** — name, description, business context
-2. **Tech stack** — backend (Express+Prisma+PG, Express+MongoDB, or custom), frontend (Next.js+Tailwind or custom), or both
-3. **Configuration** — AI tools (Claude/Gemini/both), autonomy level (L1-L4), branching strategy
+Standards files are adapted to match your actual architecture — not generic defaults.
 
-Non-interactive mode with defaults:
-```bash
-npx create-sdd-project my-app --yes
-```
-
-### Option B: Existing Project
-
-Add SDD DevFlow to a project that already has code:
-
-```bash
-cd your-existing-project
-npx create-sdd-project --init
-```
-
-The `--init` flag:
-- **Scans** your project: detects stack (Express, Next.js, Prisma, etc.), architecture (MVC, DDD, feature-based), tests, and existing docs
-- **Adapts** standards files to match your real architecture (not generic DDD defaults)
-- **Imports** existing OpenAPI/Swagger specs and references Prisma schemas
-- **Audits** test coverage and suggests retrofit testing tasks if coverage is low
-- **Never** modifies your existing code or overwrites existing files
-
-### After setup
-
-```
-# Open in your AI coding tool and run:
-init sprint 0
-start task B0.1
-```
-
-The workflow skill will guide you through each step with checkpoints based on your autonomy level.
-
-### Manual Setup (alternative)
-
-If you prefer manual configuration, copy the template directly:
-
-```bash
-cp -r template/ /path/to/your-project/
-```
-
-Then look for `<!-- CONFIG: ... -->` comments in the files to customize.
+---
 
 ## Template Structure
 
@@ -155,7 +164,6 @@ project/
 ├── CLAUDE.md                            # Claude Code config (autonomy, recovery)
 ├── GEMINI.md                            # Gemini config (autonomy)
 ├── .env.example                         # Environment variables template
-├── .gitignore                           # Git ignore with secrets protection
 │
 ├── .claude/
 │   ├── agents/                          # 9 specialized agents
@@ -165,45 +173,37 @@ project/
 │   │   ├── bug-workflow/                # Bug triage and resolution
 │   │   └── project-memory/              # Memory system setup
 │   ├── hooks/quick-scan.sh              # Post-developer quality scan
-│   ├── settings.json                    # Shared hooks (git-tracked)
-│   └── settings.local.json              # Personal hooks (gitignored)
+│   └── settings.json                    # Shared hooks (git-tracked)
 │
 ├── .gemini/
 │   ├── agents/                          # 9 agents (Gemini format)
-│   ├── skills/
-│   │   ├── development-workflow/        # Main task workflow (Steps 0-6)
-│   │   │   └── references/              # Templates, guides, examples
-│   │   ├── bug-workflow/                # Bug triage and resolution
-│   │   └── project-memory/              # Memory system setup
+│   ├── skills/                          # Same 3 skills
 │   ├── commands/                        # Slash command shortcuts
-│   ├── settings.json                    # Gemini configuration
-│   └── styles/default.md               # Response style
+│   └── settings.json                    # Gemini configuration
 │
 ├── ai-specs/specs/
 │   ├── base-standards.mdc              # Constitution + methodology
-│   ├── backend-standards.mdc           # Backend patterns (DDD, Express, Prisma)
-│   ├── frontend-standards.mdc          # Frontend patterns (Next.js, Tailwind, Radix)
-│   └── documentation-standards.mdc     # Documentation update rules
+│   ├── backend-standards.mdc           # Backend patterns
+│   ├── frontend-standards.mdc          # Frontend patterns
+│   └── documentation-standards.mdc     # Documentation rules
 │
 └── docs/
     ├── project_notes/                   # Project memory
-    │   ├── sprint-0-tracker.md          # Sprint tracker template
-    │   ├── key_facts.md                 # Project configuration
-    │   ├── bugs.md                      # Bug log
-    │   └── decisions.md                 # ADRs
-    ├── specs/
-    │   ├── api-spec.yaml                # OpenAPI spec (backend)
-    │   └── ui-components.md             # Component spec (frontend)
-    └── tickets/                         # Task tickets (generated by workflow)
+    │   ├── sprint-0-tracker.md
+    │   ├── key_facts.md
+    │   ├── bugs.md
+    │   └── decisions.md
+    ├── specs/                           # API and UI specs
+    └── tickets/                         # Task tickets (workflow-generated)
 ```
 
 ## Default Tech Stack
 
-The template defaults to (configurable via `<!-- CONFIG -->` comments):
+Configurable via the wizard or `<!-- CONFIG -->` comments in template files:
 
 - **Backend**: Node.js + Express + Prisma + PostgreSQL
 - **Frontend**: Next.js (App Router) + Tailwind CSS + Radix UI + Zustand
-- **Shared Types**: Zod schemas in `shared/` workspace → `z.infer<>` for TypeScript types
+- **Shared Types**: Zod schemas with `z.infer<>` for TypeScript types
 - **Testing**: Jest (unit) + Playwright (e2e)
 - **Methodology**: TDD + DDD + Spec-Driven Development
 
@@ -223,6 +223,16 @@ These 6 principles apply to ALL tasks, ALL agents, ALL complexity levels:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Gemini](https://gemini.google.com/)
 - Node.js 18+
 - `jq` (for quick-scan hook): `brew install jq` (macOS) or `apt install jq` (Linux)
+
+## Manual Setup (Alternative)
+
+If you prefer manual configuration over the CLI wizard:
+
+```bash
+cp -r template/ /path/to/your-project/
+```
+
+Then look for `<!-- CONFIG: ... -->` comments in the files to customize.
 
 ## Roadmap
 
