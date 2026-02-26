@@ -68,14 +68,14 @@
 
 **Recovery:**
 1. **Identify** the blocking task/resource
-2. **Document** the block in sprint tracker "Active Task" section
+2. **Document** the block in product tracker "Active Session" section
 3. **Options:**
    - Wait for blocker to resolve
    - Switch to different task
    - Create mock/stub to continue
 
-**Update sprint tracker:**
-- Change task status to Blocked
+**Update product tracker:**
+- Change feature status to Blocked
 
 ---
 

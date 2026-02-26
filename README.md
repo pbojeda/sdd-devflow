@@ -36,8 +36,8 @@ Scans your project, detects your stack and architecture, and installs SDD files 
 Open in your AI coding tool and run:
 
 ```
-init sprint 0
-start task B0.1
+add feature "your first feature"
+start task F001
 ```
 
 The workflow skill guides you through each step with checkpoints based on your autonomy level.
@@ -55,7 +55,7 @@ SDD DevFlow combines three proven practices:
 ### Why use SDD DevFlow?
 
 - **AI agents work better with structure.** Without guardrails, AI coding assistants produce inconsistent results. SDD provides the methodology, standards, and workflow that make AI output predictable and high-quality.
-- **Institutional memory across sessions.** Sprint trackers, bug logs, and decision records survive context compaction and session boundaries.
+- **Institutional memory across sessions.** Product tracker, bug logs, and decision records survive context compaction and session boundaries.
 - **Scales from solo to team.** Start at L1 (full control) while learning, scale to L4 (full auto) for repetitive tasks.
 - **Works with your stack.** Not opinionated about frameworks — detects and adapts to Express, Fastify, NestJS, Next.js, Nuxt, Vue, Angular, and many more.
 
@@ -79,7 +79,7 @@ SDD DevFlow combines three proven practices:
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
-| `development-workflow` | `start task B0.1`, `next task`, `init sprint N` | Orchestrates the complete 7-step workflow |
+| `development-workflow` | `start task F001`, `next task`, `add feature` | Orchestrates the complete 7-step workflow |
 | `bug-workflow` | `report bug`, `fix bug`, `hotfix needed` | Bug triage, investigation, and resolution |
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
 
@@ -87,7 +87,7 @@ SDD DevFlow combines three proven practices:
 
 ```
 0. SPEC      → spec-creator drafts specs        → Spec Approval
-1. SETUP     → Branch, ticket, sprint tracker    → Ticket Approval
+1. SETUP     → Branch, ticket, product tracker    → Ticket Approval
 2. PLAN      → Planner creates implementation plan → Plan Approval
 3. IMPLEMENT → Developer agent, TDD
 4. FINALIZE  → Tests/lint/build, validator       → Commit Approval
@@ -104,7 +104,7 @@ SDD DevFlow combines three proven practices:
 
 | Level | Name | Human Checkpoints | Best For |
 |-------|------|-------------------|----------|
-| L1 | Full Control | All 5 | First sprint, learning SDD |
+| L1 | Full Control | All 5 | First feature, learning SDD |
 | L2 | Trusted | Plan + Merge | Normal development **(default)** |
 | L3 | Autopilot | Merge only | Well-defined, repetitive tasks |
 | L4 | Full Auto | None (CI/CD gates only) | Bulk simple tasks |
@@ -115,7 +115,7 @@ Quality gates (tests, lint, build, validators) **always run** regardless of leve
 
 Tracks institutional knowledge across sessions in `docs/project_notes/`:
 
-- **sprint-X-tracker.md** — Sprint progress + Active Session (context recovery after compaction)
+- **product-tracker.md** — Feature backlog + Active Session (context recovery after compaction)
 - **bugs.md** — Bug log with solutions and prevention notes
 - **decisions.md** — Architectural Decision Records (ADRs)
 - **key_facts.md** — Project configuration, ports, URLs, branching strategy
@@ -123,7 +123,7 @@ Tracks institutional knowledge across sessions in `docs/project_notes/`:
 ### Automated Hooks (Claude Code)
 
 - **Quick Scan** — After developer agents finish, a fast grep-based scan (~2s, no API calls) checks for debug code, secrets, and TODOs
-- **Compaction Recovery** — After context compaction, injects a reminder to read the sprint tracker for context recovery
+- **Compaction Recovery** — After context compaction, injects a reminder to read the product tracker for context recovery
 
 ### Multi-Tool Support
 
@@ -189,7 +189,7 @@ project/
 │
 └── docs/
     ├── project_notes/                   # Project memory
-    │   ├── sprint-0-tracker.md
+    │   ├── product-tracker.md
     │   ├── key_facts.md
     │   ├── bugs.md
     │   └── decisions.md
@@ -237,7 +237,7 @@ Then look for `<!-- CONFIG: ... -->` comments in the files to customize.
 ## Roadmap
 
 - **Agent Teams**: Parallel execution of independent tasks (waiting for Claude Code Agent Teams to stabilize)
-- **PM Agent + L5 Autonomous**: AI-driven sprint orchestration with human review at sprint boundaries
+- **PM Agent + L5 Autonomous**: AI-driven feature orchestration with human review at milestone boundaries
 - **Retrofit Testing**: Automated test generation for existing projects with low coverage
 
 ## License

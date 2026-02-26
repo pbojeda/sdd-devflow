@@ -1,8 +1,8 @@
-# Workflow Example: Task B0.1 (Simple, L2 Trusted, github-flow)
+# Workflow Example: Feature F001 (Simple, L2 Trusted, github-flow)
 
 ## On Skill Start
 
-1. Read sprint tracker → Active Session → No active task
+1. Read product tracker → Active Session → No active feature
 2. `CLAUDE.md` → Autonomy Level 2 (Trusted)
 3. `key_facts.md` → branching: github-flow (base: `main`)
 
@@ -12,10 +12,10 @@
 
 ```bash
 git checkout main && git pull
-git checkout -b feature/sprint0-B0.1-express-setup
+git checkout -b feature/F001-express-setup
 ```
 
-Update sprint tracker → Active Session: B0.1, step `1/6`, branch, complexity: Simple.
+Update product tracker → Active Session: F001, step `1/6`, branch, complexity: Simple.
 
 ## Step 2: Plan — Skipped (Simple task)
 
@@ -72,7 +72,7 @@ git commit -m "feat(backend): initialize Express + TypeScript project
 ## Step 5: Review
 
 ```bash
-git push -u origin feature/sprint0-B0.1-express-setup
+git push -u origin feature/F001-express-setup
 gh pr create --base main --title "feat(backend): initialize Express + TypeScript project" --body "..."
 gh pr merge --squash
 ```
@@ -81,7 +81,7 @@ gh pr merge --squash
 
 ```bash
 git checkout main && git pull
-git branch -d feature/sprint0-B0.1-express-setup
+git branch -d feature/F001-express-setup
 ```
 
-Update sprint tracker: B0.1 → Completed, add to Completion Log, clear Active Session.
+Update product tracker: F001 → done, add to Completion Log, clear Active Session.

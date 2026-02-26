@@ -38,7 +38,7 @@ Dry-run scanner output:
 
 **Overall**: Good quality. Stack detection accurate, architecture adapted correctly.
 
-**key_facts.md**: ✅ Stack correct, port correct, business context captured, architecture flow documented. Infrastructure/URLs sections are placeholders (expected — filled manually or during sprint).
+**key_facts.md**: ✅ Stack correct, port correct, business context captured, architecture flow documented. Infrastructure/URLs sections are placeholders (expected — filled manually).
 
 **backend-standards.mdc**: ✅ Architecture section shows "Layered" with actual directories. ⚠ Prescribes Zod (not installed). ⚠ Database patterns section is empty TODO for Mongoose. ⚠ Globs include .tsx/.jsx unnecessarily.
 
@@ -46,7 +46,7 @@ Dry-run scanner output:
 
 **CLAUDE.md**: ✅ Autonomy L1 set correctly. Clean.
 
-**sprint-0-tracker.md**: ✅ Dates correct (2026-02-25 to 2026-03-11). Retrofit testing section included. Task B0.1 is placeholder (expected — filled by `init sprint 0`).
+**product-tracker.md**: ✅ Feature table with F001 (Retrofit). Type correctly set to backend. Active Session section present for context recovery.
 
 ### Real-World Feature Test
 
@@ -69,7 +69,7 @@ Dry-run scanner output:
   - Consistent patterns: destructuring req.query/req.body + manual validation
   - Auth: JWT via `authenticationRequiredMiddleware(role?)`, roles: "user", "admin"
   - Base URL: `/api/v1/`
-- **API spec generation approach**: Generate from i04_cgm code directly (routes + handlers) as Sprint 0 task using spec-creator agent. Enrich with i00_api annotations as reference.
+- **API spec generation approach**: Generate from i04_cgm code directly (routes + handlers) as first feature using spec-creator agent. Enrich with i00_api annotations as reference.
 
 ---
 
@@ -85,6 +85,6 @@ _pending_
 
 _pending_
 
-### Sprint 0 Workflow Test
+### Feature Workflow Test
 
 _pending_

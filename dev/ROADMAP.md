@@ -20,7 +20,7 @@
   - Use SDD workflow to develop a real feature
 - [ ] Test `create-sdd-project` on a brand new project
   - Full wizard flow
-  - Start sprint 0, develop first feature with SDD workflow
+  - Add first feature, develop with SDD workflow
 - [ ] Document findings and issues in `dev/testing-notes.md`
 
 ## Phase 3: Improvements from Real-World Testing (v0.3.x)
@@ -38,7 +38,7 @@
 ## Phase 5: Advanced Features (v1.0)
 
 - [ ] Agent Teams: parallel execution of independent tasks
-- [ ] PM Agent + L5 Autonomous: AI-driven sprint orchestration
+- [ ] PM Agent + L5 Autonomous: AI-driven feature orchestration
 - [ ] Plugin system for custom agents/skills
 - [ ] Web UI for project setup (alternative to CLI wizard)
 

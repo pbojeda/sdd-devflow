@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"additionalContext\": \"Context was compacted. BEFORE doing anything else: read the sprint tracker Active Session section (docs/project_notes/sprint-*-tracker.md) for context recovery. Follow the Session Recovery protocol in CLAUDE.md.\"}'",
+            "command": "echo '{\"additionalContext\": \"Context was compacted. BEFORE doing anything else: read the product tracker Active Session section (docs/project_notes/product-tracker.md) for context recovery. Follow the Session Recovery protocol in CLAUDE.md.\"}'",
             "statusMessage": "Injecting recovery context..."
           }
         ]

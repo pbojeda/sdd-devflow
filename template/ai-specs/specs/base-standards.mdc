@@ -31,7 +31,7 @@ These conventions adapt per-project via `<!-- CONFIG: -->` comments in `CLAUDE.m
 
 ```
 0. SPEC      → spec-creator drafts/updates specs        → SPEC APPROVAL (Std/Cplx)
-1. SETUP     → Branch, ticket, sprint tracker            → TICKET APPROVAL (Std/Cplx)
+1. SETUP     → Branch, ticket, product tracker            → TICKET APPROVAL (Std/Cplx)
 2. PLAN      → Planner agent creates implementation plan → PLAN APPROVAL (Std/Cplx)
 3. IMPLEMENT → Developer agent, TDD, real-time spec sync
 4. FINALIZE  → Tests/lint/build, production-validator    → COMMIT APPROVAL
@@ -67,12 +67,12 @@ Quality gates (tests, lint, build, validators) **always run** regardless of leve
 | Commit Approval | Required | Auto | Auto | Auto |
 | Merge Approval | Required | Required | Required | Auto |
 
-- **L1 Full Control**: First sprint or learning SDD — human approves every step.
+- **L1 Full Control**: New project or learning SDD — human approves every step.
 - **L2 Trusted**: Comfortable with SDD — AI handles routine, human reviews plans and merges.
 - **L3 Autopilot**: Battle-tested workflow — human only reviews PRs before merge.
-- **L4 Full Auto**: Full automation — human reviews at sprint boundaries only.
+- **L4 Full Auto**: Full automation — human reviews completed features only.
 
-**Auto** = proceed without asking; log in sprint tracker → "Auto-Approved Decisions" table.
+**Auto** = proceed without asking; log in product tracker → "Auto-Approved Decisions" table.
 
 ## 4. Agent Roles
 
@@ -121,11 +121,11 @@ All agents MUST follow: **Acknowledge** → **Execute** → **Explain** → **Ga
 
 ## 8. Project Memory Protocols
 
-- Starting a session or after compaction → read sprint tracker's **Active Session** first
+- Starting a session or after compaction → read product tracker's **Active Session** first
 - Before architectural changes → check `decisions.md`
 - When encountering bugs → search `bugs.md`
 - When looking up config → check `key_facts.md`
-- After every step change → update sprint tracker's Active Session
+- After every step change → update product tracker's Active Session
 
 ## 9. Git Conventions
 
@@ -139,7 +139,7 @@ All agents MUST follow: **Acknowledge** → **Execute** → **Explain** → **Ga
 | Branch | Base | Merges to |
 |--------|------|-----------|
 | `main` | — | — (always deployable) |
-| `feature/sprint<N>-<task-id>-<desc>` | main | main (PR) |
+| `feature/<feature-id>-<desc>` | main | main (PR) |
 | `bugfix/<area>-<desc>` | main | main (PR) |
 | `hotfix/<desc>` | main | main (fast-track PR) |
 
@@ -149,7 +149,7 @@ All agents MUST follow: **Acknowledge** → **Execute** → **Explain** → **Ga
 |--------|------|-----------|
 | `main` | — | — (releases only) |
 | `develop` | main | — (integration) |
-| `feature/sprint<N>-<task-id>-<desc>` | develop | develop (PR) |
+| `feature/<feature-id>-<desc>` | develop | develop (PR) |
 | `release/<version>` | develop | main + develop |
 | `hotfix/<desc>` | main | main + develop |
 

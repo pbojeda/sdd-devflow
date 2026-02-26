@@ -23,7 +23,7 @@ description: "Handles bug discovery, triage, investigation, and resolution. Invo
 |----------|----------|------|
 | Critical | Immediate (<1h) | **C: Hotfix** — Confirm → Branch from main → Minimal fix → Test → Deploy → Document → Post-mortem |
 | High | Same day | **B: Standard** — Triage → Branch → Investigate → Fix (TDD) → Validate → Document → PR |
-| Medium | Within sprint | **A: Quick** — Triage → Investigate → Fix → Test → Document → Commit |
+| Medium | Within cycle | **A: Quick** — Triage → Investigate → Fix → Test → Document → Commit |
 | Low | Backlog | **A: Quick** or escalate to backlog |
 
 **Escalate to `development-workflow`** when: >1 day work, architectural changes needed, or significant refactoring required.
@@ -60,7 +60,7 @@ Find root cause, not symptoms. Techniques: git bisect, layer isolation (Frontend
 
 ## Step 5: Validate
 
-Follow `production-code-validator` instructions in `.gemini/agents/`. Ensure no debug code, proper error handling.
+Run `production-code-validator`. Ensure no debug code, proper error handling.
 
 ## Step 6: Document in bugs.md
 
@@ -78,7 +78,7 @@ Follow `production-code-validator` instructions in `.gemini/agents/`. Ensure no 
 
 ## Step 7: Commit/PR
 
-**Commit format:** `fix(<area>): <description>` + body (bug, root cause, fix)
+**Commit format:** `fix(<area>): <description>` + body (bug, root cause, fix) + `Co-Authored-By: Claude <noreply@anthropic.com>`
 
 **Hotfix PR:** `--base main` always. After merge in GitFlow: merge main back to develop. Tag: `vX.Y.Z+1`.
 
@@ -99,7 +99,7 @@ Follow `production-code-validator` instructions in `.gemini/agents/`. Ensure no 
 
 | File | When |
 |------|------|
-| `sprint-X-tracker.md` | Bug being worked on (Active Session) |
+| `product-tracker.md` | Bug being worked on (Active Session) |
 | `bugs.md` | Always |
 | `decisions.md` | If architectural decision made |
 

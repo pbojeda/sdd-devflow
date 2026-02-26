@@ -1,7 +1,7 @@
-# [TASK-ID]: [Task Title]
+# [FEATURE-ID]: [Feature Title]
 
-**Sprint:** [N] | **Type:** [Backend/Frontend]-[Feature/Bugfix/Refactor] | **Priority:** [High/Medium/Low]
-**Status:** In Progress | **Branch:** feature/sprint[N]-[TASK-ID]-[short-description]
+**Feature:** [ID] | **Type:** [Backend/Frontend/Fullstack]-[Feature/Bugfix/Refactor] | **Priority:** [High/Medium/Low]
+**Status:** In Progress | **Branch:** feature/[FEATURE-ID]-[short-description]
 **Created:** [YYYY-MM-DD] | **Dependencies:** [List or "None"]
 
 ---

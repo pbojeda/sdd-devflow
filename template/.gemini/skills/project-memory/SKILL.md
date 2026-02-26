@@ -7,7 +7,7 @@ description: "Set up and maintain a structured project memory system in docs/pro
 
 ## Overview
 
-Maintain institutional knowledge for projects by establishing a structured memory system in `docs/project_notes/`. This skill sets up three key memory files (bugs, decisions, key facts) plus sprint trackers, and ensures the AI assistant automatically references and maintains them.
+Maintain institutional knowledge for projects by establishing a structured memory system in `docs/project_notes/`. This skill sets up three key memory files (bugs, decisions, key facts) plus the product tracker, and ensures the AI assistant automatically references and maintains them.
 
 ## When to Use This Skill
 
@@ -32,14 +32,14 @@ docs/
     ├── bugs.md              # Bug log with solutions
     ├── decisions.md         # Architectural Decision Records
     ├── key_facts.md         # Project configuration and constants
-    └── sprint-X-tracker.md  # Sprint progress, active task, completion log
+    └── product-tracker.md   # Feature backlog, active session, completion log
 ```
 
 **Initial file content:** Copy templates from the `references/` directory in this skill:
 - Use `references/bugs_template.md` for initial `bugs.md`
 - Use `references/decisions_template.md` for initial `decisions.md`
 - Use `references/key_facts_template.md` for initial `key_facts.md`
-- Sprint tracker is created using the development-workflow skill
+- Product tracker is created using the development-workflow skill
 
 ### 2. Memory-Aware Behavior
 
@@ -55,7 +55,7 @@ The following protocols should be followed at all times:
 - Check `docs/project_notes/key_facts.md`
 
 **When completing work:**
-- Update sprint tracker and add to Completion Log
+- Update product tracker and add to Completion Log
 
 ### 3. Searching Memory Files
 
@@ -102,7 +102,7 @@ When encountering problems or making decisions, proactively search memory files:
 
 - User is responsible for manual cleanup
 - Remove very old bug entries (6+ months) that are no longer relevant
-- Archive old sprint trackers
+- Review and clean up completed features in product tracker
 - Keep all decisions (they provide historical context)
 - Update key_facts.md when project configuration changes
 
@@ -112,7 +112,7 @@ When encountering problems or making decisions, proactively search memory files:
 - **references/decisions_template.md** - ADR format with examples
 - **references/key_facts_template.md** - Key facts organization with examples
 
-Sprint trackers are created using the development-workflow skill.
+Product tracker is created using the development-workflow skill.
 
 ## Tips for Effective Memory Management
 
@@ -124,7 +124,7 @@ Sprint trackers are created using the development-workflow skill.
 
 ## Integration with Other Skills
 
-- **development-workflow**: Updates sprint tracker and memory files during task execution
+- **development-workflow**: Updates product tracker and memory files during task execution
 - **bug-workflow**: Documents bugs and solutions in bugs.md
 
 ## Success Criteria
@@ -132,6 +132,6 @@ Sprint trackers are created using the development-workflow skill.
 This skill is successfully deployed when:
 
 - `docs/project_notes/` directory exists with memory files
-- Sprint tracker exists for active sprint
+- Product tracker exists with feature backlog
 - Memory files follow template format
 - AI assistant checks memory files before proposing changes

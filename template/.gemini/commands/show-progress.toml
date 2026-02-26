@@ -1,2 +1,2 @@
-description = "Show current sprint progress and active task status"
-prompt = "Read the sprint tracker in docs/project_notes/ and show: current sprint progress (% complete), active task and step, and list of pending tasks."
+description = "Show current progress and active feature status"
+prompt = "Read the product tracker in docs/project_notes/ and show: current progress (features done vs total), active feature and step, and list of pending features."

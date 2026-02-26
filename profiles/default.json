@@ -16,7 +16,7 @@
     "tdd": true,
     "ddd": true,
     "codeReview": true,
-    "sprintTracking": true,
+    "featureTracking": true,
     "conventionalCommits": true,
     "specFirst": true
   },

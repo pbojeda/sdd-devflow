@@ -57,4 +57,4 @@ Follow the DDD layer order from the plan:
 - **ALWAYS** run `npm test` after each TDD cycle to verify
 - **NEVER** skip tests for "simple" code
 - **NEVER** modify code outside the scope of the current ticket
-- **ALWAYS** verify implementation matches the approved spec. If a deviation is needed, document it in the sprint tracker's Active Session and ask for approval
+- **ALWAYS** verify implementation matches the approved spec. If a deviation is needed, document it in the product tracker's Active Session and ask for approval

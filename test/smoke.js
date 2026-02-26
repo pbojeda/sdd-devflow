@@ -83,15 +83,15 @@ function testDefaults() {
   assertExists(dest, 'docs/specs/api-spec.yaml');
   assertExists(dest, 'docs/specs/ui-components.md');
   assertExists(dest, 'docs/project_notes/key_facts.md');
-  assertExists(dest, 'docs/project_notes/sprint-0-tracker.md');
+  assertExists(dest, 'docs/project_notes/product-tracker.md');
 
   // Placeholders replaced
   assertFileContains(dest, 'docs/project_notes/key_facts.md', 'test-defaults');
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '[Your project name]');
   assertFileContains(dest, 'docs/specs/api-spec.yaml', 'test-defaults API');
 
-  // Sprint dates set (not [YYYY-MM-DD] to [YYYY-MM-DD])
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '[YYYY-MM-DD] to [YYYY-MM-DD]');
+  // Product tracker exists with feature table
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', 'F001');
 
   // Default autonomy L2
   assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 2 (Trusted)');
@@ -102,6 +102,11 @@ function testDefaults() {
   assertExists(dest, '.gemini/skills/bug-workflow/SKILL.md');
   assertExists(dest, '.gemini/skills/project-memory/SKILL.md');
   assertExists(dest, '.gemini/commands/start-task.toml');
+
+  // No sprint references in generated output (regression guard)
+  assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
+  assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
+  assertFileNotContains(dest, 'CLAUDE.md', 'sprint');
 
   // No internal files leaked
   assertNotExists(dest, 'docs/project_notes/pending-improvements.md');
@@ -287,7 +292,7 @@ function testInitExpressPrisma() {
   assertExists(dest, 'ai-specs/specs/base-standards.mdc');
   assertExists(dest, 'ai-specs/specs/backend-standards.mdc');
   assertExists(dest, 'docs/project_notes/key_facts.md');
-  assertExists(dest, 'docs/project_notes/sprint-0-tracker.md');
+  assertExists(dest, 'docs/project_notes/product-tracker.md');
   assertExists(dest, '.claude/agents/backend-developer.md');
   assertExists(dest, '.gemini/agents/backend-developer.md');
   assertExists(dest, '.gemini/skills/development-workflow/SKILL.md');
@@ -305,8 +310,8 @@ function testInitExpressPrisma() {
   // Prisma schema referenced in key_facts
   assertFileContains(dest, 'docs/project_notes/key_facts.md', 'prisma/schema.prisma');
 
-  // Sprint dates set
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '[YYYY-MM-DD]');
+  // Product tracker has feature table
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', 'F001');
 
   // Default autonomy L1 for init
   assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 1 (Full Control)');
@@ -319,9 +324,8 @@ function testInitExpressPrisma() {
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Frontend Port');
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '### Frontend');
 
-  // Backend-only: no Frontend task table in sprint tracker
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Frontend');
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'F0.1');
+  // Backend-only: product tracker default type is backend
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', '| backend |');
 
   // Test framework capitalized in backend-standards
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Jest');
@@ -348,6 +352,10 @@ function testInitExpressPrisma() {
   assertExists(dest, '.env.example');
   assertFileContains(dest, '.env.example', 'PORT=4000');
   assertFileNotContains(dest, '.env.example', 'NEXT_PUBLIC');
+
+  // No sprint references in generated output (regression guard)
+  assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
+  assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
 
   // Original project files untouched
   assertExists(dest, 'package.json');
@@ -419,9 +427,8 @@ function testInitNextjsOnly() {
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**ORM**');
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', '**Database**');
 
-  // Frontend-only: no Backend task table in sprint tracker
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Backend');
-  assertFileNotContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'B0.1');
+  // Frontend-only: product tracker default type is frontend
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', '| frontend |');
 
   // Frontend-only: no backend standards or API spec
   assertNotExists(dest, 'ai-specs/specs/backend-standards.mdc');
@@ -465,7 +472,7 @@ function testInitWithOpenAPI() {
   assertExists(dest, 'ai-specs/specs/base-standards.mdc');
 
   // Retrofit testing suggested (no test files)
-  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'Retrofit Testing');
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', 'Retrofit');
 
   // Express without ORM: no "Unknown (Unknown)" in backend-standards
   assertExists(dest, 'ai-specs/specs/backend-standards.mdc');
@@ -540,11 +547,8 @@ function testInitFullstack() {
   assertFileContains(dest, 'docs/project_notes/key_facts.md', '### Backend');
   assertFileContains(dest, 'docs/project_notes/key_facts.md', '### Frontend');
 
-  // Sprint tracker has both task tables
-  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Backend');
-  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', '### Frontend');
-  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'B0.1');
-  assertFileContains(dest, 'docs/project_notes/sprint-0-tracker.md', 'F0.1');
+  // Product tracker has fullstack type for fullstack project
+  assertFileContains(dest, 'docs/project_notes/product-tracker.md', '| fullstack |');
 
   // Vitest detected and capitalized
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Vitest');

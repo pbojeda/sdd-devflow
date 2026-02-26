@@ -27,7 +27,7 @@ project/
 
 Institutional knowledge lives in `docs/project_notes/`:
 
-- **sprint-X-tracker.md** — Sprint progress, **Active Session** (current task, next actions, open questions), completion log
+- **product-tracker.md** — Feature backlog, **Active Session** (current feature, next actions, open questions), completion log
 - **bugs.md** — Bug log with solutions and prevention notes
 - **decisions.md** — Architectural Decision Records (ADRs)
 - **key_facts.md** — Project configuration, ports, URLs, branching strategy
@@ -36,8 +36,8 @@ Institutional knowledge lives in `docs/project_notes/`:
 
 After context loss, new session, or context compaction — BEFORE continuing work:
 
-1. **Read sprint tracker** (`docs/project_notes/sprint-X-tracker.md`) → **Active Session** section
-2. If there is an active task → read the referenced ticket in `docs/tickets/`
+1. **Read product tracker** (`docs/project_notes/product-tracker.md`) → **Active Session** section
+2. If there is an active feature → read the referenced ticket in `docs/tickets/`
 3. Respect the configured autonomy level — do NOT skip checkpoints
 
 ## Anti-Patterns (Avoid)
@@ -48,14 +48,14 @@ After context loss, new session, or context compaction — BEFORE continuing wor
 - Creating files when existing ones can be extended
 - Adding features not explicitly requested
 - Committing without updating ticket acceptance criteria
-- Forgetting to update sprint tracker's Active Session after step changes
+- Forgetting to update product tracker's Active Session after step changes
 
 ## Automated Hooks (Claude Code)
 
 The project includes pre-configured hooks in `.claude/settings.json`:
 
 - **Quick Scan** (`SubagentStop`): After `backend-developer` or `frontend-developer` finishes, a fast grep-based scan (~2s, no additional API calls) checks for `console.log`, `debugger`, `TODO/FIXME`, hardcoded secrets, and localhost references. Critical issues block; warnings are non-blocking (full review happens in Step 5).
-- **Compaction Recovery** (`SessionStart → compact`): After context compaction, injects a reminder to read the sprint tracker Active Session for context recovery.
+- **Compaction Recovery** (`SessionStart → compact`): After context compaction, injects a reminder to read the product tracker Active Session for context recovery.
 
 Personal notification hooks (macOS/Linux) are in `.claude/settings.local.json` — see that file for examples.
 

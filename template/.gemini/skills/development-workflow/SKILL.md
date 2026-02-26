@@ -1,6 +1,6 @@
 ---
 name: development-workflow
-description: "Orchestrates the complete development workflow for each task. Invoke with: 'start task B0.1', 'show sprint progress', 'next task', or 'init sprint N'."
+description: "Orchestrates the complete development workflow for each feature. Invoke with: 'start task F001', 'show progress', 'next task', or 'add feature'."
 ---
 
 # Development Workflow Skill
@@ -8,7 +8,7 @@ description: "Orchestrates the complete development workflow for each task. Invo
 ## Quick Reference
 
 0. **Spec** — `spec-creator` drafts/updates specs → SPEC APPROVAL (Std/Cplx)
-1. **Setup** — Branch, ticket, sprint tracker → TICKET APPROVAL (Std/Cplx)
+1. **Setup** — Branch, ticket, product tracker → TICKET APPROVAL (Std/Cplx)
 2. **Plan** — Planner agent writes implementation plan → PLAN APPROVAL (Std/Cplx)
 3. **Implement** — Developer agent, TDD, real-time spec sync
 4. **Finalize** — Tests/lint/build, `production-code-validator` → COMMIT APPROVAL
@@ -19,19 +19,19 @@ description: "Orchestrates the complete development workflow for each task. Invo
 
 ## Commands
 
-- `start task B0.1` — Begin working on a specific task
-- `next task` — Start the next pending task in current sprint
-- `show sprint progress` — View sprint completion status
-- `init sprint N` — Initialize a new sprint tracker
+- `start task F001` — Begin working on a specific feature
+- `next task` — Start the next pending feature from product tracker
+- `show progress` — View feature completion status
+- `add feature "description"` — Add a new feature to the product tracker
 
 ---
 
 ## On Skill Start
 
-1. Read the sprint tracker (`docs/project_notes/sprint-X-tracker.md`) → **Active Session** section for context recovery
+1. Read the product tracker (`docs/project_notes/product-tracker.md`) → **Active Session** section for context recovery
 2. Read `GEMINI.md` → **Autonomy Level**
 3. Read `docs/project_notes/key_facts.md` → **Branching Strategy**
-4. If resuming an active task → continue from the step recorded in the tracker's Active Session
+4. If resuming an active feature → continue from the step recorded in the tracker's Active Session
 
 ---
 
@@ -47,7 +47,7 @@ Read the **Autonomy Level** from `GEMINI.md`.
 | Commit Approval (Step 4) | Required | Auto | Auto | Auto |
 | Merge Approval (Step 5) | Required | Required | Required | Auto |
 
-- **Auto** = proceed without asking; log in sprint tracker → "Auto-Approved Decisions" table
+- **Auto** = proceed without asking; log in product tracker → "Auto-Approved Decisions" table
 - **Required** = ask user explicitly; do NOT continue without approval
 - **Quality gates always run** regardless of level (tests, lint, build, validators)
 
@@ -83,11 +83,11 @@ Ask user to classify complexity before starting. See `references/complexity-guid
 
 See `references/branching-strategy.md` for details.
 
-1. Verify sprint tracker exists, no active task, dependencies met
-2. Create feature branch: `feature/sprint<N>-<task-id>-<short-description>`
+1. Verify product tracker exists, no active feature, dependencies met
+2. Create feature branch: `feature/<feature-id>-<short-description>`
 3. **Std/Cplx:** Generate ticket from `references/ticket-template.md` → fill `## Spec` section
 4. **Complex:** Also review `decisions.md` for related ADRs
-5. Update sprint tracker → Active Session: task, step `1/6 (Setup)`, branch, complexity
+5. Update product tracker → Active Session: feature, step `1/6 (Setup)`, branch, complexity
 
 **→ CHECKPOINT: Ticket Approval** (Std/Cplx only — Simple skips to Step 3)
 
@@ -95,7 +95,7 @@ See `references/branching-strategy.md` for details.
 
 ## Step 2: Plan (Standard/Complex only)
 
-1. Follow the planner agent instructions (`backend-planner` for B*.*, `frontend-planner` for F*.*) in `.gemini/agents/`
+1. Follow the planner agent instructions (`backend-planner` for backend features, `frontend-planner` for frontend features) in `.gemini/agents/`
 2. Write Implementation Plan into ticket's `## Implementation Plan`
 3. Update tracker: step `2/6 (Plan)`
 
@@ -115,7 +115,7 @@ See `references/branching-strategy.md` for details.
 - UI components → `docs/specs/ui-components.md` (MANDATORY)
 - Env variables → `.env.example` | ADRs → `decisions.md`
 
-**Spec deviation** → document in sprint tracker Active Session and ask for approval.
+**Spec deviation** → document in product tracker Active Session and ask for approval.
 
 Update tracker: step `3/6 (Implement)`, context summary.
 
@@ -154,7 +154,7 @@ Update tracker: step `5/6 (Review)`
 ## Step 6: Complete
 
 1. Delete feature branch (local + remote)
-2. Update sprint tracker: task → Completed, add to Completion Log, update progress %
+2. Update product tracker: feature → done, add to Completion Log, update progress
 3. Record bugs in `bugs.md`, decisions in `decisions.md`
 4. Clear Active Session → "No active work"
 
@@ -179,18 +179,18 @@ Agent instructions are in `.gemini/agents/`. Read the relevant agent file when e
 - `references/ticket-template.md` — Ticket format
 - `references/pr-template.md` — PR template
 - `references/branching-strategy.md` — Branching guide
-- `references/sprint-init-template.md` — New sprint initialization
+- `references/add-feature-template.md` — Add feature to tracker
 - `references/complexity-guide.md` — Complexity classification
 - `references/workflow-example.md` — Full worked example
 - `references/failure-handling.md` — Recovery & rollbacks
 
 ## Constraints
 
-- **One task at a time** — never start a new task before completing current
+- **One feature at a time** — never start a new feature before completing current
 - **TDD mandatory** — all code needs tests
 - **Type safety** — fully typed, no `any`
 - **English only** — all technical artifacts
 - **Memory first** — check `project_notes/` before changes
-- **Sprint tracker** — keep Active Session updated at every step
+- **Product tracker** — keep Active Session updated at every step
 - **Correct agents** — Backend → `backend-planner` + `backend-developer`, Frontend → `frontend-planner` + `frontend-developer`
 - **Correct base branch** — check `key_facts.md` before creating branches

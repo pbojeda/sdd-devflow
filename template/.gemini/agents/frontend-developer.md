@@ -28,4 +28,4 @@ Implement the task following the Implementation Plan in the ticket. Use strict T
 - ALWAYS use `'use client'` for components with hooks
 - ALWAYS handle loading and error states
 - NEVER modify code outside the scope of the current ticket
-- ALWAYS verify implementation matches the approved spec. If deviation needed, document in sprint tracker's Active Session and ask for approval
+- ALWAYS verify implementation matches the approved spec. If deviation needed, document in product tracker's Active Session and ask for approval

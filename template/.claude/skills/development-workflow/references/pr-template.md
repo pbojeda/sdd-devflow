@@ -14,10 +14,10 @@ gh pr create --base main --title "<type>(<scope>): <description>" --body "$(cat 
 
 [One paragraph: what this PR does and why]
 
-## Task Reference
+## Feature Reference
 
-- **Task:** [B0.1] | **Sprint:** [0]
-- **Ticket:** [docs/tickets/task-id.md]
+- **Feature:** [F001]
+- **Ticket:** [docs/tickets/feature-id.md]
 
 ## Changes
 

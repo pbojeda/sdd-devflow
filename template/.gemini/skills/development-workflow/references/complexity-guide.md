@@ -19,23 +19,23 @@ Before starting any task, ask the user to classify its complexity using **contex
 
 ## Examples
 
-**Example 1 - Task might be already done:**
+**Example 1 - Feature might overlap with existing work:**
 ```
-What complexity level for B1.5 (Implement refresh token rotation)?
+What complexity level for F003 (Implement refresh token rotation)?
 
 1. Simple (Recommended)
-   Verify existing implementation in B1.3, add tests if missing
+   Verify existing implementation in F001, add tests if missing
 
 2. Standard
    Add additional rotation logic or edge cases
 
-3. Skip B1.5
-   Already done in B1.3, move to B1.6 (auth controller)
+3. Skip F003
+   Already done in F001, move to F004 (auth controller)
 ```
 
 **Example 2 - Standard new feature:**
 ```
-What complexity level for B1.4 (Create auth middleware)?
+What complexity level for F002 (Create auth middleware)?
 
 1. Simple
    Straightforward middleware, minimal logic
