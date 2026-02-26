@@ -348,6 +348,25 @@ function testInitExpressPrisma() {
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma handles this');
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Prisma `include`');
 
+  // Bug #3: base-standards adapted — no Zod prescription for non-Zod project
+  assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', 'Zod recommended');
+  assertFileContains(dest, 'ai-specs/specs/base-standards.mdc', 'runtime validation at system boundaries');
+  // Backend-only: Shared Types section not applicable
+  assertFileContains(dest, 'ai-specs/specs/base-standards.mdc', 'Not applicable');
+
+  // Agent/skill Zod references replaced (no Zod in project)
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Zod');
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'validation schemas');
+  assertFileNotContains(dest, '.claude/agents/backend-planner.md', 'Zod');
+  assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'Zod');
+  assertFileNotContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Zod');
+
+  // Prisma kept in agent descriptions (correct for Prisma project)
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'Prisma');
+
+  // documentation-standards: no frontend-standards row for backend-only
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
+
   // .env.example adapted with correct port
   assertExists(dest, '.env.example');
   assertFileContains(dest, '.env.example', 'PORT=4000');
@@ -563,9 +582,33 @@ function testInitFullstack() {
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'prevent injection');
   assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'N+1 queries');
 
+  // Bug #6: Mongoose patterns generated (not just a TODO)
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'Mongoose Best Practices');
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', '.lean()');
+  assertFileNotContains(dest, 'ai-specs/specs/backend-standards.mdc', 'TODO: Add Mongoose');
+
+  // Bug #3: base-standards adapted — no Zod for non-Zod fullstack project
+  assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', 'Zod recommended');
+  assertFileContains(dest, 'ai-specs/specs/base-standards.mdc', 'runtime validation at system boundaries');
+  // Fullstack but no Zod: Shared Types section generalized (no Zod schemas mention)
+  assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', 'Zod schemas');
+
   // AGENTS.md Standards References adapted
   assertFileContains(dest, 'AGENTS.md', 'MVC, Express, Mongoose');
   assertFileNotContains(dest, 'AGENTS.md', 'DDD, Express, Prisma');
+
+  // Agent Zod references replaced (no Zod in project)
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Zod');
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'validation schemas');
+  assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'Zod');
+
+  // Agent ORM references adapted for Mongoose
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'Mongoose');
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Prisma ORM');
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'Repository implementations (Mongoose)');
+
+  // Skill Zod references replaced
+  assertFileNotContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Zod');
 
   // MongoDB-specific DB hosting examples
   assertFileContains(dest, 'docs/project_notes/key_facts.md', 'MongoDB Atlas');
