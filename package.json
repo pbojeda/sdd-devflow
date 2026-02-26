@@ -1,6 +1,6 @@
 {
   "name": "create-sdd-project",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Create a new SDD DevFlow project with AI-assisted development workflow",
   "bin": {
     "create-sdd-project": "bin/cli.js"
