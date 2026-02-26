@@ -11,7 +11,7 @@
 project/
 ├── backend/     ← Backend (has its own package.json)
 ├── frontend/    ← Frontend (has its own package.json)
-├── shared/      ← Shared Zod schemas (optional — see base-standards.mdc § Shared Types)
+├── shared/      ← Shared type schemas (optional — see base-standards.mdc § Shared Types)
 └── docs/        ← Documentation (no package.json)
 ```
 

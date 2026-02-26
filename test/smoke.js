@@ -149,6 +149,14 @@ function testBackendOnly() {
   assertNotExists(dest, '.gemini/agents/frontend-developer.md');
   assertNotExists(dest, '.gemini/agents/frontend-planner.md');
   assertNotExists(dest, 'docs/specs/ui-components.md');
+
+  // documentation-standards cleaned for backend-only
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
+
+  // AGENTS.md: no Zod reference
+  assertFileNotContains(dest, 'AGENTS.md', 'Zod');
+  assertFileContains(dest, 'AGENTS.md', 'Shared type schemas');
 }
 
 // --- Scenario 3: Claude only ---
@@ -364,8 +372,13 @@ function testInitExpressPrisma() {
   // Prisma kept in agent descriptions (correct for Prisma project)
   assertFileContains(dest, '.claude/agents/backend-developer.md', 'Prisma');
 
-  // documentation-standards: no frontend-standards row for backend-only
+  // documentation-standards: no frontend refs for backend-only
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
+
+  // base-standards: no frontend refs for backend-only
+  assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', 'ui-components');
+  assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', '`frontend-standards.mdc`');
 
   // .env.example adapted with correct port
   assertExists(dest, '.env.example');
@@ -823,6 +836,43 @@ function testInitSkipExisting() {
   assertExists(dest, 'docs/project_notes/key_facts.md');
 }
 
+// --- Scenario 13: New project with Mongoose preset ---
+
+function testGenerateMongoose() {
+  const dest = path.join(TMP_BASE, 'test-mongoose-new');
+
+  const { generate } = require('../lib/generator');
+  const { BACKEND_STACKS } = require('../lib/config');
+
+  const mongoosePreset = BACKEND_STACKS.find(s => s.key === 'express-mongo-mongoose');
+
+  silent(() => generate({
+    projectName: 'test-mongoose-new',
+    projectDir: dest,
+    description: 'Mongoose new project test',
+    businessContext: '',
+    projectType: 'backend',
+    backendStack: 'express-mongo-mongoose',
+    backendPreset: mongoosePreset,
+    frontendStack: 'nextjs-tailwind-radix',
+    aiTools: 'both',
+    autonomyLevel: 2,
+    autonomyName: 'Trusted',
+    branching: 'github-flow',
+    backendPort: 3010,
+    frontendPort: 3000,
+  }));
+
+  // Agent ORM references adapted for Mongoose (Claude agents have detailed stack description)
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'Mongoose');
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Prisma ORM');
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'Mongoose');
+
+  // documentation-standards cleaned for backend-only
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -835,6 +885,7 @@ try {
   run('Scenario 2: Backend only project', testBackendOnly);
   run('Scenario 3: Claude only + custom config', testClaudeOnly);
   run('Scenario 4: Gemini only + skills/commands', testGeminiOnly);
+  run('Scenario 13: New project with Mongoose preset', testGenerateMongoose);
   console.log('\n  Init scenarios (existing projects):');
   run('Scenario 5: --init Express+Prisma (MVC)', testInitExpressPrisma);
   run('Scenario 6: --init Next.js only', testInitNextjsOnly);
