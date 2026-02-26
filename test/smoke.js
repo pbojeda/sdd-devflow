@@ -157,6 +157,11 @@ function testBackendOnly() {
   // AGENTS.md: no Zod reference
   assertFileNotContains(dest, 'AGENTS.md', 'Zod');
   assertFileContains(dest, 'AGENTS.md', 'Shared type schemas');
+
+  // Agent content: no frontend refs for backend-only
+  assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'frontend-standards');
+  assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'ui-components');
 }
 
 // --- Scenario 3: Claude only ---
@@ -379,6 +384,21 @@ function testInitExpressPrisma() {
   // base-standards: no frontend refs for backend-only
   assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', 'ui-components');
   assertFileNotContains(dest, 'ai-specs/specs/base-standards.mdc', '`frontend-standards.mdc`');
+
+  // Agent content: no frontend refs for backend-only (Claude + Gemini)
+  assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'frontend-standards');
+  assertFileNotContains(dest, '.claude/agents/production-code-validator.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'frontend-standards');
+  assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'ui-components');
+  assertFileNotContains(dest, '.gemini/agents/spec-creator.md', 'ui-components');
+  assertFileNotContains(dest, '.gemini/agents/production-code-validator.md', 'ui-components');
+
+  // Skill content: no frontend refs for backend-only
+  assertFileNotContains(dest, '.claude/skills/development-workflow/SKILL.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/skills/development-workflow/references/ticket-template.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/skills/development-workflow/references/pr-template.md', 'ui-components');
 
   // .env.example adapted with correct port
   assertExists(dest, '.env.example');
