@@ -377,6 +377,14 @@ function testInitExpressPrisma() {
   // Prisma kept in agent descriptions (correct for Prisma project)
   assertFileContains(dest, '.claude/agents/backend-developer.md', 'Prisma');
 
+  // MVC architecture: DDD-specific content replaced in agents
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Domain-Driven Design');
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Domain Layer');
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'layered architecture');
+  assertFileNotContains(dest, '.claude/agents/backend-planner.md', 'Domain-Driven Design');
+  assertFileNotContains(dest, '.claude/agents/backend-planner.md', 'backend/src/domain');
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'backend-standards.mdc');
+
   // documentation-standards: no frontend refs for backend-only
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
@@ -638,7 +646,10 @@ function testInitFullstack() {
   // Agent ORM references adapted for Mongoose
   assertFileContains(dest, '.claude/agents/backend-developer.md', 'Mongoose');
   assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Prisma ORM');
-  assertFileContains(dest, '.claude/agents/backend-developer.md', 'Repository implementations (Mongoose)');
+  // MVC architecture: DDD-specific layer names replaced with generic
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'Domain Layer');
+  assertFileNotContains(dest, '.claude/agents/backend-developer.md', 'DDD');
+  assertFileContains(dest, '.claude/agents/backend-developer.md', 'backend-standards.mdc');
 
   // Skill Zod references replaced
   assertFileNotContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Zod');
