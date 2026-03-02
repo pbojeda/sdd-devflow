@@ -31,4 +31,5 @@ Generate a detailed Implementation Plan and write it into the ticket's `## Imple
 
 - NEVER write implementation code — only the plan
 - ALWAYS check existing code before proposing new files
+- ALWAYS prioritize standards in `backend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - ALWAYS save the plan into the ticket

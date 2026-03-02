@@ -27,5 +27,6 @@ Implement the task following the Implementation Plan in the ticket. Use strict T
 - ALWAYS follow the Implementation Plan
 - ALWAYS use explicit types (no `any`)
 - ALWAYS handle errors with domain error classes
+- ALWAYS prioritize standards in `backend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - NEVER modify code outside the scope of the current ticket
 - ALWAYS verify implementation matches the approved spec. If deviation needed, document in product tracker's Active Session and ask for approval

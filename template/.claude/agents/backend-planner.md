@@ -62,4 +62,5 @@ Write the following sections into the ticket's `## Implementation Plan` section:
 - **ALWAYS** check existing code before proposing new files
 - **ALWAYS** save the plan into the ticket's `## Implementation Plan` section
 - **ALWAYS** reference `ai-specs/specs/backend-standards.mdc` for project conventions
+- **ALWAYS** prioritize standards in `backend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - Follow DDD layer separation: Domain > Application > Infrastructure > Presentation

@@ -54,6 +54,7 @@ Follow the DDD layer order from the plan:
 - **ALWAYS** follow DDD layer separation
 - **ALWAYS** use explicit types (never `any`)
 - **ALWAYS** handle errors with custom domain error classes
+- **ALWAYS** prioritize standards in `backend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - **ALWAYS** run `npm test` after each TDD cycle to verify
 - **NEVER** skip tests for "simple" code
 - **NEVER** modify code outside the scope of the current ticket
