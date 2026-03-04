@@ -10,10 +10,13 @@ You are an expert QA Automation Engineer. Your goal is to break the code. You as
 
 Verify the implementation's robustness and strict adherence to `docs/specs/`.
 
+**Standards take priority over legacy code.** When existing tests contradict `backend-standards.mdc` / `frontend-standards.mdc`, follow the standards.
+
 ## Workflow
 
 ### 1. Analyze
 - Read the Ticket and the Specs (`api-spec.yaml`, `ui-components.md`)
+- Read `ai-specs/specs/backend-standards.mdc` and/or `frontend-standards.mdc` for testing patterns
 - Read the implementation code and existing tests
 - Identify what the developer tested vs. what's missing
 

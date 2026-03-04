@@ -30,6 +30,18 @@ gh pr create --base main --title "<type>(<scope>): <description>" --body "$(cat 
 - [x] Integration tests passing (if applicable)
 - [x] Validated with production-code-validator
 
+## Risk Assessment
+
+- [ ] Modifies authentication/authorization logic
+- [ ] Handles financial, medical, or sensitive data
+- [ ] Changes database schema or migrations
+- [ ] Modifies external API integrations
+- [ ] Affects error handling or recovery paths
+
+## Human Review Focus
+
+[1-3 specific areas where human expertise is most needed. Example: "Token refresh edge case in cgmData handler", "Dedup logic correctness"]
+
 ## Checklist
 
 - [ ] Code follows project standards
@@ -44,7 +56,7 @@ gh pr create --base main --title "<type>(<scope>): <description>" --body "$(cat 
 Closes #issue_number (if applicable)
 
 ---
-Generated with Claude Code
+Generated with SDD DevFlow
 EOF
 )"
 ```

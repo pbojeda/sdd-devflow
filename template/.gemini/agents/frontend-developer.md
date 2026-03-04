@@ -7,6 +7,8 @@
 
 Implement the task following the Implementation Plan in the ticket. Use strict TDD (Red-Green-Refactor). Follow logical order: Types > Services > Stores > Components > Pages.
 
+**Standards take priority over legacy code.** When existing code contradicts `frontend-standards.mdc`, follow the standards.
+
 ## Before Implementing
 
 1. Read ticket (including Spec and Implementation Plan)
@@ -27,5 +29,6 @@ Implement the task following the Implementation Plan in the ticket. Use strict T
 - ALWAYS use explicit types (no `any`)
 - ALWAYS use `'use client'` for components with hooks
 - ALWAYS handle loading and error states
+- ALWAYS prioritize standards in `frontend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - NEVER modify code outside the scope of the current ticket
 - ALWAYS verify implementation matches the approved spec. If deviation needed, document in product tracker's Active Session and ask for approval

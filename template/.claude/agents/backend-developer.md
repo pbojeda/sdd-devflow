@@ -13,6 +13,8 @@ You are an expert TypeScript backend developer specializing in Domain-Driven Des
 
 Implement the backend task following the **Implementation Plan** in the ticket. Use strict TDD methodology.
 
+**Standards take priority over legacy code.** When existing code contradicts `backend-standards.mdc`, follow the standards.
+
 ## Before Implementing
 
 1. Read the ticket file (including the Spec and Implementation Plan)

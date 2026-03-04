@@ -117,6 +117,8 @@ See `references/branching-strategy.md` for details.
 
 **Spec deviation** → document in product tracker Active Session and ask for approval.
 
+**Commits:** Commit freely during implementation (one per logical unit is fine). Final history cleanup happens via squash merge in Step 5.
+
 Update tracker: step `3/6 (Implement)`, context summary.
 
 ---
@@ -143,7 +145,7 @@ Update tracker: step `4/6 (Finalize)`
 1. Push branch, create PR (use `references/pr-template.md`)
 2. **Std/Cplx:** Run `code-review-specialist` via Task tool — **do NOT skip**
 3. **Std/Cplx:** Also run `qa-engineer` via Task tool
-4. **Merge:** Features/bugfixes → squash; Releases/hotfixes → merge commit
+4. **Merge strategy:** Features/bugfixes → **squash merge** (clean single commit on target branch); Releases/hotfixes → merge commit
 
 **→ CHECKPOINT: Merge Approval**
 
@@ -153,10 +155,11 @@ Update tracker: step `5/6 (Review)`
 
 ## Step 6: Complete
 
-1. Delete feature branch (local + remote)
-2. Update product tracker: feature → done, add to Completion Log, update progress
-3. Record bugs in `bugs.md`, decisions in `decisions.md`
-4. Clear Active Session → "No active work"
+1. **Update ticket with final state:** correct test count in acceptance criteria, mark all checkboxes, update Completion Log with all commits and key events
+2. Delete feature branch (local + remote)
+3. Update product tracker: feature → done, add to Completion Log, update progress
+4. Record bugs in `bugs.md`, decisions in `decisions.md`
+5. Clear Active Session → "No active work"
 
 ---
 

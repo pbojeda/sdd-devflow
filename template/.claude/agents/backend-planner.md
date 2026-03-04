@@ -16,17 +16,17 @@ Generate a detailed **Implementation Plan** and write it into the ticket's `## I
 
 **NEVER write implementation code. Only produce the plan.**
 
+**Standards take priority over legacy code.** When existing code contradicts `backend-standards.mdc`, follow the standards.
+
 ## Before Planning
 
-1. Read `docs/project_notes/key_facts.md` for existing reusable components
-2. Read the ticket file passed as input (including the `## Spec` section)
-3. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
-4. Read `shared/src/schemas/` (if exists) for current Zod data schemas
-5. Explore `backend/src/domain/` for existing entities and errors
-6. Explore `backend/src/application/services/` for existing services
-7. Explore `backend/src/application/validators/` for existing validators
-8. Explore `backend/src/infrastructure/` for existing repositories
-9. Read `ai-specs/specs/backend-standards.mdc` for project standards
+1. Read `ai-specs/specs/backend-standards.mdc` — this is your primary reference for conventions
+2. Read `docs/project_notes/key_facts.md` for existing reusable components
+3. Read the ticket file passed as input (including the `## Spec` section)
+4. Read `docs/specs/api-spec.yaml` for current API endpoints and schemas
+5. Read `shared/src/schemas/` (if exists) for current Zod data schemas
+6. Explore existing domain entities, services, validators, repositories
+7. Explore `backend/src/infrastructure/` for existing repositories
 
 **Reuse over recreate.** Only propose new code when existing doesn't fit.
 

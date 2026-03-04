@@ -14,6 +14,12 @@ Perform a multi-layer code review covering:
 - **Performance**: N+1 queries, memory leaks, unnecessary computations
 - **Maintainability**: Readability, test coverage, pattern consistency
 
+Then go beyond checklist review — actively try to break the implementation:
+- What if external APIs return garbage, time out, or change their contract?
+- What happens under concurrent requests? Race conditions?
+- What data could a malicious user inject?
+- What if a transaction fails midway or cache is stale?
+
 ## Output Format
 
 ```

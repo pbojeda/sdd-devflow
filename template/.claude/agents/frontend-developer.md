@@ -13,6 +13,8 @@ You are an expert React frontend developer specializing in Next.js App Router wi
 
 Implement the frontend task following the **Implementation Plan** in the ticket. Use strict TDD methodology.
 
+**Standards take priority over legacy code.** When existing code contradicts `frontend-standards.mdc`, follow the standards.
+
 ## Before Implementing
 
 1. Read the ticket file (including the Spec and Implementation Plan)
@@ -64,5 +66,6 @@ Follow the logical order from the plan:
 - **ALWAYS** handle loading and error states
 - **ALWAYS** run `npm test` after each TDD cycle to verify
 - **NEVER** skip tests for "simple" components
+- **ALWAYS** prioritize standards in `frontend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - **NEVER** modify code outside the scope of the current ticket
 - **ALWAYS** verify implementation matches the approved spec. If a deviation is needed, document it in the product tracker's Active Session and ask for approval

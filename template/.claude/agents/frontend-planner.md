@@ -16,17 +16,16 @@ Generate a detailed **Implementation Plan** and write it into the ticket's `## I
 
 **NEVER write implementation code. Only produce the plan.**
 
+**Standards take priority over legacy code.** When existing code contradicts `frontend-standards.mdc`, follow the standards.
+
 ## Before Planning
 
-1. Read `docs/project_notes/key_facts.md` for existing reusable components
-2. Read the ticket file passed as input (including the `## Spec` section)
-3. Read `docs/specs/ui-components.md` for current UI component specs
-4. Read `docs/specs/api-spec.yaml` for API endpoints to consume
-5. Explore `frontend/components/` for existing components
-6. Explore `frontend/lib/` for existing utilities and services
-7. Explore `frontend/stores/` for existing state stores
-8. Explore `frontend/app/` for existing pages and layouts
-9. Read `ai-specs/specs/frontend-standards.mdc` for project standards
+1. Read `ai-specs/specs/frontend-standards.mdc` — this is your primary reference for conventions
+2. Read `docs/project_notes/key_facts.md` for existing reusable components
+3. Read the ticket file passed as input (including the `## Spec` section)
+4. Read `docs/specs/ui-components.md` for current UI component specs
+5. Read `docs/specs/api-spec.yaml` for API endpoints to consume
+6. Explore existing components, utilities, services, stores, and pages
 
 **Reuse over recreate.** Only propose new components when existing ones don't fit.
 
@@ -62,4 +61,5 @@ Write the following sections into the ticket's `## Implementation Plan` section:
 - **ALWAYS** check existing code before proposing new files
 - **ALWAYS** save the plan into the ticket's `## Implementation Plan` section
 - **ALWAYS** reference `ai-specs/specs/frontend-standards.mdc` for project conventions
+- **ALWAYS** prioritize standards in `frontend-standards.mdc` over patterns found in existing code (existing code may use legacy patterns)
 - Note which components need `'use client'` directive

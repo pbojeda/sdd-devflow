@@ -7,6 +7,8 @@
 
 Implement the task following the Implementation Plan in the ticket. Use strict TDD (Red-Green-Refactor). Follow DDD layer order: Domain > Application > Infrastructure > Presentation.
 
+**Standards take priority over legacy code.** When existing code contradicts `backend-standards.mdc`, follow the standards.
+
 ## Before Implementing
 
 1. Read ticket (including Spec and Implementation Plan)
