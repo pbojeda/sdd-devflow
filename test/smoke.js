@@ -162,6 +162,9 @@ function testBackendOnly() {
   assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'ui-components');
   assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'frontend-standards');
   assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'frontend-standards');
+  assertFileContains(dest, '.claude/agents/qa-engineer.md', 'backend-standards');
+  assertFileNotContains(dest, '.gemini/agents/qa-engineer.md', 'frontend-standards');
 }
 
 // --- Scenario 3: Claude only ---
@@ -400,6 +403,10 @@ function testInitExpressPrisma() {
   assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'frontend-standards');
   assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'ui-components');
   assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'ui-components');
+  assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'frontend-standards');
+  assertFileContains(dest, '.claude/agents/qa-engineer.md', 'backend-standards');
+  assertFileNotContains(dest, '.gemini/agents/qa-engineer.md', 'frontend-standards');
+  assertFileContains(dest, '.gemini/agents/qa-engineer.md', 'backend-standards');
   assertFileNotContains(dest, '.gemini/agents/spec-creator.md', 'ui-components');
   assertFileNotContains(dest, '.gemini/agents/production-code-validator.md', 'ui-components');
 
@@ -493,6 +500,18 @@ function testInitNextjsOnly() {
   // Frontend-only: no backend standards or API spec
   assertNotExists(dest, 'ai-specs/specs/backend-standards.mdc');
   assertNotExists(dest, 'docs/specs/api-spec.yaml');
+
+  // Frontend-only: agent content adapted for frontend-only
+  assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'backend-standards');
+  assertFileContains(dest, '.claude/agents/code-review-specialist.md', 'frontend-standards');
+  assertFileNotContains(dest, '.claude/agents/qa-engineer.md', 'backend-standards');
+  assertFileContains(dest, '.claude/agents/qa-engineer.md', 'frontend-standards');
+  assertFileNotContains(dest, '.gemini/agents/qa-engineer.md', 'backend-standards');
+  assertFileContains(dest, '.gemini/agents/qa-engineer.md', 'frontend-standards');
+
+  // Frontend-only: SKILL.md adapted (no api-spec refs)
+  assertFileNotContains(dest, '.claude/skills/development-workflow/SKILL.md', 'api-spec');
+  assertFileNotContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'api-spec');
 }
 
 // --- Scenario 7: --init with existing OpenAPI file ---
@@ -904,6 +923,71 @@ function testGenerateMongoose() {
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
 }
 
+// --- Scenario 14: --init Gemini-only + backend-only ---
+
+function testInitGeminiBackendOnly() {
+  const dest = path.join(TMP_BASE, 'test-init-gemini-backend');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express+Mongoose backend project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-gemini-backend',
+    dependencies: {
+      express: '^4.18.0',
+      mongoose: '^7.0.0',
+    },
+    devDependencies: {
+      jest: '^29.0.0',
+      typescript: '^5.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'models'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+  fs.writeFileSync(path.join(dest, '.gitignore'), 'node_modules\n', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+  config.aiTools = 'gemini'; // Force Gemini-only
+
+  silent(() => generateInit(config));
+
+  // Only Gemini files exist
+  assertExists(dest, 'GEMINI.md');
+  assertExists(dest, '.gemini/agents/backend-developer.md');
+  assertExists(dest, '.gemini/skills/development-workflow/SKILL.md');
+  assertNotExists(dest, 'CLAUDE.md');
+  assertNotExists(dest, '.claude');
+
+  // Backend-only: no frontend agents
+  assertNotExists(dest, '.gemini/agents/frontend-developer.md');
+  assertNotExists(dest, '.gemini/agents/frontend-planner.md');
+
+  // Gemini agents adapted: no Zod, no DDD, no frontend refs
+  // Note: Gemini backend-developer.md uses condensed format without explicit ORM/DB names
+  assertFileNotContains(dest, '.gemini/agents/backend-developer.md', 'Zod');
+  assertFileNotContains(dest, '.gemini/agents/backend-developer.md', 'DDD');
+  assertFileNotContains(dest, '.gemini/agents/backend-planner.md', 'DDD');
+  assertFileNotContains(dest, '.gemini/agents/spec-creator.md', 'ui-components');
+  assertFileNotContains(dest, '.gemini/agents/production-code-validator.md', 'ui-components');
+  assertFileNotContains(dest, '.gemini/agents/code-review-specialist.md', 'frontend-standards');
+  assertFileNotContains(dest, '.gemini/agents/qa-engineer.md', 'frontend-standards');
+  assertFileContains(dest, '.gemini/agents/qa-engineer.md', 'backend-standards');
+
+  // Skills adapted: no ui-components
+  assertFileNotContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'ui-components');
+  assertFileNotContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'Zod');
+
+  // documentation-standards: no frontend refs
+  assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -927,6 +1011,7 @@ try {
   run('Scenario 10: Scanner edge cases', testScannerEdgeCases);
   run('Scenario 11: --init ORM-only (no framework)', testInitOrmOnly);
   run('Scenario 12: --init skip existing files', testInitSkipExisting);
+  run('Scenario 14: --init Gemini-only + backend-only', testInitGeminiBackendOnly);
 } finally {
   cleanup();
 }

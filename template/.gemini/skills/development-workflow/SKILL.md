@@ -96,8 +96,9 @@ See `references/branching-strategy.md` for details.
 ## Step 2: Plan (Standard/Complex only)
 
 1. Follow the planner agent instructions (`backend-planner` for backend features, `frontend-planner` for frontend features) in `.gemini/agents/`
-2. Write Implementation Plan into ticket's `## Implementation Plan`
-3. Update tracker: step `2/6 (Plan)`
+2. **Fullstack features:** Run `backend-planner` first, then `frontend-planner`. Each writes its own section in the Implementation Plan
+3. Write Implementation Plan into ticket's `## Implementation Plan`
+4. Update tracker: step `2/6 (Plan)`
 
 **→ CHECKPOINT: Plan Approval**
 
@@ -106,6 +107,8 @@ See `references/branching-strategy.md` for details.
 ## Step 3: Implement
 
 **Simple:** Implement directly with TDD. **Std/Cplx:** Follow the developer agent instructions (`backend-developer` / `frontend-developer`) in `.gemini/agents/`.
+
+**Fullstack features:** Implement backend first (APIs must exist before the frontend consumes them), then frontend. Use the corresponding developer agent for each.
 
 **TDD Cycle:** Failing test → Minimum code to pass → Refactor → Repeat
 
