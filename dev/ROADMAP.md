@@ -2,30 +2,51 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.2.2
+## Current Version: 0.4.2
 
 ---
 
-## Phase 1: Documentation & Polish (v0.2.x)
+## Phase 1: Core Generator & CLI (v0.1.x–v0.2.x) ✅
 
+- [x] `create-sdd-project` wizard (new project generation)
+- [x] `--init` mode (install SDD DevFlow into existing projects)
+- [x] Scanner: detect stack (6 backend frameworks, 8 ORMs, 9 frontend frameworks)
+- [x] Template system: agents, skills, standards for Claude Code + Gemini CLI
+- [x] Smoke test suite (initial scenarios)
 - [ ] Improve README.md for npm (better examples, badges, GIFs/screenshots)
 - [ ] Add CHANGELOG.md (public, conventional commits)
 
-## Phase 2: Real-World Validation
+## Phase 2: Real-World Validation ✅ (--init) / 🔲 (new project)
 
-- [ ] Test `--init` on i04_cgm (Express + Mongoose + MongoDB)
-  - Run scanner dry-run first
-  - Execute full --init
-  - Validate generated files against real project structure
-  - Use SDD workflow to develop a real feature
+- [x] Test `--init` on i04_cgm (Express + Mongoose + MongoDB)
+  - [x] Scanner dry-run validated (correct stack detection)
+  - [x] Full --init executed and reviewed
+  - [x] 6 issues found, all fixed (see `dev/testing-notes.md`)
+  - [ ] Use SDD workflow to develop a real feature on i04_cgm
 - [ ] Test `create-sdd-project` on a brand new project
   - Full wizard flow
   - Add first feature, develop with SDD workflow
-- [ ] Document findings and issues in `dev/testing-notes.md`
+- [x] Document findings and issues in `dev/testing-notes.md`
 
-## Phase 3: Improvements from Real-World Testing (v0.3.x)
+## Phase 3: Improvements from Real-World Testing (v0.3.x–v0.4.x) ✅
 
-- [ ] Fixes discovered during Phase 2
+- [x] v0.3.0–v0.3.4: Initial fixes from i04_cgm testing
+  - [x] Wizard: `layered` pattern label, autonomy level "(default)" fix
+  - [x] Scanner: architecture detection improvements
+  - [x] Init-generator: Zod/Prisma/DDD adaptation for non-default stacks
+  - [x] Backend-standards: validation section, globs, Mongoose patterns
+- [x] v0.4.0: Workflow improvements from F002 analysis
+  - [x] 10 improvements to agent/skill templates based on real usage
+  - [x] DDD/Zod adaptation regexes for Gemini agents
+- [x] v0.4.1: Code review findings
+  - [x] Fullstack workflow guidance in SKILL.md (Steps 2 & 3)
+  - [x] DB-without-ORM fallback for Prisma refs
+  - [x] qa-engineer standards adapted for single-stack
+  - [x] Extracted shared logic to `lib/adapt-agents.js` (DRY)
+  - [x] Scenario 14 + expanded test assertions (14 scenarios total)
+- [x] v0.4.2: Close remaining testing issues
+  - [x] AGENTS.md Standards References cleaned for single-stack projects
+  - [x] All 6 i04_cgm testing issues closed
 - [ ] Monorepo support improvements (pnpm workspaces, turbo)
 - [ ] SDD upgrade/migration (projects that already have SDD — version bumps)
 
@@ -57,3 +78,6 @@
 | 2026-02-25 | Use `dev/` for internal docs, excluded via `files` field | Keeps internal tracking in git without polluting npm package |
 | 2026-02-25 | Expanded scanner to 6 backend frameworks, 8 ORMs, 9 frontend frameworks | Cover most common Node.js stacks for `--init` |
 | 2026-02-25 | Robust regex patterns in init-generator | Prevent silent failures when template structure changes |
+| 2026-03-04 | Extract shared adaptation logic to `lib/adapt-agents.js` | Eliminate ~185 lines of duplicated code between generator.js and init-generator.js |
+| 2026-03-04 | Parameterize `replaceInFileFn` in shared adapter | generator.js uses `.split().join()`, init-generator.js uses `.replaceAll()` — function parameter handles both |
+| 2026-03-05 | Close all 6 i04_cgm testing issues before new features | Clear technical debt before expanding scope |
