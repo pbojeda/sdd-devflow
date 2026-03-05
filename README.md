@@ -1,6 +1,7 @@
 # SDD DevFlow
 
 [![npm version](https://img.shields.io/npm/v/create-sdd-project)](https://www.npmjs.com/package/create-sdd-project)
+[![npm downloads](https://img.shields.io/npm/dm/create-sdd-project)](https://www.npmjs.com/package/create-sdd-project)
 [![license](https://img.shields.io/npm/l/create-sdd-project)](LICENSE)
 [![node](https://img.shields.io/node/v/create-sdd-project)](package.json)
 
@@ -16,7 +17,34 @@ A complete development methodology for Claude Code and Gemini that combines spec
 npx create-sdd-project my-app
 ```
 
-The interactive wizard asks about your stack, AI tools, and autonomy level. For defaults (fullstack Express+Next.js):
+The interactive wizard asks about your stack, AI tools, and autonomy level:
+
+```
+🚀 Create SDD DevFlow Project
+
+── Step 1: Project Basics ──────────────────────
+  Project name: my-app
+  Brief project description: Task management API
+
+── Step 3: Project Type & Tech Stack ──────────
+  1) Backend + Frontend (monorepo)  ← default
+  2) Backend only
+  3) Frontend only
+
+── Step 4: AI Tools ────────────────────────────
+  1) Claude Code + Gemini  ← default
+  2) Claude Code only
+  3) Gemini only
+
+── Step 5: Workflow Configuration ──────────────
+  Autonomy level:
+  1) L1 Full Control — Human approves every checkpoint
+  2) L2 Trusted — Human reviews plans + merges only  ← default
+  3) L3 Autopilot — Human only approves merges
+  4) L4 Full Auto — No human checkpoints, CI/CD gates only
+```
+
+For defaults (fullstack Express+Next.js, L2 autonomy):
 
 ```bash
 npx create-sdd-project my-app --yes
@@ -29,18 +57,56 @@ cd your-existing-project
 npx create-sdd-project --init
 ```
 
-Scans your project, detects your stack and architecture, and installs SDD files adapted to your project. Never modifies existing code or overwrites existing files.
+The scanner detects your stack and installs adapted SDD files:
+
+```
+🔍 Scanning project...
+
+    Project:       my-api
+    Language:      TypeScript
+    Backend:       Express + Mongoose + MongoDB
+    Frontend:      Not detected
+    Architecture:  Layered (controllers + handlers + managers)
+    Tests:         Jest (3 test files)
+    Monorepo:      No
+
+Adding SDD DevFlow to my-api...
+
+  ✓ Installing Claude Code config (agents, skills, commands, hooks)
+  ✓ Installing Gemini config (agents, skills, commands)
+  ✓ Creating ai-specs/specs/ (4 standards files)
+  ✓ Creating docs/project_notes/ (product tracker, memory)
+  ✓ Creating AGENTS.md
+  ✓ Setting autonomy level: L2 (Trusted)
+
+Done! Next steps:
+  git add -A && git commit -m "chore: add SDD DevFlow to existing project"
+  # Open in your AI coding tool and run: add feature "your first feature"
+```
+
+Never modifies existing code or overwrites existing files.
 
 ### After Setup
 
-Open in your AI coding tool and run:
+Open your project in Claude Code or Gemini and start building:
 
+**Claude Code:**
 ```
-add feature "your first feature"
-start task F001
+/add-feature "user authentication with JWT"
+/start-task F001
+/show-progress
+/next-task
 ```
 
-The workflow skill guides you through each step with checkpoints based on your autonomy level.
+**Gemini:**
+```
+/add-feature "user authentication with JWT"
+/start-task F001
+/show-progress
+/next-task
+```
+
+The workflow skill guides you through each step — from spec writing to implementation to code review — with checkpoints based on your autonomy level.
 
 ---
 
@@ -149,7 +215,7 @@ When running `--init` on an existing project, the scanner automatically detects:
 | **Component libraries** | Radix UI, Headless UI, Material UI, Chakra UI, Ant Design |
 | **State management** | Zustand, Redux, Jotai, TanStack Query, Recoil, Pinia, MobX |
 | **Testing** | Jest, Vitest, Mocha (unit) + Playwright, Cypress (e2e) |
-| **Architecture** | MVC, DDD, feature-based, handler-based, flat |
+| **Architecture** | MVC, DDD, feature-based, handler-based, layered, flat |
 | **Project type** | Monorepo (workspaces, Lerna, Turbo, pnpm) or single-package |
 
 Standards files are adapted to match your actual architecture — not generic defaults.
@@ -203,7 +269,7 @@ Configurable via the wizard or `<!-- CONFIG -->` comments in template files:
 
 - **Backend**: Node.js + Express + Prisma + PostgreSQL
 - **Frontend**: Next.js (App Router) + Tailwind CSS + Radix UI + Zustand
-- **Shared Types**: Zod schemas with `z.infer<>` for TypeScript types
+- **Shared Types**: Validation schemas with TypeScript type inference
 - **Testing**: Jest (unit) + Playwright (e2e)
 - **Methodology**: TDD + DDD + Spec-Driven Development
 
@@ -214,7 +280,7 @@ These 6 principles apply to ALL tasks, ALL agents, ALL complexity levels:
 1. **Spec First** — No implementation without an approved specification
 2. **Small Tasks** — Work in baby steps, one at a time
 3. **Test-Driven Development** — Write tests before implementation
-4. **Type Safety** — Strict TypeScript, no `any`, runtime validation with Zod
+4. **Type Safety** — Strict TypeScript, no `any`, runtime validation at boundaries
 5. **English Only** — All code, comments, docs, commits, and tickets in English
 6. **Reuse Over Recreate** — Always check existing code before proposing new files
 
@@ -224,21 +290,25 @@ These 6 principles apply to ALL tasks, ALL agents, ALL complexity levels:
 - Node.js 18+
 - `jq` (for quick-scan hook): `brew install jq` (macOS) or `apt install jq` (Linux)
 
-## Manual Setup (Alternative)
+## Manual Setup
 
-If you prefer manual configuration over the CLI wizard:
+If you prefer manual configuration over the CLI wizard, copy the template directory and look for `<!-- CONFIG: ... -->` comments in the files to customize:
 
 ```bash
-cp -r template/ /path/to/your-project/
+cp -r node_modules/create-sdd-project/template/ /path/to/your-project/
 ```
-
-Then look for `<!-- CONFIG: ... -->` comments in the files to customize.
 
 ## Roadmap
 
-- **Agent Teams**: Parallel execution of independent tasks (waiting for Claude Code Agent Teams to stabilize)
-- **PM Agent + L5 Autonomous**: AI-driven feature orchestration with human review at milestone boundaries
+- **Monorepo improvements**: Better support for pnpm workspaces and Turbo
+- **SDD Upgrade/Migration**: Version bumps for projects already using SDD
 - **Retrofit Testing**: Automated test generation for existing projects with low coverage
+- **Agent Teams**: Parallel execution of independent tasks
+- **PM Agent + L5 Autonomous**: AI-driven feature orchestration with human review at milestone boundaries
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue on GitHub](https://github.com/pbojeda/sdd-devflow/issues).
 
 ## License
 

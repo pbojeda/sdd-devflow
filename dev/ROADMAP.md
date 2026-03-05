@@ -13,7 +13,7 @@
 - [x] Scanner: detect stack (6 backend frameworks, 8 ORMs, 9 frontend frameworks)
 - [x] Template system: agents, skills, standards for Claude Code + Gemini CLI
 - [x] Smoke test suite (initial scenarios)
-- [ ] Improve README.md for npm (better examples, badges, GIFs/screenshots)
+- [x] Improve README.md for npm (CLI output examples, download badge, --init showcase)
 - [ ] Add CHANGELOG.md (public, conventional commits)
 
 ## Phase 2: Real-World Validation ✅ (--init) / 🔲 (new project)
