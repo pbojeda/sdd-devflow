@@ -29,10 +29,10 @@ Dry-run scanner output:
 |---|-------|----------|--------|-----|
 | 1 | Wizard showed "Architecture: Unknown" for `layered` pattern | High | Fixed | Added `layered` to `patternLabels` in init-wizard.js |
 | 2 | Autonomy level desc shows "(default)" on both L1 and L2 | Medium | Fixed | Removed "(default)" from L2 desc text in config.js (askChoice adds it dynamically) |
-| 3 | `backend-standards.mdc` prescribes Zod but project doesn't use Zod | Medium | Pending | Generator should adapt validation section based on detected deps |
-| 4 | File globs in backend-standards include `.tsx/.jsx` for backend-only project | Low | Pending | Generator should filter globs when no frontend detected |
-| 5 | AGENTS.md references `frontend-standards.mdc` in backend-only project | Low | Pending | Generator should omit frontend refs when no frontend |
-| 6 | `backend-standards.mdc` has empty TODO for Mongoose/MongoDB patterns | Medium | Pending | Could pre-generate ORM-specific patterns section |
+| 3 | `backend-standards.mdc` prescribes Zod but project doesn't use Zod | Medium | Fixed (v0.4.0) | `adaptBackendStandards()` replaces Technology Stack + Validation sections based on scan |
+| 4 | File globs in backend-standards include `.tsx/.jsx` for backend-only project | Low | Fixed (v0.4.0) | `adaptBackendStandards()` filters globs: `ts,js` only when no frontend detected |
+| 5 | AGENTS.md references `frontend-standards.mdc` in backend-only project | Low | Fixed (v0.4.2) | `adaptAgentsMd()` + `removeFrontendFiles()`/`removeBackendFiles()` clean Standards References |
+| 6 | `backend-standards.mdc` has empty TODO for Mongoose/MongoDB patterns | Medium | Fixed (v0.4.0) | `adaptBackendStandards()` pre-generates Mongoose best practices + schema pattern |
 
 ### Generated Files Review
 

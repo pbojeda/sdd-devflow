@@ -154,9 +154,11 @@ function testBackendOnly() {
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
 
-  // AGENTS.md: no Zod reference
+  // AGENTS.md: no Zod reference, no Frontend Standards
   assertFileNotContains(dest, 'AGENTS.md', 'Zod');
   assertFileContains(dest, 'AGENTS.md', 'Shared type schemas');
+  assertFileNotContains(dest, 'AGENTS.md', 'Frontend Standards');
+  assertFileContains(dest, 'AGENTS.md', 'Backend Standards');
 
   // Agent content: no frontend refs for backend-only
   assertFileNotContains(dest, '.claude/agents/spec-creator.md', 'ui-components');
@@ -388,6 +390,10 @@ function testInitExpressPrisma() {
   assertFileNotContains(dest, '.claude/agents/backend-planner.md', 'backend/src/domain');
   assertFileContains(dest, '.claude/agents/backend-planner.md', 'backend-standards.mdc');
 
+  // AGENTS.md: no Frontend Standards for backend-only
+  assertFileNotContains(dest, 'AGENTS.md', 'Frontend Standards');
+  assertFileContains(dest, 'AGENTS.md', 'Backend Standards');
+
   // documentation-standards: no frontend refs for backend-only
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'ui-components');
@@ -500,6 +506,10 @@ function testInitNextjsOnly() {
   // Frontend-only: no backend standards or API spec
   assertNotExists(dest, 'ai-specs/specs/backend-standards.mdc');
   assertNotExists(dest, 'docs/specs/api-spec.yaml');
+
+  // AGENTS.md: no Backend Standards for frontend-only
+  assertFileNotContains(dest, 'AGENTS.md', 'Backend Standards');
+  assertFileContains(dest, 'AGENTS.md', 'Frontend Standards');
 
   // Frontend-only: agent content adapted for frontend-only
   assertFileNotContains(dest, '.claude/agents/code-review-specialist.md', 'backend-standards');
@@ -983,6 +993,10 @@ function testInitGeminiBackendOnly() {
   // Skills adapted: no ui-components
   assertFileNotContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'ui-components');
   assertFileNotContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'Zod');
+
+  // AGENTS.md: no Frontend Standards for backend-only
+  assertFileNotContains(dest, 'AGENTS.md', 'Frontend Standards');
+  assertFileContains(dest, 'AGENTS.md', 'Backend Standards');
 
   // documentation-standards: no frontend refs
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
