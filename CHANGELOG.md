@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-06
+
 ### Added
 
 - `--upgrade` flag to update SDD template files in existing projects
@@ -18,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `.sdd-version` file written by all modes (create, init, upgrade) for version tracking
 - `CHANGELOG.md` with full version history
 - 3 new test scenarios (17 total): upgrade basic, upgrade preserves customizations, .sdd-version in new projects
+
+### Fixed
+
+- Upgrade now preserves user permissions and additionalDirectories in `settings.json` (merges hooks from template)
+- Upgrade now preserves project-specific variables in `.env.example`
 
 ## [0.4.2] - 2026-03-05
 
