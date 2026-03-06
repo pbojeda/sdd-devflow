@@ -14,7 +14,7 @@
 - [x] Template system: agents, skills, standards for Claude Code + Gemini CLI
 - [x] Smoke test suite (initial scenarios)
 - [x] Improve README.md for npm (CLI output examples, download badge, --init showcase)
-- [ ] Add CHANGELOG.md (public, conventional commits)
+- [x] Add CHANGELOG.md (public, conventional commits)
 
 ## Phase 2: Real-World Validation ✅ (--init) / 🔲 (new project)
 
@@ -48,7 +48,7 @@
   - [x] AGENTS.md Standards References cleaned for single-stack projects
   - [x] All 6 i04_cgm testing issues closed
 - [ ] Monorepo support improvements (pnpm workspaces, turbo)
-- [ ] SDD upgrade/migration (projects that already have SDD — version bumps)
+- [x] SDD upgrade/migration (`--upgrade` flag with smart standards handling, custom agent preservation)
 
 ## Phase 4: Test Generation for Existing Projects
 

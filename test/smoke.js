@@ -1002,6 +1002,227 @@ function testInitGeminiBackendOnly() {
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
 }
 
+// --- Scenario 15: --upgrade after --init (basic upgrade) ---
+
+function testUpgradeBasic() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-basic');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express+Prisma project and init it
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-upgrade-app',
+    dependencies: {
+      express: '^4.18.0',
+      '@prisma/client': '^5.0.0',
+    },
+    devDependencies: {
+      jest: '^29.0.0',
+      typescript: '^5.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'services'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'),
+    'datasource db {\n  provider = "postgresql"\n  url = env("DATABASE_URL")\n}\n', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+  const { generateUpgrade, detectAiTools, detectProjectType, readAutonomyLevel } = require('../lib/upgrade-generator');
+
+  // Step 1: Init the project
+  const scanResult = scan(dest);
+  const initConfig = buildInitDefaultConfig(scanResult);
+  initConfig.projectDir = dest;
+  initConfig.autonomyLevel = 3;
+  initConfig.autonomyName = 'Autopilot';
+  silent(() => generateInit(initConfig));
+
+  // Verify .sdd-version was written by init
+  assertExists(dest, '.sdd-version');
+
+  // Simulate user modifications to docs (should be preserved)
+  fs.writeFileSync(path.join(dest, 'docs', 'project_notes', 'bugs.md'), '# My Custom Bugs\n\nBug #1: Something broke\n', 'utf8');
+
+  // Step 2: Upgrade
+  const scanResult2 = scan(dest);
+  const aiTools = detectAiTools(dest);
+  const projectType = detectProjectType(dest);
+  const autonomy = readAutonomyLevel(dest);
+  const upgradeConfig = buildInitDefaultConfig(scanResult2);
+  upgradeConfig.projectDir = dest;
+  upgradeConfig.aiTools = aiTools;
+  upgradeConfig.projectType = projectType;
+  upgradeConfig.autonomyLevel = autonomy.level;
+  upgradeConfig.autonomyName = autonomy.name;
+  upgradeConfig.installedVersion = 'unknown';
+
+  silent(() => generateUpgrade(upgradeConfig));
+
+  // Verify: SDD files replaced (agents exist, fresh)
+  assertExists(dest, '.claude/agents/backend-developer.md');
+  assertExists(dest, '.claude/skills/development-workflow/SKILL.md');
+  assertExists(dest, '.gemini/agents/backend-developer.md');
+  assertExists(dest, 'AGENTS.md');
+  assertExists(dest, 'CLAUDE.md');
+  assertExists(dest, 'GEMINI.md');
+
+  // Verify: .sdd-version updated
+  assertExists(dest, '.sdd-version');
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  assertFileContains(dest, '.sdd-version', pkg.version);
+
+  // Verify: Autonomy level preserved (was L3 Autopilot)
+  assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 3 (Autopilot)');
+  assertFileContains(dest, 'GEMINI.md', 'Autonomy Level: 3 (Autopilot)');
+
+  // Verify: User docs preserved
+  assertFileContains(dest, 'docs/project_notes/bugs.md', 'My Custom Bugs');
+  assertExists(dest, 'docs/project_notes/product-tracker.md');
+  assertExists(dest, 'docs/project_notes/key_facts.md');
+
+  // Verify: Backend-only — no frontend agents
+  assertNotExists(dest, '.claude/agents/frontend-developer.md');
+  assertNotExists(dest, '.gemini/agents/frontend-developer.md');
+
+  // Verify: AGENTS.md adapted for backend-only
+  assertFileNotContains(dest, 'AGENTS.md', 'Frontend Standards');
+  assertFileContains(dest, 'AGENTS.md', 'Backend Standards');
+}
+
+// --- Scenario 16: --upgrade preserves custom agents + modified standards ---
+
+function testUpgradePreservesCustomizations() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-custom');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock project and init it
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'my-custom-app',
+    dependencies: {
+      express: '^4.18.0',
+      mongoose: '^7.0.0',
+    },
+    devDependencies: {
+      jest: '^29.0.0',
+      typescript: '^5.0.0',
+    },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'models'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+  const { generateUpgrade, detectAiTools, detectProjectType, readAutonomyLevel } = require('../lib/upgrade-generator');
+
+  // Step 1: Init
+  const scanResult = scan(dest);
+  const initConfig = buildInitDefaultConfig(scanResult);
+  initConfig.projectDir = dest;
+  silent(() => generateInit(initConfig));
+
+  // Step 2: Add custom agent
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'agents', 'my-custom-agent.md'),
+    '# My Custom Agent\n\nDoes special things.\n',
+    'utf8'
+  );
+
+  // Step 3: Add custom command
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'commands', 'my-lint.sh'),
+    '#!/bin/bash\nnpm run lint\n',
+    'utf8'
+  );
+
+  // Step 4: Create settings.local.json
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'settings.local.json'),
+    '{"hooks":{"Notification":[{"matcher":"idle","hooks":[{"type":"command","command":"echo done"}]}]}}\n',
+    'utf8'
+  );
+
+  // Step 5: Modify a standard (so it should be preserved)
+  const backendStdPath = path.join(dest, 'ai-specs', 'specs', 'backend-standards.mdc');
+  let stdContent = fs.readFileSync(backendStdPath, 'utf8');
+  stdContent += '\n## My Custom Section\n\nCustom patterns here.\n';
+  fs.writeFileSync(backendStdPath, stdContent, 'utf8');
+
+  // Step 6: Upgrade
+  const scanResult2 = scan(dest);
+  const aiTools = detectAiTools(dest);
+  const projectType = detectProjectType(dest);
+  const autonomy = readAutonomyLevel(dest);
+  const upgradeConfig = buildInitDefaultConfig(scanResult2);
+  upgradeConfig.projectDir = dest;
+  upgradeConfig.aiTools = aiTools;
+  upgradeConfig.projectType = projectType;
+  upgradeConfig.autonomyLevel = autonomy.level;
+  upgradeConfig.autonomyName = autonomy.name;
+  upgradeConfig.installedVersion = 'unknown';
+
+  silent(() => generateUpgrade(upgradeConfig));
+
+  // Verify: Custom agent preserved
+  assertExists(dest, '.claude/agents/my-custom-agent.md');
+  assertFileContains(dest, '.claude/agents/my-custom-agent.md', 'My Custom Agent');
+
+  // Verify: Custom command preserved
+  assertExists(dest, '.claude/commands/my-lint.sh');
+  assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
+
+  // Verify: settings.local.json preserved
+  assertExists(dest, '.claude/settings.local.json');
+  assertFileContains(dest, '.claude/settings.local.json', 'echo done');
+
+  // Verify: Modified backend-standards preserved (has custom section)
+  assertFileContains(dest, 'ai-specs/specs/backend-standards.mdc', 'My Custom Section');
+
+  // Verify: Template agents still exist (were replaced)
+  assertExists(dest, '.claude/agents/backend-developer.md');
+  assertExists(dest, '.claude/agents/spec-creator.md');
+
+  // Verify: .sdd-version written
+  assertExists(dest, '.sdd-version');
+}
+
+// --- Scenario 17: New project writes .sdd-version ---
+
+function testNewProjectSddVersion() {
+  const dest = path.join(TMP_BASE, 'test-sdd-version');
+
+  const { generate } = require('../lib/generator');
+  const { BACKEND_STACKS } = require('../lib/config');
+
+  silent(() => generate({
+    projectName: 'test-sdd-version',
+    projectDir: dest,
+    description: '',
+    businessContext: '',
+    projectType: 'backend',
+    backendStack: 'express-prisma-pg',
+    backendPreset: BACKEND_STACKS[0],
+    frontendStack: 'nextjs-tailwind-radix',
+    aiTools: 'claude',
+    autonomyLevel: 2,
+    autonomyName: 'Trusted',
+    branching: 'github-flow',
+    backendPort: 3010,
+    frontendPort: 3000,
+  }));
+
+  // .sdd-version exists and contains current version
+  assertExists(dest, '.sdd-version');
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  assertFileContains(dest, '.sdd-version', pkg.version);
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -1026,6 +1247,10 @@ try {
   run('Scenario 11: --init ORM-only (no framework)', testInitOrmOnly);
   run('Scenario 12: --init skip existing files', testInitSkipExisting);
   run('Scenario 14: --init Gemini-only + backend-only', testInitGeminiBackendOnly);
+  console.log('\n  Upgrade scenarios:');
+  run('Scenario 15: --upgrade after --init (basic)', testUpgradeBasic);
+  run('Scenario 16: --upgrade preserves custom agents + modified standards', testUpgradePreservesCustomizations);
+  run('Scenario 17: New project writes .sdd-version', testNewProjectSddVersion);
 } finally {
   cleanup();
 }

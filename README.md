@@ -86,6 +86,58 @@ Done! Next steps:
 
 Never modifies existing code or overwrites existing files.
 
+### Upgrade
+
+When a new version of SDD DevFlow is released, upgrade your project's template files:
+
+```bash
+cd your-existing-project
+npx create-sdd-project@latest --upgrade
+```
+
+```
+🔄 SDD DevFlow Upgrade
+
+  Current version:  0.4.2
+  New version:      0.5.0
+  AI tools:         Claude Code + Gemini
+  Project type:     backend
+
+  Will replace:
+    ✓ .claude/ (agents, skills, hooks)
+    ✓ .gemini/ (agents, skills, commands)
+    ✓ AGENTS.md, CLAUDE.md / GEMINI.md
+    ✓ .env.example
+
+  Will preserve:
+    ⊘ .claude/settings.local.json (personal settings)
+    ⊘ docs/project_notes/* (project memory)
+    ⊘ docs/specs/* (your specs)
+    ⊘ docs/tickets/* (your tickets)
+    ⊘ .gitignore
+
+  Standards:
+    ✓ ai-specs/specs/base-standards.mdc — unchanged, will update
+    ⚠ ai-specs/specs/backend-standards.mdc — modified by you, preserved
+
+  Proceed? (y/N)
+```
+
+**What gets upgraded:**
+- Agent definitions, skills, hooks, and commands
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.env.example`
+- Standards files (`.mdc`) — only if you haven't customized them
+
+**What is always preserved:**
+- Your project documentation (`docs/project_notes/`, `docs/specs/`, `docs/tickets/`)
+- Custom agents you added to `.claude/agents/` or `.gemini/agents/`
+- Custom commands in `.claude/commands/`
+- Personal settings (`.claude/settings.local.json`)
+- Your `.gitignore`
+- Autonomy level setting
+
+For non-interactive upgrades (CI/scripts): `npx create-sdd-project@latest --upgrade --yes`
+
 ### After Setup
 
 Open your project in Claude Code or Gemini and start building:
