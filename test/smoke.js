@@ -1148,6 +1148,21 @@ function testUpgradePreservesCustomizations() {
     'utf8'
   );
 
+  // Step 4b: Add custom permissions to settings.json
+  const settingsJsonPath = path.join(dest, '.claude', 'settings.json');
+  const settingsJson = JSON.parse(fs.readFileSync(settingsJsonPath, 'utf8'));
+  settingsJson.permissions = {
+    allow: ['Bash(npx:*)', 'Bash(git:*)'],
+    additionalDirectories: ['/tmp/test-dir'],
+  };
+  fs.writeFileSync(settingsJsonPath, JSON.stringify(settingsJson, null, 2) + '\n', 'utf8');
+
+  // Step 4c: Add custom env vars to .env.example
+  const envPath = path.join(dest, '.env.example');
+  let envContent = fs.readFileSync(envPath, 'utf8');
+  envContent += '\n# Custom Integration\nMY_API_KEY=your-api-key\nMY_API_SECRET=your-api-secret\n';
+  fs.writeFileSync(envPath, envContent, 'utf8');
+
   // Step 5: Modify a standard (so it should be preserved)
   const backendStdPath = path.join(dest, 'ai-specs', 'specs', 'backend-standards.mdc');
   let stdContent = fs.readFileSync(backendStdPath, 'utf8');
@@ -1187,6 +1202,19 @@ function testUpgradePreservesCustomizations() {
   // Verify: Template agents still exist (were replaced)
   assertExists(dest, '.claude/agents/backend-developer.md');
   assertExists(dest, '.claude/agents/spec-creator.md');
+
+  // Verify: settings.json permissions preserved but hooks updated
+  const upgradedSettings = JSON.parse(fs.readFileSync(path.join(dest, '.claude', 'settings.json'), 'utf8'));
+  assert(upgradedSettings.permissions, 'settings.json should preserve permissions');
+  assert(upgradedSettings.permissions.allow.includes('Bash(npx:*)'), 'settings.json should preserve user permissions');
+  assert(upgradedSettings.permissions.additionalDirectories[0] === '/tmp/test-dir', 'settings.json should preserve additionalDirectories');
+  assert(upgradedSettings.hooks, 'settings.json should have hooks from template');
+
+  // Verify: .env.example preserves custom vars
+  assertFileContains(dest, '.env.example', 'MY_API_KEY=your-api-key');
+  assertFileContains(dest, '.env.example', 'MY_API_SECRET=your-api-secret');
+  // But also has the standard template vars
+  assertFileContains(dest, '.env.example', 'NODE_ENV=');
 
   // Verify: .sdd-version written
   assertExists(dest, '.sdd-version');
