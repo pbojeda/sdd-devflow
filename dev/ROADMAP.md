@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.7.0
+## Current Version: 0.8.0
 
 ---
 
@@ -52,6 +52,7 @@
 - [x] `--doctor` diagnostic command (10 checks: installation, version, agents, coherence, cross-tool sync, standards, hooks, memory)
 - [x] CI/CD GitHub Actions template (auto-generated, stack-adapted: PostgreSQL, MongoDB, frontend-only)
 - [x] `--diff` dry-run preview for `--init` and `--upgrade`
+- [x] `--eject` clean uninstall (removes SDD files, preserves custom agents/commands/docs/settings)
 
 ## Phase 4: Test Generation for Existing Projects
 

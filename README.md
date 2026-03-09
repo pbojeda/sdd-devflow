@@ -168,14 +168,62 @@ npx create-sdd-project --doctor
 
 Exit code 1 if errors found — useful for CI pipelines.
 
+### Eject (Uninstall SDD)
+
+Cleanly remove all SDD DevFlow files from your project:
+
+```bash
+cd your-project
+npx create-sdd-project --eject
+```
+
+```
+🗑️  SDD DevFlow Eject
+
+  Installed version:  0.7.0
+  AI tools:           Claude Code + Gemini
+  Project type:       backend
+
+  Will remove:
+    ✗ .claude/agents/           template agents
+    ✗ .claude/skills/
+    ✗ .claude/hooks/
+    ✗ .claude/settings.json
+    ✗ .gemini/                  entire directory
+    ✗ ai-specs/                 standards
+    ✗ AGENTS.md
+    ✗ CLAUDE.md / GEMINI.md
+    ✗ .env.example
+    ✗ .sdd-version
+    ✗ .github/workflows/ci.yml  (SDD-generated)
+
+  Will preserve:
+    ⊘ .claude/agents/my-agent.md   (custom agent)
+    ⊘ .claude/settings.local.json  (personal settings)
+    ⊘ docs/                        (project notes, specs, tickets)
+
+  Proceed? (y/N)
+```
+
+**What gets removed:** All SDD-generated files (agents, skills, hooks, standards, configs, CI workflow).
+
+**What is always preserved:** Custom agents, custom commands, personal settings, project documentation (`docs/`), customized CI workflows (without SDD marker).
+
+For non-interactive eject: `npx create-sdd-project --eject --yes`
+
+Preview what would be removed: `npx create-sdd-project --eject --diff`
+
+To re-install later: `npx create-sdd-project --init`
+
 ### Preview Changes (--diff)
 
-See what `--init` or `--upgrade` would do without modifying anything:
+See what `--init`, `--upgrade`, or `--eject` would do without modifying anything:
 
 ```bash
 cd your-existing-project
 npx create-sdd-project --init --diff      # Preview init
 npx create-sdd-project --upgrade --diff   # Preview upgrade
+npx create-sdd-project --eject --diff    # Preview eject
 ```
 
 Shows detected stack, files that would be created/replaced/preserved, and standards status — zero filesystem writes.

@@ -1611,6 +1611,280 @@ function testDiffErrorConditions() {
   }
 }
 
+// --- Scenario 27: --eject basic (both tools, backend) ---
+
+function testEjectBasic() {
+  const dest = path.join(TMP_BASE, 'test-eject-basic');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create and init a mock project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-eject-basic',
+    dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), 'const app = require("express")();');
+  fs.writeFileSync(path.join(dest, '.gitignore'), 'node_modules\n', 'utf8');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Verify SDD was installed
+  assertExists(dest, 'ai-specs');
+  assertExists(dest, '.claude/agents');
+  assertExists(dest, '.gemini/agents');
+  assertExists(dest, 'AGENTS.md');
+  assertExists(dest, 'CLAUDE.md');
+  assertExists(dest, 'GEMINI.md');
+  assertExists(dest, '.sdd-version');
+  assertExists(dest, '.env.example');
+  assertExists(dest, '.github/workflows/ci.yml');
+
+  // Eject
+  execSync(`node ${CLI} --eject --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Verify: all SDD files removed
+  assertNotExists(dest, 'ai-specs');
+  assertNotExists(dest, '.claude/agents');
+  assertNotExists(dest, '.claude/skills');
+  assertNotExists(dest, '.claude/hooks');
+  assertNotExists(dest, '.claude/settings.json');
+  assertNotExists(dest, '.gemini');
+  assertNotExists(dest, 'AGENTS.md');
+  assertNotExists(dest, 'CLAUDE.md');
+  assertNotExists(dest, 'GEMINI.md');
+  assertNotExists(dest, '.sdd-version');
+  assertNotExists(dest, '.env.example');
+  assertNotExists(dest, '.github');
+
+  // settings.local.json preserved (even if from template — personal settings)
+  assertExists(dest, '.claude/settings.local.json');
+
+  // Verify: user files preserved
+  assertExists(dest, 'package.json');
+  assertExists(dest, 'src/index.js');
+  assertExists(dest, 'docs');
+  assertExists(dest, '.gitignore');
+
+  // Verify: .gitignore cleaned of SDD entries
+  assertFileNotContains(dest, '.gitignore', 'SDD DevFlow');
+  assertFileContains(dest, '.gitignore', 'node_modules');
+}
+
+// --- Scenario 28: --eject preserves custom agents, commands, settings ---
+
+function testEjectPreservesCustomizations() {
+  const dest = path.join(TMP_BASE, 'test-eject-custom');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create and init
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-eject-custom',
+    dependencies: { express: '^4.18.0', '@prisma/client': '^5.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '');
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'),
+    'datasource db { provider = "postgresql" }');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Add custom agent
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'agents', 'my-deploy-agent.md'),
+    '# Deploy Agent\n\nHandles deployment.\n', 'utf8'
+  );
+
+  // Add custom command
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'commands', 'my-lint.sh'),
+    '#!/bin/bash\nnpm run lint\n', 'utf8'
+  );
+
+  // Add settings.local.json
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'settings.local.json'),
+    '{"hooks":{"Notification":[]}}\n', 'utf8'
+  );
+
+  // Add user permissions to settings.json
+  const settingsPath = path.join(dest, '.claude', 'settings.json');
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  settings.permissions = { allow: ['Bash(npx:*)'] };
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+
+  // Eject
+  execSync(`node ${CLI} --eject --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Template agents removed
+  assertNotExists(dest, '.claude/agents/backend-developer.md');
+  assertNotExists(dest, '.claude/agents/spec-creator.md');
+
+  // Custom agent preserved
+  assertExists(dest, '.claude/agents/my-deploy-agent.md');
+  assertFileContains(dest, '.claude/agents/my-deploy-agent.md', 'Deploy Agent');
+
+  // Custom command preserved
+  assertExists(dest, '.claude/commands/my-lint.sh');
+  assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
+
+  // settings.local.json preserved
+  assertExists(dest, '.claude/settings.local.json');
+
+  // settings.json kept with permissions but hooks removed
+  assertExists(dest, '.claude/settings.json');
+  const updatedSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  assert.ok(updatedSettings.permissions, 'Permissions should be preserved');
+  assert.ok(updatedSettings.permissions.allow.includes('Bash(npx:*)'), 'User permissions intact');
+  assert.ok(!updatedSettings.hooks, 'Hooks should be removed');
+
+  // SDD files removed
+  assertNotExists(dest, 'ai-specs');
+  assertNotExists(dest, 'AGENTS.md');
+  assertNotExists(dest, '.sdd-version');
+
+  // .claude dir still exists (has custom content)
+  assertExists(dest, '.claude');
+
+  // docs preserved
+  assertExists(dest, 'docs');
+}
+
+// --- Scenario 29: --eject preserves user-modified CI workflow ---
+
+function testEjectPreservesCustomCi() {
+  const dest = path.join(TMP_BASE, 'test-eject-ci');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-eject-ci',
+    dependencies: { express: '^4.18.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Verify CI was created with SDD marker
+  assertExists(dest, '.github/workflows/ci.yml');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'Generated by SDD DevFlow');
+
+  // User customizes CI: remove the SDD marker and add custom steps
+  const ciPath = path.join(dest, '.github', 'workflows', 'ci.yml');
+  let ciContent = fs.readFileSync(ciPath, 'utf8');
+  ciContent = ciContent.replace('Generated by SDD DevFlow', 'My Custom CI Pipeline');
+  ciContent += '\n  deploy:\n    runs-on: ubuntu-latest\n';
+  fs.writeFileSync(ciPath, ciContent, 'utf8');
+
+  // Eject
+  execSync(`node ${CLI} --eject --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // CI preserved (no SDD marker found)
+  assertExists(dest, '.github/workflows/ci.yml');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'My Custom CI Pipeline');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'deploy:');
+}
+
+// --- Scenario 30: --eject --diff (dry-run preview) ---
+
+function testEjectDiff() {
+  const dest = path.join(TMP_BASE, 'test-eject-diff');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-eject-diff',
+    dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Add custom agent for preservation test
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'agents', 'my-preview-agent.md'),
+    '# Preview Agent\n', 'utf8'
+  );
+
+  // Run --eject --diff
+  const output = execSync(`node ${CLI} --eject --diff`, { cwd: dest, encoding: 'utf8' });
+
+  // Verify: NO files removed
+  assertExists(dest, 'ai-specs');
+  assertExists(dest, '.claude/agents');
+  assertExists(dest, 'AGENTS.md');
+  assertExists(dest, 'CLAUDE.md');
+  assertExists(dest, '.sdd-version');
+
+  // Verify: output contains expected sections
+  assert(output.includes('Preview'), 'Should show Preview header');
+  assert(output.includes('Will remove'), 'Should show what would be removed');
+  assert(output.includes('Will preserve'), 'Should show what would be preserved');
+  assert(output.includes('my-preview-agent.md'), 'Should list custom agent');
+  assert(output.includes('docs/'), 'Should mention docs preservation');
+  assert(output.includes('Run without --diff'), 'Should show call-to-action');
+}
+
+// --- Scenario 31: --eject error conditions ---
+
+function testEjectErrorConditions() {
+  const dest = path.join(TMP_BASE, 'test-eject-errors');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // --eject without package.json
+  try {
+    execSync(`node ${CLI} --eject --yes`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('No package.json'), 'Should require package.json');
+  }
+
+  // --eject without ai-specs (SDD not installed)
+  fs.writeFileSync(path.join(dest, 'package.json'), '{"name":"test"}');
+  try {
+    execSync(`node ${CLI} --eject --yes`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('ai-specs'), 'Should require ai-specs');
+  }
+
+  // --eject with project name
+  fs.mkdirSync(path.join(dest, 'ai-specs'), { recursive: true });
+  try {
+    execSync(`node ${CLI} --eject myproject`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('Cannot specify'), 'Should reject project name');
+  }
+}
+
+// --- Scenario 32: --eject on already-ejected project ---
+
+function testEjectAlreadyEjected() {
+  const dest = path.join(TMP_BASE, 'test-eject-already');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-eject-already',
+    dependencies: { express: '^4.18.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // First eject
+  execSync(`node ${CLI} --eject --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Second eject should fail
+  try {
+    execSync(`node ${CLI} --eject --yes`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('ai-specs'), 'Should detect SDD not installed');
+  }
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -1651,6 +1925,13 @@ try {
   run('Scenario 24: --init --diff (dry-run preview)', testInitDiff);
   run('Scenario 25: --upgrade --diff (dry-run preview)', testUpgradeDiff);
   run('Scenario 26: --diff error conditions', testDiffErrorConditions);
+  console.log('\n  Eject scenarios:');
+  run('Scenario 27: --eject basic (both tools)', testEjectBasic);
+  run('Scenario 28: --eject preserves custom agents + commands', testEjectPreservesCustomizations);
+  run('Scenario 29: --eject preserves customized CI workflow', testEjectPreservesCustomCi);
+  run('Scenario 30: --eject --diff (dry-run preview)', testEjectDiff);
+  run('Scenario 31: --eject error conditions', testEjectErrorConditions);
+  run('Scenario 32: --eject on already-ejected project', testEjectAlreadyEjected);
 } finally {
   cleanup();
 }

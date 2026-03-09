@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-09
+
+### Added
+
+- `--eject` flag to cleanly uninstall SDD DevFlow from a project
+  - Removes all SDD-generated files (agents, skills, hooks, standards, configs)
+  - Preserves custom agents, custom commands, personal settings, and project docs
+  - Smart settings.json handling: removes SDD hooks, preserves user permissions
+  - CI workflow removal only if SDD-generated (detects marker comment)
+  - Cleans .gitignore SDD entries
+  - Interactive confirmation (skip with `--yes`)
+  - Combine with `--diff` for dry-run preview: `--eject --diff`
+  - 6 new test scenarios (32 total)
+
 ## [0.7.0] - 2026-03-09
 
 ### Added
@@ -168,6 +182,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.5.0...v0.6.0
