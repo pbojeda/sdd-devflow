@@ -11,6 +11,7 @@ const isInit = args.includes('--init');
 const isUpgrade = args.includes('--upgrade');
 const isDoctor = args.includes('--doctor');
 const isForce = args.includes('--force');
+const isEject = args.includes('--eject');
 const isDiff = args.includes('--diff');
 
 async function main() {
@@ -19,6 +20,9 @@ async function main() {
   }
   if (isDoctor) {
     return runDoctorCmd();
+  }
+  if (isEject) {
+    return runEject();
   }
   if (isUpgrade) {
     return runUpgrade();
@@ -220,11 +224,64 @@ async function runUpgrade() {
   generateUpgrade(config);
 }
 
+async function runEject() {
+  const readline = require('readline');
+  const {
+    collectEjectInventory,
+    buildEjectSummary,
+    generateEject,
+  } = require('../lib/eject-generator');
+
+  const cwd = process.cwd();
+
+  // Validate: must be in an existing project
+  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+    console.error('Error: No package.json found in current directory.');
+    console.error('The --eject flag must be run from inside an existing project.');
+    process.exit(1);
+  }
+
+  // Validate: SDD must be installed
+  if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
+    console.error('Error: ai-specs/ directory not found.');
+    console.error('SDD DevFlow does not appear to be installed. Nothing to eject.');
+    process.exit(1);
+  }
+
+  // Validate: no project name with --eject
+  if (projectName) {
+    console.error('Error: Cannot specify a project name with --eject.');
+    console.error('Usage: create-sdd-project --eject');
+    process.exit(1);
+  }
+
+  const state = collectEjectInventory(cwd);
+
+  if (!useDefaults) {
+    console.log('\n' + buildEjectSummary(state));
+    console.log('');
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise((resolve) => {
+      rl.question('  Proceed? (y/N) ', resolve);
+    });
+    rl.close();
+
+    if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
+      console.log('\nEject cancelled.\n');
+      return;
+    }
+  }
+
+  generateEject(cwd);
+}
+
 async function runDiff() {
-  if (!isInit && !isUpgrade) {
-    console.error('Error: --diff must be combined with --init or --upgrade.');
+  if (!isInit && !isUpgrade && !isEject) {
+    console.error('Error: --diff must be combined with --init, --upgrade, or --eject.');
     console.error('Usage: create-sdd-project --init --diff');
     console.error('       create-sdd-project --upgrade --diff');
+    console.error('       create-sdd-project --eject --diff');
     process.exit(1);
   }
 
@@ -238,6 +295,22 @@ async function runDiff() {
   if (!fs.existsSync(path.join(cwd, 'package.json'))) {
     console.error('Error: No package.json found in current directory.');
     process.exit(1);
+  }
+
+  if (isEject) {
+    // Same validation as --eject
+    if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
+      console.error('Error: ai-specs/ directory not found.');
+      console.error('SDD DevFlow does not appear to be installed. Nothing to eject.');
+      process.exit(1);
+    }
+
+    const { runEjectDiffReport } = require('../lib/diff-generator');
+    const { collectEjectInventory } = require('../lib/eject-generator');
+
+    const state = collectEjectInventory(cwd);
+    runEjectDiffReport(state);
+    return;
   }
 
   const { scan } = require('../lib/scanner');
