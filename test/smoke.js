@@ -1488,6 +1488,129 @@ function testInitCiWorkflowMongo() {
   assertFileNotContains(dest, '.github/workflows/ci.yml', 'postgres:');
 }
 
+// --- Scenario 24: --init --diff (dry-run preview, no writes) ---
+
+function testInitDiff() {
+  const dest = path.join(TMP_BASE, 'test-init-diff');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express+Mongoose project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-init-diff',
+    dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '');
+
+  // Run --init --diff
+  const output = execSync(`node ${CLI} --init --diff`, { cwd: dest, encoding: 'utf8' });
+
+  // Verify: NO files created
+  assertNotExists(dest, 'ai-specs');
+  assertNotExists(dest, '.claude');
+  assertNotExists(dest, '.gemini');
+  assertNotExists(dest, 'AGENTS.md');
+  assertNotExists(dest, 'CLAUDE.md');
+  assertNotExists(dest, '.sdd-version');
+  assertNotExists(dest, '.github');
+
+  // Verify: output contains expected sections
+  assert(output.includes('Preview'), 'Should show Preview header');
+  assert(output.includes('Detected stack'), 'Should show detected stack');
+  assert(output.includes('Express'), 'Should mention Express');
+  assert(output.includes('Would create'), 'Should show what would be created');
+  assert(output.includes('agents'), 'Should mention agents');
+  assert(output.includes('standards'), 'Should mention standards');
+  assert(output.includes('Run without --diff'), 'Should show call-to-action');
+}
+
+// --- Scenario 25: --upgrade --diff (dry-run preview, no writes) ---
+
+function testUpgradeDiff() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-diff');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create and init a project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-upgrade-diff',
+    dependencies: { express: '^4.18.0', '@prisma/client': '^5.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '');
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'),
+    'datasource db { provider = "postgresql" }');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Add a custom agent (to verify it's reported)
+  fs.writeFileSync(
+    path.join(dest, '.claude', 'agents', 'my-diff-agent.md'),
+    '# My Diff Agent\n', 'utf8'
+  );
+
+  // Modify a standard (to verify it's detected)
+  const backendStdPath = path.join(dest, 'ai-specs', 'specs', 'backend-standards.mdc');
+  let stdContent = fs.readFileSync(backendStdPath, 'utf8');
+  stdContent += '\n## My Custom Section\n';
+  fs.writeFileSync(backendStdPath, stdContent, 'utf8');
+
+  // Record state before diff
+  const versionBefore = fs.readFileSync(path.join(dest, '.sdd-version'), 'utf8');
+  const agentMtime = fs.statSync(path.join(dest, '.claude', 'agents', 'backend-developer.md')).mtimeMs;
+
+  // Run --upgrade --diff --force (same version)
+  const output = execSync(`node ${CLI} --upgrade --diff --force`, { cwd: dest, encoding: 'utf8' });
+
+  // Verify: NO files modified
+  const versionAfter = fs.readFileSync(path.join(dest, '.sdd-version'), 'utf8');
+  assert.strictEqual(versionBefore, versionAfter, '.sdd-version should not change');
+  const agentMtimeAfter = fs.statSync(path.join(dest, '.claude', 'agents', 'backend-developer.md')).mtimeMs;
+  assert.strictEqual(agentMtime, agentMtimeAfter, 'Agent file should not be modified');
+
+  // Verify: output contains expected sections
+  assert(output.includes('Preview'), 'Should show Preview header');
+  assert(output.includes('Would replace'), 'Should show replacements');
+  assert(output.includes('Would preserve'), 'Should show preservations');
+  assert(output.includes('my-diff-agent.md'), 'Should list custom agent');
+  assert(output.includes('Standards:'), 'Should show standards section');
+  assert(output.includes('backend-standards.mdc'), 'Should mention backend standards');
+  assert(output.includes('customized'), 'Should detect customized standard');
+  assert(output.includes('Run without --diff'), 'Should show call-to-action');
+}
+
+// --- Scenario 26: --diff error conditions ---
+
+function testDiffErrorConditions() {
+  const dest = path.join(TMP_BASE, 'test-diff-errors');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // --diff alone (no --init or --upgrade)
+  try {
+    execSync(`node ${CLI} --diff`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('must be combined'), 'Should say --diff must be combined');
+  }
+
+  // --init --diff without package.json
+  try {
+    execSync(`node ${CLI} --init --diff`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('No package.json'), 'Should require package.json');
+  }
+
+  // --upgrade --diff without ai-specs
+  fs.writeFileSync(path.join(dest, 'package.json'), '{"name":"test"}');
+  try {
+    execSync(`node ${CLI} --upgrade --diff`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have thrown');
+  } catch (e) {
+    assert(e.stderr.includes('ai-specs'), 'Should require ai-specs for upgrade');
+  }
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -1524,6 +1647,10 @@ try {
   run('Scenario 18: --doctor on healthy project', testDoctorHealthy);
   run('Scenario 19: --doctor detects problems', testDoctorProblems);
   run('Scenario 20: --doctor backend-only coherence', testDoctorBackendOnly);
+  console.log('\n  Diff/preview scenarios:');
+  run('Scenario 24: --init --diff (dry-run preview)', testInitDiff);
+  run('Scenario 25: --upgrade --diff (dry-run preview)', testUpgradeDiff);
+  run('Scenario 26: --diff error conditions', testDiffErrorConditions);
 } finally {
   cleanup();
 }

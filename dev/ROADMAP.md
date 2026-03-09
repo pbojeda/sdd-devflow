@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.6.1
+## Current Version: 0.7.0
 
 ---
 
@@ -51,6 +51,7 @@
 - [x] SDD upgrade/migration (`--upgrade` flag with smart standards handling, custom agent preservation)
 - [x] `--doctor` diagnostic command (10 checks: installation, version, agents, coherence, cross-tool sync, standards, hooks, memory)
 - [x] CI/CD GitHub Actions template (auto-generated, stack-adapted: PostgreSQL, MongoDB, frontend-only)
+- [x] `--diff` dry-run preview for `--init` and `--upgrade`
 
 ## Phase 4: Test Generation for Existing Projects
 

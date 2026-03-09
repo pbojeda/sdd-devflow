@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-09
+
+### Added
+
+- `--diff` flag for dry-run preview of `--init` and `--upgrade` operations
+  - Shows detected stack, files that would be created/replaced/preserved
+  - For `--upgrade`: shows standards diff (customized vs unchanged), custom agents, new files
+  - Zero filesystem writes — safe to run anytime
+  - Combine with `--init` or `--upgrade`: `--init --diff`, `--upgrade --diff`
+  - 3 new test scenarios (26 total)
+
 ## [0.6.1] - 2026-03-09
 
 ### Added
@@ -157,6 +168,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.7.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.3.2...v0.4.0
