@@ -138,6 +138,36 @@ npx create-sdd-project@latest --upgrade
 
 For non-interactive upgrades (CI/scripts): `npx create-sdd-project@latest --upgrade --yes`
 
+### Doctor (Diagnose Installation)
+
+Check that your SDD installation is healthy:
+
+```bash
+cd your-project
+npx create-sdd-project --doctor
+```
+
+```
+🩺 SDD DevFlow Doctor
+
+  ✓ SDD installed (v0.5.0)
+  ✓ Version up to date (0.5.0)
+  ✓ AI tools: Claude Code + Gemini
+  ✓ Top-level configs present (AGENTS.md, CLAUDE.md, GEMINI.md)
+  ✓ Agents: 8/8 present
+  ✓ Project type coherence: OK (fullstack)
+  ✓ Cross-tool consistency: Claude and Gemini in sync
+  ✓ Standards: 4/4 present
+  ✓ Hooks: quick-scan.sh executable, jq installed, settings.json valid
+  ✓ Project memory: 4/4 files present
+
+  Overall: HEALTHY
+```
+
+**What it checks:** SDD files present, version, agents for your project type, no stray frontend agents in backend projects (and vice versa), Claude and Gemini agents in sync, standards files, hooks and dependencies (`jq`), settings.json integrity, project memory files.
+
+Exit code 1 if errors found — useful for CI pipelines.
+
 ### After Setup
 
 Open your project in Claude Code or Gemini and start building:

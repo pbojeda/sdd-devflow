@@ -9,9 +9,13 @@ const projectName = args.find((a) => !a.startsWith('-'));
 const useDefaults = args.includes('--yes') || args.includes('-y');
 const isInit = args.includes('--init');
 const isUpgrade = args.includes('--upgrade');
+const isDoctor = args.includes('--doctor');
 const isForce = args.includes('--force');
 
 async function main() {
+  if (isDoctor) {
+    return runDoctorCmd();
+  }
   if (isUpgrade) {
     return runUpgrade();
   }
@@ -19,6 +23,23 @@ async function main() {
     return runInit();
   }
   return runCreate();
+}
+
+function runDoctorCmd() {
+  const { runDoctor, printResults } = require('../lib/doctor');
+
+  const cwd = process.cwd();
+
+  // Validate: must be in an existing project
+  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+    console.error('Error: No package.json found in current directory.');
+    console.error('The --doctor flag must be run from inside an existing project.');
+    process.exit(1);
+  }
+
+  const results = runDoctor(cwd);
+  const exitCode = printResults(results);
+  process.exit(exitCode);
 }
 
 async function runCreate() {

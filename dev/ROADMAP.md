@@ -49,6 +49,7 @@
   - [x] All 6 i04_cgm testing issues closed
 - [ ] Monorepo support improvements (pnpm workspaces, turbo)
 - [x] SDD upgrade/migration (`--upgrade` flag with smart standards handling, custom agent preservation)
+- [x] `--doctor` diagnostic command (10 checks: installation, version, agents, coherence, cross-tool sync, standards, hooks, memory)
 
 ## Phase 4: Test Generation for Existing Projects
 

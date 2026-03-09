@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- `--doctor` flag to diagnose SDD installation health
+  - 10 checks: installation, version, AI tool config, top-level configs, agents completeness, project type coherence, cross-tool consistency, standards, hooks/dependencies, project memory
+  - Exit code 1 on errors (useful for CI)
+  - 3 new test scenarios (20 total)
+
 ## [0.5.0] - 2026-03-06
 
 ### Added

@@ -1251,6 +1251,128 @@ function testNewProjectSddVersion() {
   assertFileContains(dest, '.sdd-version', pkg.version);
 }
 
+// --- Scenario 18: --doctor on healthy project ---
+
+function testDoctorHealthy() {
+  // Create a project with --init, then run doctor
+  const dest = path.join(TMP_BASE, 'test-doctor-healthy');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express+Prisma project
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-doctor',
+    dependencies: { express: '^4.18.0', '@prisma/client': '^5.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'), 'datasource db { provider = "postgresql" }');
+
+  // Install SDD
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Run doctor — should exit 0 (healthy)
+  const output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+
+  assert(output.includes('SDD DevFlow Doctor'), 'Should show doctor header');
+  assert(output.includes('SDD installed'), 'Should confirm SDD installed');
+  assert(output.includes('HEALTHY'), 'Should report HEALTHY');
+  assert(!output.includes('✗'), 'Should have no failures');
+
+  // Check specific pass items
+  assert(output.includes('AI tools:'), 'Should show AI tools');
+  assert(output.includes('Agents:'), 'Should show agents count');
+  assert(output.includes('Standards:'), 'Should show standards count');
+  assert(output.includes('Project memory:'), 'Should show memory status');
+  assert(output.includes('Cross-tool consistency:'), 'Should show cross-tool check');
+  assert(output.includes('Top-level configs present'), 'Should verify CLAUDE.md/GEMINI.md');
+}
+
+// --- Scenario 19: --doctor detects problems ---
+
+function testDoctorProblems() {
+  // Create a project with --init, then introduce problems
+  const dest = path.join(TMP_BASE, 'test-doctor-problems');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock Express project (backend only)
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-doctor-problems',
+    dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  // Install SDD
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Introduce problems:
+  // 1. Delete an agent
+  fs.unlinkSync(path.join(dest, '.claude', 'agents', 'spec-creator.md'));
+
+  // 2. Corrupt settings.json
+  fs.writeFileSync(path.join(dest, '.claude', 'settings.json'), '{ invalid json', 'utf8');
+
+  // 3. Delete a memory file
+  fs.unlinkSync(path.join(dest, 'docs', 'project_notes', 'bugs.md'));
+
+  // 4. Add a frontend agent to a backend project (coherence issue)
+  fs.writeFileSync(path.join(dest, '.claude', 'agents', 'frontend-developer.md'), '# Frontend Dev', 'utf8');
+
+  // 5. Create mismatch between claude and gemini agents
+  fs.writeFileSync(path.join(dest, '.claude', 'agents', 'my-custom-agent.md'), '# Custom', 'utf8');
+
+  // Run doctor — should exit 1 (unhealthy) due to corrupted settings.json
+  let output;
+  try {
+    output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  } catch (e) {
+    output = e.stdout;
+  }
+
+  assert(output.includes('SDD DevFlow Doctor'), 'Should show doctor header');
+
+  // Check that problems are detected
+  assert(output.includes('missing') || output.includes('Missing'), 'Should detect missing agent');
+  assert(output.includes('invalid JSON') || output.includes('issue'), 'Should detect corrupted settings');
+  assert(output.includes('UNHEALTHY') || output.includes('NEEDS ATTENTION'), 'Should report problems');
+
+  // Check coherence detection (frontend agent in backend project)
+  assert(output.includes('Frontend agent in backend project') || output.includes('coherence'), 'Should detect coherence issue');
+
+  // Check cross-tool mismatch (custom agent only in .claude)
+  assert(output.includes('my-custom-agent.md') || output.includes('mismatch'), 'Should detect cross-tool mismatch');
+
+  // Check memory file missing
+  assert(output.includes('3/4') || output.includes('bugs.md'), 'Should detect missing memory file');
+}
+
+// --- Scenario 20: --doctor on backend-only (no frontend standards expected) ---
+
+function testDoctorBackendOnly() {
+  const dest = path.join(TMP_BASE, 'test-doctor-backend');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-doctor-backend',
+    dependencies: { express: '^4.18.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  // Install SDD (backend only detected)
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Run doctor — should be healthy
+  const output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+
+  assert(output.includes('HEALTHY'), 'Backend-only project should be HEALTHY');
+  assert(output.includes('Project type coherence: OK (backend)'), 'Should confirm backend coherence');
+
+  // Standards count: 3 for backend (base, backend, documentation — no frontend)
+  assert(output.includes('Standards: 3/3'), 'Should have 3/3 standards for backend');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -1279,6 +1401,10 @@ try {
   run('Scenario 15: --upgrade after --init (basic)', testUpgradeBasic);
   run('Scenario 16: --upgrade preserves custom agents + modified standards', testUpgradePreservesCustomizations);
   run('Scenario 17: New project writes .sdd-version', testNewProjectSddVersion);
+  console.log('\n  Doctor scenarios:');
+  run('Scenario 18: --doctor on healthy project', testDoctorHealthy);
+  run('Scenario 19: --doctor detects problems', testDoctorProblems);
+  run('Scenario 20: --doctor backend-only coherence', testDoctorBackendOnly);
 } finally {
   cleanup();
 }
