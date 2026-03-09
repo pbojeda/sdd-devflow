@@ -1091,6 +1091,10 @@ function testUpgradeBasic() {
   // Verify: AGENTS.md adapted for backend-only
   assertFileNotContains(dest, 'AGENTS.md', 'Frontend Standards');
   assertFileContains(dest, 'AGENTS.md', 'Backend Standards');
+
+  // Verify: CI workflow added during upgrade (didn't exist before --init added it)
+  assertExists(dest, '.github/workflows/ci.yml');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'postgres:');
 }
 
 // --- Scenario 16: --upgrade preserves custom agents + modified standards ---
@@ -1373,6 +1377,117 @@ function testDoctorBackendOnly() {
   assert(output.includes('Standards: 3/3'), 'Should have 3/3 standards for backend');
 }
 
+// --- Scenario 21: New project CI workflow (fullstack + PostgreSQL) ---
+
+function testCiWorkflowFullstack() {
+  const dest = path.join(TMP_BASE, 'test-ci-fullstack');
+
+  const { generate } = require('../lib/generator');
+  const { BACKEND_STACKS } = require('../lib/config');
+
+  silent(() => generate({
+    projectName: 'test-ci-fullstack',
+    projectDir: dest,
+    description: '',
+    businessContext: '',
+    projectType: 'fullstack',
+    backendStack: 'express-prisma-pg',
+    backendPreset: BACKEND_STACKS[0],
+    frontendStack: 'nextjs-tailwind-radix',
+    aiTools: 'claude',
+    autonomyLevel: 2,
+    autonomyName: 'Trusted',
+    branching: 'github-flow',
+    backendPort: 3010,
+    frontendPort: 3000,
+  }));
+
+  // CI workflow exists
+  assertExists(dest, '.github/workflows/ci.yml');
+
+  // Has postgres service (default for fullstack with PostgreSQL)
+  assertFileContains(dest, '.github/workflows/ci.yml', 'postgres:');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'POSTGRES_DB: testdb');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'DATABASE_URL: postgresql://');
+
+  // GitHub Flow: only main branch
+  assertFileContains(dest, '.github/workflows/ci.yml', 'branches: [main]');
+  assertFileNotContains(dest, '.github/workflows/ci.yml', 'develop');
+
+  // Has standard steps
+  assertFileContains(dest, '.github/workflows/ci.yml', 'npm ci');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'npm test --if-present');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'npm run build --if-present');
+}
+
+// --- Scenario 22: New project CI workflow (frontend-only) ---
+
+function testCiWorkflowFrontendOnly() {
+  const dest = path.join(TMP_BASE, 'test-ci-frontend');
+
+  const { generate } = require('../lib/generator');
+
+  silent(() => generate({
+    projectName: 'test-ci-frontend',
+    projectDir: dest,
+    description: '',
+    businessContext: '',
+    projectType: 'frontend',
+    backendStack: 'express-prisma-pg',
+    frontendStack: 'nextjs-tailwind-radix',
+    aiTools: 'claude',
+    autonomyLevel: 2,
+    autonomyName: 'Trusted',
+    branching: 'gitflow',
+    backendPort: 3010,
+    frontendPort: 3000,
+  }));
+
+  // CI workflow exists
+  assertExists(dest, '.github/workflows/ci.yml');
+
+  // No DB services for frontend-only
+  assertFileNotContains(dest, '.github/workflows/ci.yml', 'postgres:');
+  assertFileNotContains(dest, '.github/workflows/ci.yml', 'POSTGRES_DB');
+  assertFileNotContains(dest, '.github/workflows/ci.yml', 'DATABASE_URL');
+
+  // GitFlow: main + develop branches
+  assertFileContains(dest, '.github/workflows/ci.yml', 'branches: [main, develop]');
+}
+
+// --- Scenario 23: --init copies CI workflow + MongoDB adaptation ---
+
+function testInitCiWorkflowMongo() {
+  const dest = path.join(TMP_BASE, 'test-ci-init-mongo');
+  fs.mkdirSync(dest, { recursive: true });
+
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'test-ci-mongo',
+    dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+  }));
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.js'), '');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+
+  const scanResult = scan(dest);
+  const config = buildInitDefaultConfig(scanResult);
+  config.projectDir = dest;
+
+  silent(() => generateInit(config));
+
+  // CI workflow created
+  assertExists(dest, '.github/workflows/ci.yml');
+
+  // MongoDB service instead of postgres
+  assertFileContains(dest, '.github/workflows/ci.yml', 'mongodb:');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'mongo:7');
+  assertFileContains(dest, '.github/workflows/ci.yml', 'MONGODB_URI');
+  assertFileNotContains(dest, '.github/workflows/ci.yml', 'postgres:');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -1401,6 +1516,10 @@ try {
   run('Scenario 15: --upgrade after --init (basic)', testUpgradeBasic);
   run('Scenario 16: --upgrade preserves custom agents + modified standards', testUpgradePreservesCustomizations);
   run('Scenario 17: New project writes .sdd-version', testNewProjectSddVersion);
+  console.log('\n  CI workflow scenarios:');
+  run('Scenario 21: CI workflow fullstack + PostgreSQL', testCiWorkflowFullstack);
+  run('Scenario 22: CI workflow frontend-only + gitflow', testCiWorkflowFrontendOnly);
+  run('Scenario 23: --init CI workflow + MongoDB', testInitCiWorkflowMongo);
   console.log('\n  Doctor scenarios:');
   run('Scenario 18: --doctor on healthy project', testDoctorHealthy);
   run('Scenario 19: --doctor detects problems', testDoctorProblems);

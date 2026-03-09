@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-09
+
+### Added
+
+- CI/CD GitHub Actions workflow template (`.github/workflows/ci.yml`)
+  - Auto-generated for new projects, `--init`, and `--upgrade`
+  - Adapts DB services to detected stack: PostgreSQL (default), MongoDB, or none (frontend-only)
+  - Health checks for both PostgreSQL and MongoDB services
+  - Branches adapted to branching strategy (github-flow: `main`, gitflow: `main` + `develop`)
+  - `--upgrade` only adds CI workflow if not already present (respects customization)
+  - 3 new test scenarios (23 total)
+
 ## [0.6.0] - 2026-03-09
 
 ### Added
