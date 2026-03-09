@@ -168,6 +168,17 @@ npx create-sdd-project --doctor
 
 Exit code 1 if errors found — useful for CI pipelines.
 
+### CI/CD (Auto-Generated)
+
+Every project gets a GitHub Actions CI workflow at `.github/workflows/ci.yml`, adapted to your stack:
+
+- **PostgreSQL** projects get a `postgres:16` service with health checks
+- **MongoDB** projects get a `mongo:7` service with health checks
+- **Frontend-only** projects get a lightweight workflow without DB services
+- **GitFlow** projects trigger on both `main` and `develop` branches
+
+Customize the generated workflow as your project grows.
+
 ### After Setup
 
 Open your project in Claude Code or Gemini and start building:
@@ -312,6 +323,9 @@ project/
 ├── CLAUDE.md                            # Claude Code config (autonomy, recovery)
 ├── GEMINI.md                            # Gemini config (autonomy)
 ├── .env.example                         # Environment variables template
+│
+├── .github/
+│   └── workflows/ci.yml                 # CI pipeline (adapted to your stack)
 │
 ├── .claude/
 │   ├── agents/                          # 9 specialized agents
