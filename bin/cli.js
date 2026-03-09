@@ -11,8 +11,12 @@ const isInit = args.includes('--init');
 const isUpgrade = args.includes('--upgrade');
 const isDoctor = args.includes('--doctor');
 const isForce = args.includes('--force');
+const isDiff = args.includes('--diff');
 
 async function main() {
+  if (isDiff) {
+    return runDiff();
+  }
   if (isDoctor) {
     return runDoctorCmd();
   }
@@ -214,6 +218,100 @@ async function runUpgrade() {
   }
 
   generateUpgrade(config);
+}
+
+async function runDiff() {
+  if (!isInit && !isUpgrade) {
+    console.error('Error: --diff must be combined with --init or --upgrade.');
+    console.error('Usage: create-sdd-project --init --diff');
+    console.error('       create-sdd-project --upgrade --diff');
+    process.exit(1);
+  }
+
+  if (projectName) {
+    console.error('Error: Cannot specify a project name with --diff.');
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+
+  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+    console.error('Error: No package.json found in current directory.');
+    process.exit(1);
+  }
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { runInitDiffReport, runUpgradeDiffReport } = require('../lib/diff-generator');
+
+  if (isInit) {
+    // Same validation as --init
+    if (fs.existsSync(path.join(cwd, 'ai-specs'))) {
+      console.error('Error: ai-specs/ directory already exists.');
+      console.error('SDD DevFlow appears to already be installed. Use --upgrade --diff instead.');
+      process.exit(1);
+    }
+
+    const scanResult = scan(cwd);
+    const config = buildInitDefaultConfig(scanResult);
+    runInitDiffReport(config);
+    return;
+  }
+
+  if (isUpgrade) {
+    // Same validation as --upgrade
+    if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
+      console.error('Error: ai-specs/ directory not found.');
+      console.error('SDD DevFlow does not appear to be installed. Use --init --diff instead.');
+      process.exit(1);
+    }
+
+    const {
+      readInstalledVersion,
+      getPackageVersion,
+      detectAiTools,
+      detectProjectType,
+      readAutonomyLevel,
+      collectCustomAgents,
+      collectCustomCommands,
+    } = require('../lib/upgrade-generator');
+
+    const installedVersion = readInstalledVersion(cwd);
+    const packageVersion = getPackageVersion();
+
+    if (installedVersion === packageVersion && !isForce) {
+      console.log(`\nSDD DevFlow is already at version ${packageVersion}.`);
+      console.log('Use --force --diff to preview a re-install.\n');
+      return;
+    }
+
+    const scanResult = scan(cwd);
+    const aiTools = detectAiTools(cwd);
+    const projectType = detectProjectType(cwd);
+    const autonomy = readAutonomyLevel(cwd);
+    const customAgents = collectCustomAgents(cwd);
+    const customCommands = collectCustomCommands(cwd);
+    const settingsLocal = fs.existsSync(path.join(cwd, '.claude', 'settings.local.json'));
+
+    const config = buildInitDefaultConfig(scanResult);
+    config.aiTools = aiTools;
+    config.projectType = projectType;
+    config.autonomyLevel = autonomy.level;
+    config.autonomyName = autonomy.name;
+    config.installedVersion = installedVersion;
+
+    const state = {
+      installedVersion,
+      packageVersion,
+      aiTools,
+      projectType,
+      customAgents,
+      customCommands,
+      settingsLocal,
+    };
+
+    runUpgradeDiffReport(config, state);
+  }
 }
 
 main().catch((err) => {

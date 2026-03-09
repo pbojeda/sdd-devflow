@@ -168,6 +168,18 @@ npx create-sdd-project --doctor
 
 Exit code 1 if errors found — useful for CI pipelines.
 
+### Preview Changes (--diff)
+
+See what `--init` or `--upgrade` would do without modifying anything:
+
+```bash
+cd your-existing-project
+npx create-sdd-project --init --diff      # Preview init
+npx create-sdd-project --upgrade --diff   # Preview upgrade
+```
+
+Shows detected stack, files that would be created/replaced/preserved, and standards status — zero filesystem writes.
+
 ### CI/CD (Auto-Generated)
 
 Every project gets a GitHub Actions CI workflow at `.github/workflows/ci.yml`, adapted to your stack:
