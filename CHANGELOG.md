@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-03-10
+
+### Fixed
+
+- QA agent now records bugs in `bugs.md` when issues are found (was only documented in Step 6)
+- Workflow Step 5 (Review) now includes explicit fix-commit loop after code-review/QA findings
+- Product tracker Features table now updated at every workflow step (was only updated in Step 6)
+
 ## [0.8.1] - 2026-03-10
 
 ### Fixed
@@ -191,6 +199,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.6.0...v0.6.1
