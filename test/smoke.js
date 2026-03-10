@@ -110,6 +110,14 @@ function testDefaults() {
 
   // No internal files leaked
   assertNotExists(dest, 'docs/project_notes/pending-improvements.md');
+
+  // package.json generated with project name
+  assertExists(dest, 'package.json');
+  assertFileContains(dest, 'package.json', '"name": "test-defaults"');
+  assertFileContains(dest, 'package.json', '"private": true');
+
+  // gitignore renamed (no bare 'gitignore' file left)
+  assertNotExists(dest, 'gitignore');
 }
 
 // --- Scenario 2: Backend only ---
@@ -1831,16 +1839,7 @@ function testEjectErrorConditions() {
   const dest = path.join(TMP_BASE, 'test-eject-errors');
   fs.mkdirSync(dest, { recursive: true });
 
-  // --eject without package.json
-  try {
-    execSync(`node ${CLI} --eject --yes`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
-    assert.fail('Should have thrown');
-  } catch (e) {
-    assert(e.stderr.includes('No package.json'), 'Should require package.json');
-  }
-
   // --eject without ai-specs (SDD not installed)
-  fs.writeFileSync(path.join(dest, 'package.json'), '{"name":"test"}');
   try {
     execSync(`node ${CLI} --eject --yes`, { cwd: dest, encoding: 'utf8', stdio: 'pipe' });
     assert.fail('Should have thrown');
