@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-03-10
+
+### Fixed
+
+- New projects now include `package.json` (minimal, with `private: true`)
+- `.gitignore` now correctly included in npm package (renamed to avoid npm stripping)
+- `--upgrade` creates missing `package.json` and `.gitignore` for projects created with v0.8.0
+- `--upgrade`, `--eject`, `--doctor` no longer require `package.json` (use `ai-specs/` as primary signal)
+
 ## [0.8.0] - 2026-03-09
 
 ### Added
