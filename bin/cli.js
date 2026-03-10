@@ -38,9 +38,9 @@ function runDoctorCmd() {
 
   const cwd = process.cwd();
 
-  // Validate: must be in an existing project
-  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
-    console.error('Error: No package.json found in current directory.');
+  // Validate: must be in a project with SDD installed
+  if (!fs.existsSync(path.join(cwd, 'package.json')) && !fs.existsSync(path.join(cwd, 'ai-specs'))) {
+    console.error('Error: No package.json or ai-specs/ found in current directory.');
     console.error('The --doctor flag must be run from inside an existing project.');
     process.exit(1);
   }
@@ -142,13 +142,6 @@ async function runUpgrade() {
 
   const cwd = process.cwd();
 
-  // Validate: must be in an existing project
-  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
-    console.error('Error: No package.json found in current directory.');
-    console.error('The --upgrade flag must be run from inside an existing project.');
-    process.exit(1);
-  }
-
   // Validate: SDD must be installed
   if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
     console.error('Error: ai-specs/ directory not found.');
@@ -234,13 +227,6 @@ async function runEject() {
 
   const cwd = process.cwd();
 
-  // Validate: must be in an existing project
-  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
-    console.error('Error: No package.json found in current directory.');
-    console.error('The --eject flag must be run from inside an existing project.');
-    process.exit(1);
-  }
-
   // Validate: SDD must be installed
   if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
     console.error('Error: ai-specs/ directory not found.');
@@ -292,11 +278,6 @@ async function runDiff() {
 
   const cwd = process.cwd();
 
-  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
-    console.error('Error: No package.json found in current directory.');
-    process.exit(1);
-  }
-
   if (isEject) {
     // Same validation as --eject
     if (!fs.existsSync(path.join(cwd, 'ai-specs'))) {
@@ -319,6 +300,11 @@ async function runDiff() {
 
   if (isInit) {
     // Same validation as --init
+    if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+      console.error('Error: No package.json found in current directory.');
+      console.error('The --init flag must be run from inside an existing project.');
+      process.exit(1);
+    }
     if (fs.existsSync(path.join(cwd, 'ai-specs'))) {
       console.error('Error: ai-specs/ directory already exists.');
       console.error('SDD DevFlow appears to already be installed. Use --upgrade --diff instead.');
