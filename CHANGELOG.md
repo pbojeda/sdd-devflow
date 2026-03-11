@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-11
+
+### Fixed
+
+- Pre-merge checklist now marks ticket items as `Std/Cplx only` — Simple tasks don't have tickets
+
 ## [0.8.3] - 2026-03-11
 
 ### Fixed
@@ -207,6 +213,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.0...v0.8.1
