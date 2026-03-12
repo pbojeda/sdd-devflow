@@ -85,7 +85,7 @@ See `references/branching-strategy.md` for details.
 
 1. Verify product tracker exists, no active feature, dependencies met
 2. Create feature branch: `feature/<feature-id>-<short-description>`
-3. **Std/Cplx:** Generate ticket from `references/ticket-template.md` → fill `## Spec` section
+3. **Std/Cplx:** Copy ALL sections from `references/ticket-template.md` (Spec, Implementation Plan, Acceptance Criteria, Definition of Done, Workflow Checklist, Completion Log) → fill `## Spec` section. Do NOT omit empty sections — they are filled in later steps
 4. **Complex:** Also review `decisions.md` for related ADRs
 5. Update product tracker → Active Session: feature, step `1/6 (Setup)`, branch, complexity. Update Features table: status `in-progress`, step `1/6`
 

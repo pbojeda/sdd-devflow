@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-12
+
+### Fixed
+
+- Step 1 ticket generation now explicitly requires ALL template sections (Definition of Done, Workflow Checklist, Completion Log were being omitted by agents)
+
 ## [0.8.4] - 2026-03-11
 
 ### Fixed
@@ -213,6 +219,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.1...v0.8.2
