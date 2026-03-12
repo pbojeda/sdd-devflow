@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-03-12
+
+### Added
+
+- Desktop notifications via Notification hooks in `settings.json` (cross-platform: macOS, Linux, terminal bell fallback)
+  - `permission_prompt`: notifies when Claude needs approval
+  - `idle_prompt`: notifies when Claude finishes and waits for input
+  - Delivered automatically on `--upgrade` (hooks in `settings.json` are replaced, user permissions preserved)
+
+### Changed
+
+- Moved Notification hooks from `settings.local.json` to `settings.json` (shared, upgradeable)
+- `settings.local.json` now contains only permissions (personal, preserved on upgrade)
+
 ## [0.8.5] - 2026-03-12
 
 ### Fixed
@@ -219,6 +233,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.2...v0.8.3
