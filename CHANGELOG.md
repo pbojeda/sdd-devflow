@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-03-12
+
+### Changed
+
+- Merge Approval checkpoint rewritten as action-oriented steps instead of passive checklist
+  - Forces agent to re-read ticket file and product tracker (brings them into active context)
+  - Sequential numbered actions: read → mark → update → commit → verify → request
+  - Addresses recurring issue where agents skipped documentation updates (F004, F005, F006)
+
 ## [0.8.6] - 2026-03-12
 
 ### Added
@@ -233,6 +242,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.3...v0.8.4
