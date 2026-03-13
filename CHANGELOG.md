@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-03-13
+
+### Fixed
+
+- Step 1 ticket generation now includes post-generation validation: agent must verify all 6 sections exist in correct order (Spec → Implementation Plan → Acceptance Criteria → Definition of Done → Workflow Checklist → Completion Log)
+- Merge Approval checkpoint now validates ticket structure (action 0) before marking items — if any required section is missing, agent must add it from `references/ticket-template.md` before proceeding
+  - Root cause: agents generating tickets in long sessions would omit sections (Workflow Checklist, Completion Log) due to context loss, then checkpoint couldn't enforce marking
+
 ## [0.8.7] - 2026-03-12
 
 ### Changed
@@ -242,6 +250,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.4...v0.8.5
