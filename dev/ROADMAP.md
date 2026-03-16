@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.8.0
+## Current Version: 0.9.0
 
 ---
 
@@ -53,6 +53,7 @@
 - [x] CI/CD GitHub Actions template (auto-generated, stack-adapted: PostgreSQL, MongoDB, frontend-only)
 - [x] `--diff` dry-run preview for `--init` and `--upgrade`
 - [x] `--eject` clean uninstall (removes SDD files, preserves custom agents/commands/docs/settings)
+- [x] Merge Checklist Evidence in ticket template (B+D) — survives context compaction, forces checkpoint execution
 
 ## Phase 4: Test Generation for Existing Projects
 

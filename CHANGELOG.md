@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-16
+
+### Added
+
+- `## Merge Checklist Evidence` section in ticket template (option B+D)
+  - Empty evidence table in every ticket acts as anchor that survives context compaction
+  - Agent must read `references/merge-checklist.md`, execute all 9 actions (0–8), and fill evidence for actions 0–6
+  - Root cause: after `/compact` or long sessions, agents lose SKILL.md context and never reach the "Read merge-checklist.md" instruction. The ticket is always re-read (via tracker Active Session), making it the ideal anchor for forcing the checkpoint.
+  - v0.8.9 external reference (option B) works at session start but fails post-compact (validated: F010 PASS, F011 FAIL)
+  - New Action 7 (Fill Evidence) + Action 8 (Request Merge) replace old Action 7
+- Step 1 ticket validation now checks for 7 sections (added Merge Checklist Evidence)
+- Symmetric changes in both Claude and Gemini templates
+
 ## [0.8.9] - 2026-03-16
 
 ### Changed
@@ -259,6 +272,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.9...v0.9.0
 [0.8.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.6...v0.8.7

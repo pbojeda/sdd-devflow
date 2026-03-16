@@ -103,6 +103,12 @@ function testDefaults() {
   assertExists(dest, '.gemini/skills/project-memory/SKILL.md');
   assertExists(dest, '.gemini/commands/start-task.toml');
 
+  // Merge Checklist Evidence in ticket template (B+D)
+  assertFileContains(dest, '.claude/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
+  assertFileContains(dest, '.gemini/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
+  assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
+  assertFileContains(dest, '.gemini/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -1103,6 +1109,11 @@ function testUpgradeBasic() {
   // Verify: CI workflow added during upgrade (didn't exist before --init added it)
   assertExists(dest, '.github/workflows/ci.yml');
   assertFileContains(dest, '.github/workflows/ci.yml', 'postgres:');
+
+  // Verify: Merge Checklist Evidence section in ticket template after upgrade (B+D)
+  assertFileContains(dest, '.claude/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
+  assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Merge Checklist Evidence');
 }
 
 // --- Scenario 16: --upgrade preserves custom agents + modified standards ---
