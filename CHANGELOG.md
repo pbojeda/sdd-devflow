@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-03-16
+
+### Changed
+
+- Merge Approval checkpoint actions moved from inline SKILL.md text to `references/merge-checklist.md`
+  - Forces agent to perform a Read tool call to load the checklist, bringing actions into active context
+  - Root cause: agents in long sessions lost SKILL.md context and skipped the inline checkpoint actions (observed in F007b, F008, F009 despite v0.8.8 fixes)
+  - The 8 actions are identical to v0.8.8 but now live in a dedicated reference file
+
 ## [0.8.8] - 2026-03-13
 
 ### Fixed
@@ -250,6 +259,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.8.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.5...v0.8.6

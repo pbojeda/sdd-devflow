@@ -153,16 +153,7 @@ Update tracker (Active Session + Features table): step `4/6 (Finalize)`. Mark ti
 
 **→ CHECKPOINT: Merge Approval**
 
-**STOP.** Before requesting merge approval, complete these actions IN ORDER:
-
-0. **Std/Cplx:** Re-read the ticket file (`docs/tickets/<feature-id>.md`) — verify it contains ALL required sections: Acceptance Criteria, Definition of Done, Workflow Checklist, Completion Log. **If ANY section is missing, add it from `references/ticket-template.md` before continuing.**
-1. **Std/Cplx:** Mark ALL items `[x]` in: Workflow Checklist (Steps 0–5), Acceptance Criteria, Definition of Done. Add missing Completion Log entries (date, action, notes for each step).
-2. Re-read `docs/project_notes/product-tracker.md` — verify Active Session shows step `5/6 (Review)` and Features table is updated. Fix if stale.
-3. Update `key_facts.md` if new models, schemas, migrations, or reusable components were added.
-4. Update `decisions.md` with ADR if Definition of Done requires it.
-5. Commit ALL documentation updates.
-6. Run `git status` — verify clean working tree. No unstaged files allowed.
-7. THEN request merge approval from the user.
+**STOP.** Read `references/merge-checklist.md` and execute ALL actions in order. Do NOT request merge approval until every action is done.
 
 ---
 
@@ -195,6 +186,7 @@ Update tracker (Active Session + Features table): step `4/6 (Finalize)`. Mark ti
 - `references/add-feature-template.md` — Add feature to tracker
 - `references/complexity-guide.md` — Complexity classification
 - `references/workflow-example.md` — Full worked example
+- `references/merge-checklist.md` — Pre-merge approval actions (MANDATORY)
 - `references/failure-handling.md` — Recovery & rollbacks
 
 ## Constraints
