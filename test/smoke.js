@@ -109,6 +109,13 @@ function testDefaults() {
   assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
   assertFileContains(dest, '.gemini/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
 
+  // Simple tasks generate lite ticket (B+D coverage for all tiers)
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', '| Simple | Skip | Lite | Skip | Skip |');
+  assertFileContains(dest, '.gemini/skills/development-workflow/SKILL.md', '| Simple | Skip | Lite | Skip | Skip |');
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', 'lite ticket');
+  assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
+  assertFileContains(dest, '.gemini/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -1114,6 +1121,10 @@ function testUpgradeBasic() {
   assertFileContains(dest, '.claude/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
   assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Fill Merge Checklist Evidence');
   assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Merge Checklist Evidence');
+
+  // Verify: Simple lite ticket after upgrade
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', '| Simple | Skip | Lite | Skip | Skip |');
+  assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
 }
 
 // --- Scenario 16: --upgrade preserves custom agents + modified standards ---

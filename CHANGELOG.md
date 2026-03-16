@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-16
+
+### Fixed
+
+- Simple tasks now generate a **lite ticket** (header, AC, DoD, Workflow Checklist, Completion Log, Merge Checklist Evidence)
+  - Root cause: Simple complexity skipped ticket creation entirely, so the B+D evidence table had nowhere to live — merge checklist was unreachable for Simple tasks
+  - Lite ticket uses same `ticket-template.md` but with minimal Spec (one-liner) and `Implementation Plan: N/A — Simple task`
+  - Workflow Checklist for Simple: Steps 1, 3, 4, 5 only
+- Merge checklist Actions 0 and 1 no longer marked "(Std/Cplx)" — now apply to all tiers
+  - Action 0 includes note for Simple lite tickets (Spec and Plan may be minimal)
+  - Action 1 clarifies which Workflow Checklist steps apply per tier
+- Complexity guide updated: Simple effect now mentions lite ticket and merge checklist
+- Symmetric changes in both Claude and Gemini templates
+
 ## [0.9.0] - 2026-03-16
 
 ### Added
@@ -272,6 +286,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.9...v0.9.0
 [0.8.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.7...v0.8.8
