@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-03-17
+
+### Fixed
+
+- Compact recovery hook now instructs agent to re-read SKILL.md after context compaction
+  - Root cause: after `/compact`, agents recover context from tracker Active Session but never re-read SKILL.md, so Step 5's "STOP. Read merge-checklist.md" instruction is lost. Validated: F018 (Standard) went through 2 compactions and skipped merge checklist entirely despite having the B+D evidence table in the ticket.
+  - Hook now includes 3 explicit steps: (1) read tracker, (2) re-read SKILL.md for current step, (3) if at Step 5+, read merge-checklist.md and fill evidence table
+- Session Recovery protocol in CLAUDE.md updated with explicit merge-checklist reminder at Step 5+
+
 ## [0.9.1] - 2026-03-16
 
 ### Fixed
@@ -286,6 +295,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.9...v0.9.0
 [0.8.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.8...v0.8.9

@@ -116,6 +116,13 @@ function testDefaults() {
   assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
   assertFileContains(dest, '.gemini/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
 
+  // Compact hook injects SKILL.md re-read instruction (post-compact recovery)
+  assertFileContains(dest, '.claude/settings.json', 'Re-read the SKILL.md');
+  assertFileContains(dest, '.claude/settings.json', 'merge-checklist.md');
+
+  // Session Recovery in CLAUDE.md includes merge checklist reminder
+  assertFileContains(dest, 'CLAUDE.md', 'merge-checklist.md');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -1125,6 +1132,9 @@ function testUpgradeBasic() {
   // Verify: Simple lite ticket after upgrade
   assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', '| Simple | Skip | Lite | Skip | Skip |');
   assertFileContains(dest, '.claude/skills/development-workflow/references/merge-checklist.md', 'Simple (lite ticket)');
+
+  // Verify: Compact hook upgraded with SKILL.md re-read instruction
+  assertFileContains(dest, '.claude/settings.json', 'Re-read the SKILL.md');
 }
 
 // --- Scenario 16: --upgrade preserves custom agents + modified standards ---
