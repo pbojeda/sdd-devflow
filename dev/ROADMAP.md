@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.9.0
+## Current Version: 0.9.3
 
 ---
 
@@ -54,6 +54,9 @@
 - [x] `--diff` dry-run preview for `--init` and `--upgrade`
 - [x] `--eject` clean uninstall (removes SDD files, preserves custom agents/commands/docs/settings)
 - [x] Merge Checklist Evidence in ticket template (B+D) — survives context compaction, forces checkpoint execution
+- [x] Compact hook: forces re-read of SKILL.md after /compact, PM-aware recovery
+- [x] Plan Self-Review (Step 2.4) — agent re-reads own plan and self-critiques before Plan Approval
+- [x] `/review-plan` custom command — optional cross-model plan review with external AI CLI
 
 ## Phase 4: Test Generation for Existing Projects
 

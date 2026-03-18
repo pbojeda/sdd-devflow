@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-03-18
+
+### Fixed
+
+- `--upgrade` now copies new template commands to `.claude/commands/` without overwriting user's custom commands
+  - Root cause: upgrade logic for `.claude/commands/` only ensured the directory existed but never copied new template files (comment said "template only has .gitkeep", which was true before v0.9.3 added `review-plan.md`)
+  - Gemini commands were unaffected (`.gemini/commands/` is fully replaced on upgrade)
+  - Projects upgraded to v0.9.3 are missing `.claude/commands/review-plan.md` — upgrading to v0.9.4 fixes this
+
 ## [0.9.3] - 2026-03-18
 
 ### Added
@@ -308,6 +317,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.0...v0.9.1

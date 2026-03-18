@@ -1213,6 +1213,10 @@ function testUpgradePreservesCustomizations() {
   stdContent += '\n## My Custom Section\n\nCustom patterns here.\n';
   fs.writeFileSync(backendStdPath, stdContent, 'utf8');
 
+  // Step 5b: Remove template command to simulate pre-v0.9.3 project
+  const reviewPlanPath = path.join(dest, '.claude', 'commands', 'review-plan.md');
+  if (fs.existsSync(reviewPlanPath)) fs.rmSync(reviewPlanPath);
+
   // Step 6: Upgrade
   const scanResult2 = scan(dest);
   const aiTools = detectAiTools(dest);
@@ -1235,6 +1239,10 @@ function testUpgradePreservesCustomizations() {
   // Verify: Custom command preserved
   assertExists(dest, '.claude/commands/my-lint.sh');
   assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
+
+  // Verify: New template commands copied during upgrade
+  assertExists(dest, '.claude/commands/review-plan.md');
+  assertFileContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
 
   // Verify: settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
@@ -1767,6 +1775,9 @@ function testEjectPreservesCustomizations() {
   // Custom command preserved
   assertExists(dest, '.claude/commands/my-lint.sh');
   assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
+
+  // New template commands copied during upgrade
+  assertExists(dest, '.claude/commands/review-plan.md');
 
   // settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
