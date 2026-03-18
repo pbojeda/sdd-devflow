@@ -302,12 +302,18 @@ SDD DevFlow combines three proven practices:
 | `bug-workflow` | `report bug`, `fix bug`, `hotfix needed` | Bug triage, investigation, and resolution |
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
 
+### Plan Quality
+
+Every Standard/Complex feature plan goes through a **built-in self-review** (Step 2.4) where the agent re-reads its own plan and checks for errors, vague steps, wrong assumptions, and over-engineering before requesting approval.
+
+For additional confidence, the optional `/review-plan` command sends the plan to an external AI model (Codex CLI, Gemini CLI, or Claude Code) for independent critique — catching blind spots that same-model review misses.
+
 ### Workflow (Steps 0–6)
 
 ```
 0. SPEC      → spec-creator drafts specs        → Spec Approval
 1. SETUP     → Branch, ticket, product tracker    → Ticket Approval
-2. PLAN      → Planner creates implementation plan → Plan Approval
+2. PLAN      → Planner creates plan + self-review → Plan Approval
 3. IMPLEMENT → Developer agent, TDD
 4. FINALIZE  → Tests/lint/build, validator       → Commit Approval
 5. REVIEW    → PR, code review, QA              → Merge Approval

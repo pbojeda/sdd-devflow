@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-03-18
+
+### Added
+
+- **Plan Self-Review** (Step 2.4): agent automatically re-reads its own Implementation Plan and checks for errors, vague steps, wrong assumptions, dependency ordering issues, and over-engineering before requesting Plan Approval
+  - Runs automatically for all Standard/Complex features — zero configuration needed
+  - Inspired by [cross-model plan review patterns](https://medium.com/flow-specialty/ai-assisted-coding-automating-plan-reviews-with-claude-code-and-codex-for-higher-quality-plans-c7e373a625ca)
+- `/review-plan` command (optional): sends the Implementation Plan to an external AI model (Codex CLI, Gemini CLI, or Claude Code) for independent critique
+  - Cross-model review catches blind spots that same-model self-review misses
+  - Includes structured prompt template with CRITICAL/IMPORTANT/SUGGESTION severity levels
+  - Works with any CLI-based AI tool that accepts text prompts
+  - Symmetric support for Claude Code (`.claude/commands/review-plan.md`) and Gemini (`.gemini/commands/review-plan.toml`)
+
 ## [0.9.2] - 2026-03-17
 
 ### Fixed
@@ -295,6 +308,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.8.9...v0.9.0
