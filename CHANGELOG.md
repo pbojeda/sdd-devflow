@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-03-18
+
+### Fixed
+
+- `--upgrade` no longer duplicates the "Project-specific variables" comment in `.env.example` on repeated upgrades
+  - Root cause: the merge logic collected the injected header comment as a "custom line" and re-prepended it each time
+  - Now filters out the header before collecting custom lines, making the operation idempotent
+
 ## [0.9.4] - 2026-03-18
 
 ### Fixed
@@ -317,6 +325,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.1...v0.9.2

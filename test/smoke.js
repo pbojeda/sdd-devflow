@@ -1267,6 +1267,18 @@ function testUpgradePreservesCustomizations() {
   assertFileContains(dest, '.env.example', 'MY_API_SECRET=your-api-secret');
   // But also has the standard template vars
   assertFileContains(dest, '.env.example', 'NODE_ENV=');
+  // Verify: "preserved" header appears exactly once
+  const envAfterUpgrade1 = fs.readFileSync(path.join(dest, '.env.example'), 'utf8');
+  const preservedCount1 = (envAfterUpgrade1.match(/# Project-specific variables \(preserved from previous version\)/g) || []).length;
+  assert.strictEqual(preservedCount1, 1, `.env.example should have exactly 1 "preserved" header after first upgrade, got ${preservedCount1}`);
+
+  // Run upgrade a second time — header must remain exactly 1 (idempotent)
+  silent(() => generateUpgrade(upgradeConfig));
+  const envAfterUpgrade2 = fs.readFileSync(path.join(dest, '.env.example'), 'utf8');
+  const preservedCount2 = (envAfterUpgrade2.match(/# Project-specific variables \(preserved from previous version\)/g) || []).length;
+  assert.strictEqual(preservedCount2, 1, `.env.example should still have exactly 1 "preserved" header after second upgrade, got ${preservedCount2}`);
+  // Custom vars still present after second upgrade
+  assertFileContains(dest, '.env.example', 'MY_API_KEY=your-api-key');
 
   // Verify: .sdd-version written
   assertExists(dest, '.sdd-version');
