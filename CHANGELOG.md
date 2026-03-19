@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-03-19
+
+### Changed
+
+- `/review-plan` command rewritten for dual-model review (Gemini CLI + Codex CLI in parallel)
+  - Spec included alongside plan so reviewers can check spec↔plan consistency
+  - Three paths: Path A (both CLIs, parallel), Path B (one CLI), Path C (self-review fallback when no CLI available)
+  - Uses stdin pipes instead of shell argument expansion (avoids ARG_MAX on large plans)
+  - Anti-hallucination prompt: "do not manufacture issues that are not there"
+  - No hardcoded model names — CLIs use their latest default model automatically
+  - Claude and Gemini templates updated symmetrically
+
 ## [0.9.5] - 2026-03-18
 
 ### Fixed
@@ -325,6 +337,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.2...v0.9.3
