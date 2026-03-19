@@ -1213,9 +1213,11 @@ function testUpgradePreservesCustomizations() {
   stdContent += '\n## My Custom Section\n\nCustom patterns here.\n';
   fs.writeFileSync(backendStdPath, stdContent, 'utf8');
 
-  // Step 5b: Remove template command to simulate pre-v0.9.3 project
+  // Step 5b: Modify template command to simulate outdated version
   const reviewPlanPath = path.join(dest, '.claude', 'commands', 'review-plan.md');
-  if (fs.existsSync(reviewPlanPath)) fs.rmSync(reviewPlanPath);
+  if (fs.existsSync(reviewPlanPath)) {
+    fs.writeFileSync(reviewPlanPath, '# Old review-plan\n\nOutdated content.\n', 'utf8');
+  }
 
   // Step 6: Upgrade
   const scanResult2 = scan(dest);
@@ -1240,9 +1242,10 @@ function testUpgradePreservesCustomizations() {
   assertExists(dest, '.claude/commands/my-lint.sh');
   assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
 
-  // Verify: New template commands copied during upgrade
+  // Verify: Template command overwritten with latest version (not stuck on old content)
   assertExists(dest, '.claude/commands/review-plan.md');
   assertFileContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
+  assertFileNotContains(dest, '.claude/commands/review-plan.md', 'Outdated content');
 
   // Verify: settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');

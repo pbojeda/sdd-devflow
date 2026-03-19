@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-03-19
+
+### Fixed
+
+- `--upgrade` now overwrites SDD template commands (e.g., `review-plan.md`) with the latest version
+  - Root cause: v0.9.4 fix only copied *new* template commands but skipped overwriting *existing* ones, so updated templates never reached projects that already had the old version
+  - Added `TEMPLATE_COMMANDS` config list (parallel to `TEMPLATE_AGENTS`) to distinguish SDD-owned commands from user custom commands
+  - `collectCustomCommands()` no longer counts template-owned commands as custom — fixes misleading display in `--upgrade`, `--diff`, and `--eject` summaries
+  - Test: Scenario 16 now verifies outdated template commands are overwritten (not just that new ones are copied)
+
 ## [0.9.6] - 2026-03-19
 
 ### Changed
@@ -337,6 +347,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.3...v0.9.4
