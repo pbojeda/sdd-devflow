@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-03-21
+
+### Added
+
+- `/context-prompt` command template for context recovery after `/compact` or new sessions
+  - Includes **Workflow Recovery** section (points 11-14) that explicitly reminds the agent about merge-checklist.md, checkpoint order, and Evidence table
+  - Prevents the agent from skipping Step 5 (Merge Approval) after context compaction — addresses F028 regression where Evidence table was left empty
+  - Available for both Claude Code and Gemini CLI
+  - Added to `TEMPLATE_COMMANDS` config — `--upgrade` delivers it automatically, `collectCustomCommands()` filters it correctly
+
 ## [0.9.7] - 2026-03-19
 
 ### Fixed
@@ -347,6 +357,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.4...v0.9.5

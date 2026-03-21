@@ -123,6 +123,15 @@ function testDefaults() {
   // Session Recovery in CLAUDE.md includes merge checklist reminder
   assertFileContains(dest, 'CLAUDE.md', 'merge-checklist.md');
 
+  // Context-prompt command exists for both tools
+  assertExists(dest, '.claude/commands/context-prompt.md');
+  assertFileContains(dest, '.claude/commands/context-prompt.md', 'Workflow Recovery');
+  assertFileContains(dest, '.claude/commands/context-prompt.md', 'merge-checklist.md');
+  assertExists(dest, '.gemini/commands/context-prompt.toml');
+  assertExists(dest, '.gemini/commands/context-prompt-instructions.md');
+  assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'Workflow Recovery');
+  assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'merge-checklist.md');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -278,6 +287,11 @@ function testGeminiOnly() {
   assertExists(dest, '.gemini/commands/fix-bug.toml');
   assertExists(dest, '.gemini/skills/development-workflow/references/complexity-guide.md');
   assertExists(dest, '.gemini/skills/project-memory/references/bugs_template.md');
+
+  // Context-prompt command exists for Gemini-only
+  assertExists(dest, '.gemini/commands/context-prompt.toml');
+  assertExists(dest, '.gemini/commands/context-prompt-instructions.md');
+  assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'Workflow Recovery');
 
   // Claude files removed
   assertNotExists(dest, 'CLAUDE.md');
@@ -1247,6 +1261,10 @@ function testUpgradePreservesCustomizations() {
   assertFileContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
   assertFileNotContains(dest, '.claude/commands/review-plan.md', 'Outdated content');
 
+  // Verify: context-prompt.md created during upgrade (new template command)
+  assertExists(dest, '.claude/commands/context-prompt.md');
+  assertFileContains(dest, '.claude/commands/context-prompt.md', 'Workflow Recovery');
+
   // Verify: settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
   assertFileContains(dest, '.claude/settings.local.json', 'echo done');
@@ -1791,8 +1809,9 @@ function testEjectPreservesCustomizations() {
   assertExists(dest, '.claude/commands/my-lint.sh');
   assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
 
-  // New template commands copied during upgrade
+  // Template commands preserved during eject (useful standalone)
   assertExists(dest, '.claude/commands/review-plan.md');
+  assertExists(dest, '.claude/commands/context-prompt.md');
 
   // settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
