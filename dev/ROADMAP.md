@@ -57,6 +57,8 @@
 - [x] Compact hook: forces re-read of SKILL.md after /compact, PM-aware recovery
 - [x] Plan Self-Review (Step 2.4) — agent re-reads own plan and self-critiques before Plan Approval
 - [x] `/review-plan` custom command — optional cross-model plan review with external AI CLI
+- [x] `/context-prompt` command — generates context recovery prompt with Workflow Recovery (prevents merge-checklist skip after /compact)
+- [ ] `/review-project` command — comprehensive project review using 3 AI models in parallel (Claude + Gemini + Codex)
 
 ## Phase 4: Test Generation for Existing Projects
 

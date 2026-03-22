@@ -294,19 +294,27 @@ SDD DevFlow combines three proven practices:
 | `qa-engineer` | Edge cases, spec verification | 5 |
 | `database-architect` | Schema design, optimization | Any |
 
-### 3 Skills (Slash Commands)
+### 4 Skills (Slash Commands)
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | `development-workflow` | `start task F001`, `next task`, `add feature` | Orchestrates the complete 7-step workflow |
 | `bug-workflow` | `report bug`, `fix bug`, `hotfix needed` | Bug triage, investigation, and resolution |
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
+| `health-check` | `health check`, `project health` | Quick scan: tests, build, specs sync, secrets, docs freshness |
+
+### 2 Custom Commands
+
+| Command | What it does |
+|---------|-------------|
+| `/review-plan` | Sends Implementation Plan to external AI models (Codex CLI, Gemini CLI) for independent critique |
+| `/context-prompt` | Generates a context recovery prompt after `/compact` with Workflow Recovery to prevent checkpoint skipping |
 
 ### Plan Quality
 
 Every Standard/Complex feature plan goes through a **built-in self-review** (Step 2.4) where the agent re-reads its own plan and checks for errors, vague steps, wrong assumptions, and over-engineering before requesting approval.
 
-For additional confidence, the optional `/review-plan` command sends the plan to an external AI model (Codex CLI, Gemini CLI, or Claude Code) for independent critique — catching blind spots that same-model review misses.
+For additional confidence, the optional `/review-plan` command sends the plan to external AI models (Codex CLI and/or Gemini CLI in parallel) for independent critique — catching blind spots that same-model review misses.
 
 ### Workflow (Steps 0–6)
 
@@ -335,6 +343,16 @@ For additional confidence, the optional `/review-plan` command sends the plan to
 | L4 | Full Auto | None (CI/CD gates only) | Bulk simple tasks |
 
 Quality gates (tests, lint, build, validators) **always run** regardless of level.
+
+### Merge Checklist (B+D Mechanism)
+
+Every ticket includes a `## Merge Checklist Evidence` table that the agent must fill before requesting merge approval. This mechanism:
+
+- **Survives context compaction** — the ticket is always re-read via product tracker, so the empty evidence table acts as a persistent reminder
+- **Forces sequential execution** — agent must read `references/merge-checklist.md`, execute 9 actions (0–8), and record evidence
+- **Works at all tiers** — Simple tasks get a lite ticket with the same evidence table
+
+Validated across 16+ features with 87% first-attempt pass rate (failures led to iterative improvements in v0.8.7–v0.9.8).
 
 ### Project Memory
 
@@ -399,14 +417,18 @@ project/
 │   │   ├── development-workflow/        # Main task workflow (Steps 0-6)
 │   │   │   └── references/              # Templates, guides, examples
 │   │   ├── bug-workflow/                # Bug triage and resolution
+│   │   ├── health-check/               # Project health diagnostics
 │   │   └── project-memory/              # Memory system setup
+│   ├── commands/                        # Custom slash commands
+│   │   ├── review-plan.md              # Cross-model plan review
+│   │   └── context-prompt.md           # Post-compact context recovery
 │   ├── hooks/quick-scan.sh              # Post-developer quality scan
 │   └── settings.json                    # Shared hooks (git-tracked)
 │
 ├── .gemini/
 │   ├── agents/                          # 9 agents (Gemini format)
-│   ├── skills/                          # Same 3 skills
-│   ├── commands/                        # Slash command shortcuts
+│   ├── skills/                          # Same 4 skills
+│   ├── commands/                        # Slash commands (workflow + review + context)
 │   └── settings.json                    # Gemini configuration
 │
 ├── ai-specs/specs/
@@ -462,11 +484,11 @@ cp -r node_modules/create-sdd-project/template/ /path/to/your-project/
 
 ## Roadmap
 
+- **PM Agent + L5 Autonomous**: AI-driven feature orchestration — sequential feature loop with automatic checkpoint approval and session state persistence
+- **`/review-project` command**: Comprehensive project review using multiple AI models in parallel (Claude + Gemini + Codex) with consolidated action plan
 - **Monorepo improvements**: Better support for pnpm workspaces and Turbo
-- **SDD Upgrade/Migration**: Version bumps for projects already using SDD
 - **Retrofit Testing**: Automated test generation for existing projects with low coverage
 - **Agent Teams**: Parallel execution of independent tasks
-- **PM Agent + L5 Autonomous**: AI-driven feature orchestration with human review at milestone boundaries
 
 ## Contributing
 
