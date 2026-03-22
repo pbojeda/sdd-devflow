@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-03-22
+
+### Changed
+
+- README updated: 4 skills (added `health-check`), 2 custom commands (`/review-plan`, `/context-prompt`), new Merge Checklist (B+D) section, template structure with `commands/` and `health-check/`, current roadmap
+- Internal roadmap updated with `/context-prompt` (done) and `/review-project` (planned)
+
 ## [0.9.8] - 2026-03-21
 
 ### Added
@@ -357,6 +364,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.9.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.8...v0.9.9
 [0.9.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.5...v0.9.6
