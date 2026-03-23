@@ -303,12 +303,13 @@ SDD DevFlow combines three proven practices:
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
 | `health-check` | `health check`, `project health` | Quick scan: tests, build, specs sync, secrets, docs freshness |
 
-### 2 Custom Commands
+### 3 Custom Commands
 
 | Command | What it does |
 |---------|-------------|
 | `/review-plan` | Sends Implementation Plan to external AI models (Codex CLI, Gemini CLI) for independent critique |
 | `/context-prompt` | Generates a context recovery prompt after `/compact` with Workflow Recovery to prevent checkpoint skipping |
+| `/review-project` | Comprehensive project-level review using up to 3 AI models in parallel — 6 domains, audit context, consolidated report with action plan |
 
 ### Plan Quality
 
@@ -421,14 +422,15 @@ project/
 │   │   └── project-memory/              # Memory system setup
 │   ├── commands/                        # Custom slash commands
 │   │   ├── review-plan.md              # Cross-model plan review
-│   │   └── context-prompt.md           # Post-compact context recovery
+│   │   ├── context-prompt.md           # Post-compact context recovery
+│   │   └── review-project.md           # Multi-model project review
 │   ├── hooks/quick-scan.sh              # Post-developer quality scan
 │   └── settings.json                    # Shared hooks (git-tracked)
 │
 ├── .gemini/
 │   ├── agents/                          # 9 agents (Gemini format)
 │   ├── skills/                          # Same 4 skills
-│   ├── commands/                        # Slash commands (workflow + review + context)
+│   ├── commands/                        # Slash commands (workflow + review + context + project review)
 │   └── settings.json                    # Gemini configuration
 │
 ├── ai-specs/specs/
@@ -485,7 +487,6 @@ cp -r node_modules/create-sdd-project/template/ /path/to/your-project/
 ## Roadmap
 
 - **PM Agent + L5 Autonomous**: AI-driven feature orchestration — sequential feature loop with automatic checkpoint approval and session state persistence
-- **`/review-project` command**: Comprehensive project review using multiple AI models in parallel (Claude + Gemini + Codex) with consolidated action plan
 - **Monorepo improvements**: Better support for pnpm workspaces and Turbo
 - **Retrofit Testing**: Automated test generation for existing projects with low coverage
 - **Agent Teams**: Parallel execution of independent tasks

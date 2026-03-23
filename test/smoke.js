@@ -132,6 +132,14 @@ function testDefaults() {
   assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'Workflow Recovery');
   assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'merge-checklist.md');
 
+  // Review-project command exists for both tools
+  assertExists(dest, '.claude/commands/review-project.md');
+  assertFileContains(dest, '.claude/commands/review-project.md', 'Phase 0: Discovery');
+  assertFileContains(dest, '.claude/commands/review-project.md', 'domain-by-domain');
+  assertExists(dest, '.gemini/commands/review-project.toml');
+  assertExists(dest, '.gemini/commands/review-project-instructions.md');
+  assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -292,6 +300,11 @@ function testGeminiOnly() {
   assertExists(dest, '.gemini/commands/context-prompt.toml');
   assertExists(dest, '.gemini/commands/context-prompt-instructions.md');
   assertFileContains(dest, '.gemini/commands/context-prompt-instructions.md', 'Workflow Recovery');
+
+  // Review-project command exists for Gemini-only
+  assertExists(dest, '.gemini/commands/review-project.toml');
+  assertExists(dest, '.gemini/commands/review-project-instructions.md');
+  assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
 
   // Claude files removed
   assertNotExists(dest, 'CLAUDE.md');
@@ -1265,6 +1278,10 @@ function testUpgradePreservesCustomizations() {
   assertExists(dest, '.claude/commands/context-prompt.md');
   assertFileContains(dest, '.claude/commands/context-prompt.md', 'Workflow Recovery');
 
+  // Verify: review-project.md created during upgrade (new template command)
+  assertExists(dest, '.claude/commands/review-project.md');
+  assertFileContains(dest, '.claude/commands/review-project.md', 'Phase 0: Discovery');
+
   // Verify: settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
   assertFileContains(dest, '.claude/settings.local.json', 'echo done');
@@ -1812,6 +1829,7 @@ function testEjectPreservesCustomizations() {
   // Template commands preserved during eject (useful standalone)
   assertExists(dest, '.claude/commands/review-plan.md');
   assertExists(dest, '.claude/commands/context-prompt.md');
+  assertExists(dest, '.claude/commands/review-project.md');
 
   // settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');

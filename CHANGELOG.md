@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-22
+
+### Added
+
+- `/review-project` command template for comprehensive project-level review at MVP milestones
+  - 4-phase architecture: Discovery → Audit Context + Digest + Launch → Domain-by-domain Review → Consolidation
+  - Uses up to 3 AI models in parallel (Claude + Gemini CLI + Codex CLI) with graceful degradation (Path A/B/C)
+  - **Audit context generation** (Step 1a): primary agent reads project docs and generates a concise project brief prepended to the digest — external models get architecture, decisions, and risk-specific audit focus, not just raw code
+  - 6 review domains: Architecture, Source Quality, Data Layer, Testing/CI, Security/Reliability, Documentation
+  - Project-scoped state directory (`/tmp/review-project-{name}/`) prevents cross-project contamination
+  - Compaction-resilient: progress file tracks completed domains, resumable after /compact
+  - Robust CLI detection (`command -v` + real invocation test, not just `which`)
+  - Each domain output includes "Files Reviewed" manifest for coverage verification
+  - External model output validation (checks for severity markers + VERDICT before trusting)
+  - Outputs `review-project-report.md` (findings with confidence levels) and `review-project-actions.md` (prioritized action plan)
+  - Portable bash: `find -not -path` instead of `grep -v`, `IFS= read -r` for safe path handling, no `timeout` dependency
+  - `.mjs`/`.cjs` support in digest assembly, safe `sh -c` quoting via `export`, digest resume skip, `grep -qE` portability
+  - Available for both Claude Code and Gemini CLI
+
 ## [0.9.9] - 2026-03-22
 
 ### Changed
