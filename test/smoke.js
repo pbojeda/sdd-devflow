@@ -140,6 +140,14 @@ function testDefaults() {
   assertExists(dest, '.gemini/commands/review-project-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
 
+  // Review-spec command exists for both tools
+  assertExists(dest, '.claude/commands/review-spec.md');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'Completeness');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'key_facts.md');
+  assertExists(dest, '.gemini/commands/review-spec.toml');
+  assertExists(dest, '.gemini/commands/review-spec-instructions.md');
+  assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'Completeness');
+
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
   assertFileNotContains(dest, 'docs/project_notes/product-tracker.md', 'sprint');
@@ -305,6 +313,11 @@ function testGeminiOnly() {
   assertExists(dest, '.gemini/commands/review-project.toml');
   assertExists(dest, '.gemini/commands/review-project-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
+
+  // Review-spec command exists for Gemini-only
+  assertExists(dest, '.gemini/commands/review-spec.toml');
+  assertExists(dest, '.gemini/commands/review-spec-instructions.md');
+  assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'Completeness');
 
   // Claude files removed
   assertNotExists(dest, 'CLAUDE.md');
@@ -1282,6 +1295,10 @@ function testUpgradePreservesCustomizations() {
   assertExists(dest, '.claude/commands/review-project.md');
   assertFileContains(dest, '.claude/commands/review-project.md', 'Phase 0: Discovery');
 
+  // Verify: review-spec.md created during upgrade (new template command)
+  assertExists(dest, '.claude/commands/review-spec.md');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'Completeness');
+
   // Verify: settings.local.json preserved
   assertExists(dest, '.claude/settings.local.json');
   assertFileContains(dest, '.claude/settings.local.json', 'echo done');
@@ -1828,6 +1845,7 @@ function testEjectPreservesCustomizations() {
 
   // Template commands preserved during eject (useful standalone)
   assertExists(dest, '.claude/commands/review-plan.md');
+  assertExists(dest, '.claude/commands/review-spec.md');
   assertExists(dest, '.claude/commands/context-prompt.md');
   assertExists(dest, '.claude/commands/review-project.md');
 

@@ -303,24 +303,25 @@ SDD DevFlow combines three proven practices:
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
 | `health-check` | `health check`, `project health` | Quick scan: tests, build, specs sync, secrets, docs freshness |
 
-### 3 Custom Commands
+### 4 Custom Commands
 
 | Command | What it does |
 |---------|-------------|
+| `/review-spec` | Reviews feature specs using external AI models before planning — catches requirement gaps, ambiguity, and architectural inconsistencies |
 | `/review-plan` | Sends Implementation Plan to external AI models (Codex CLI, Gemini CLI) for independent critique |
 | `/context-prompt` | Generates a context recovery prompt after `/compact` with Workflow Recovery to prevent checkpoint skipping |
 | `/review-project` | Comprehensive project-level review using up to 3 AI models in parallel — 6 domains, audit context, consolidated report with action plan |
 
-### Plan Quality
+### Spec & Plan Quality
 
-Every Standard/Complex feature plan goes through a **built-in self-review** (Step 2.4) where the agent re-reads its own plan and checks for errors, vague steps, wrong assumptions, and over-engineering before requesting approval.
+Every Standard/Complex feature spec goes through a **built-in self-review** (Step 0.4) where the agent critically re-reads its own spec checking for completeness, edge cases, API contract clarity, and architectural consistency. For additional confidence, the optional `/review-spec` command sends the spec plus project context (`key_facts.md`, `decisions.md`) to external AI models for independent critique — catching requirement-level blind spots before any planning begins.
 
-For additional confidence, the optional `/review-plan` command sends the plan to external AI models (Codex CLI and/or Gemini CLI in parallel) for independent critique — catching blind spots that same-model review misses.
+Every plan then goes through its own **built-in self-review** (Step 2.4) followed by the optional `/review-plan` command for external critique — catching implementation-level blind spots that same-model review misses.
 
 ### Workflow (Steps 0–6)
 
 ```
-0. SPEC      → spec-creator drafts specs        → Spec Approval
+0. SPEC      → spec-creator drafts + self-review → Spec Approval
 1. SETUP     → Branch, ticket, product tracker    → Ticket Approval
 2. PLAN      → Planner creates plan + self-review → Plan Approval
 3. IMPLEMENT → Developer agent, TDD
@@ -421,6 +422,7 @@ project/
 │   │   ├── health-check/               # Project health diagnostics
 │   │   └── project-memory/              # Memory system setup
 │   ├── commands/                        # Custom slash commands
+│   │   ├── review-spec.md              # Cross-model spec review (pre-plan)
 │   │   ├── review-plan.md              # Cross-model plan review
 │   │   ├── context-prompt.md           # Post-compact context recovery
 │   │   └── review-project.md           # Multi-model project review

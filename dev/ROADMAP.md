@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.9.9
+## Current Version: 0.11.0
 
 ---
 
@@ -59,6 +59,8 @@
 - [x] `/review-plan` custom command — optional cross-model plan review with external AI CLI
 - [x] `/context-prompt` command — generates context recovery prompt with Workflow Recovery (prevents merge-checklist skip after /compact)
 - [x] `/review-project` command — comprehensive project review using 3 AI models in parallel (Claude + Gemini + Codex)
+- [x] Spec Self-Review (Step 0.4) — agent re-reads own spec and self-critiques before Spec Approval
+- [x] `/review-spec` command — optional cross-model spec review with external AI CLI before planning
 
 ## Phase 4: Test Generation for Existing Projects
 

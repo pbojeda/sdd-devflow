@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-03-24
+
+### Added
+
+- `/review-spec` command template for reviewing feature specs before planning
+  - 7 spec-focused review criteria: Completeness, Ambiguity, Edge cases, API contract, Scope, Consistency, Testability
+  - Same Path A/B/C architecture as `/review-plan` (Gemini CLI + Codex CLI + self-review fallback)
+  - Includes project context (`key_facts.md`, `decisions.md`) for architectural consistency checks
+  - Extracts `## Spec` through `## Acceptance Criteria` from ticket — reviewers can validate both requirements and testability
+- **Spec Self-Review** (Step 0.4) added to development workflow SKILL.md
+  - Built-in adversarial self-review after `spec-creator` runs, before planning
+  - Checks: completeness, edge cases, API contract, testability, architectural consistency
+
 ## [0.10.0] - 2026-03-22
 
 ### Added
@@ -383,6 +396,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.11.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.9...v0.10.0
 [0.9.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.8...v0.9.9
 [0.9.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.6...v0.9.7
