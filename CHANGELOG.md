@@ -6,13 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-## [0.12.1] - 2026-03-25
+## [0.13.0] - 2026-03-25
+
+### Added
+
+- **`ui-ux-designer` agent** — produces actionable design specifications (never code)
+  - **Design System Setup mode**: creates/updates `docs/specs/design-guidelines.md` with 11 sections (visual direction, colors, typography, spacing, components, animations, states, content hierarchy, accessibility, imagery, anti-patterns)
+  - **Feature Design Notes mode**: writes `### Design Notes` in the ticket for feature-specific visual and interaction decisions
+  - Invoked manually (like `database-architect`) — not forced into the workflow
+  - Removed automatically for backend-only projects
+- **`docs/specs/design-guidelines.md`** — new living spec document consumed by `frontend-planner` and `frontend-developer`
+- **Passive design reminder** in Step 0: workflow suggests invoking `ui-ux-designer` when a feature includes UI changes (non-blocking)
+- `frontend-planner` and `frontend-developer` now read `design-guidelines.md` when it exists
 
 ### Fixed
 
 - `spec-creator` no longer creates per-feature spec files in `docs/specs/` — feature specs belong exclusively in the ticket's `## Spec` section
 - Global spec files (`api-spec.yaml`, `ui-components.md`) are still updated as before
-- Adaptation rules updated for backend-only and frontend-only projects
+
+## [0.12.1] - 2026-03-25
+
+### Fixed
+
+- `spec-creator` adaptation rules updated for backend-only and frontend-only projects
 
 ## [0.12.0] - 2026-03-25
 
@@ -430,6 +446,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.13.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.0...v0.11.1

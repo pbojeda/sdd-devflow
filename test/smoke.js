@@ -82,6 +82,9 @@ function testDefaults() {
   assertExists(dest, '.gemini/agents/frontend-developer.md');
   assertExists(dest, 'docs/specs/api-spec.yaml');
   assertExists(dest, 'docs/specs/ui-components.md');
+  assertExists(dest, 'docs/specs/design-guidelines.md');
+  assertExists(dest, '.claude/agents/ui-ux-designer.md');
+  assertExists(dest, '.gemini/agents/ui-ux-designer.md');
   assertExists(dest, 'docs/project_notes/key_facts.md');
   assertExists(dest, 'docs/project_notes/product-tracker.md');
 
@@ -205,7 +208,10 @@ function testBackendOnly() {
   assertNotExists(dest, '.claude/agents/frontend-planner.md');
   assertNotExists(dest, '.gemini/agents/frontend-developer.md');
   assertNotExists(dest, '.gemini/agents/frontend-planner.md');
+  assertNotExists(dest, '.claude/agents/ui-ux-designer.md');
+  assertNotExists(dest, '.gemini/agents/ui-ux-designer.md');
   assertNotExists(dest, 'docs/specs/ui-components.md');
+  assertNotExists(dest, 'docs/specs/design-guidelines.md');
 
   // documentation-standards cleaned for backend-only
   assertFileNotContains(dest, 'ai-specs/specs/documentation-standards.mdc', 'frontend-standards');
@@ -560,9 +566,12 @@ function testInitNextjsOnly() {
   assertNotExists(dest, '.claude/agents/database-architect.md');
   assertNotExists(dest, '.gemini/agents/backend-developer.md');
 
-  // Frontend agents exist
+  // Frontend agents exist (including ui-ux-designer)
   assertExists(dest, '.claude/agents/frontend-developer.md');
+  assertExists(dest, '.claude/agents/ui-ux-designer.md');
   assertExists(dest, '.gemini/agents/frontend-developer.md');
+  assertExists(dest, '.gemini/agents/ui-ux-designer.md');
+  assertExists(dest, 'docs/specs/design-guidelines.md');
 
   // Frontend-only: no backend sections in key_facts
   assertFileNotContains(dest, 'docs/project_notes/key_facts.md', 'Backend Port');
@@ -1052,6 +1061,7 @@ function testInitGeminiBackendOnly() {
   // Backend-only: no frontend agents
   assertNotExists(dest, '.gemini/agents/frontend-developer.md');
   assertNotExists(dest, '.gemini/agents/frontend-planner.md');
+  assertNotExists(dest, '.gemini/agents/ui-ux-designer.md');
 
   // Gemini agents adapted: no Zod, no DDD, no frontend refs
   // Note: Gemini backend-developer.md uses condensed format without explicit ORM/DB names

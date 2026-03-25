@@ -282,11 +282,12 @@ SDD DevFlow combines three proven practices:
 
 ## What's Included
 
-### 9 Specialized Agents
+### 10 Specialized Agents
 
 | Agent | Role | Step |
 |-------|------|------|
 | `spec-creator` | Draft/update specifications | 0 |
+| `ui-ux-designer` | Design guidelines, feature design notes | 0 (optional) |
 | `backend-planner` / `frontend-planner` | Create implementation plans | 2 |
 | `backend-developer` / `frontend-developer` | TDD implementation | 3 |
 | `production-code-validator` | Pre-commit quality scan | 4 |
@@ -416,7 +417,7 @@ project/
 │   └── workflows/ci.yml                 # CI pipeline (adapted to your stack)
 │
 ├── .claude/
-│   ├── agents/                          # 9 specialized agents
+│   ├── agents/                          # 10 specialized agents
 │   ├── skills/
 │   │   ├── development-workflow/        # Main task workflow (Steps 0-6)
 │   │   │   └── references/              # Templates, guides, examples
@@ -432,10 +433,11 @@ project/
 │   └── settings.json                    # Shared hooks (git-tracked)
 │
 ├── .gemini/
-│   ├── agents/                          # 9 agents (Gemini format)
+│   ├── agents/                          # 10 agents (Gemini format)
 │   ├── skills/                          # Same 4 skills
 │   ├── commands/                        # Slash commands (workflow + review + context + project review)
 │   └── settings.json                    # Gemini configuration
+│
 │
 ├── ai-specs/specs/
 │   ├── base-standards.mdc              # Constitution + methodology
@@ -449,7 +451,7 @@ project/
     │   ├── key_facts.md
     │   ├── bugs.md
     │   └── decisions.md
-    ├── specs/                           # API and UI specs
+    ├── specs/                           # API, UI, and design specs
     └── tickets/                         # Task tickets (workflow-generated)
 ```
 

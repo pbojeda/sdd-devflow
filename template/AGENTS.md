@@ -54,7 +54,7 @@ After context loss, new session, or context compaction — BEFORE continuing wor
 
 The project includes pre-configured hooks in `.claude/settings.json`:
 
-- **Quick Scan** (`SubagentStop`): After `backend-developer` or `frontend-developer` finishes, a fast grep-based scan (~2s, no additional API calls) checks for `console.log`, `debugger`, `TODO/FIXME`, hardcoded secrets, and localhost references. Critical issues block; warnings are non-blocking (full review happens in Step 5).
+- **Quick Scan** (`SubagentStop`): After `backend-developer`, `frontend-developer`, or `ui-ux-designer` finishes, a fast grep-based scan (~2s, no additional API calls) checks for `console.log`, `debugger`, `TODO/FIXME`, hardcoded secrets, and localhost references. Critical issues block; warnings are non-blocking (full review happens in Step 5).
 - **Compaction Recovery** (`SessionStart → compact`): After context compaction, injects a reminder to read the product tracker Active Session for context recovery.
 
 Personal notification hooks (macOS/Linux) are in `.claude/settings.local.json` — see that file for examples.

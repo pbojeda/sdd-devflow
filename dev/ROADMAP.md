@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.12.1
+## Current Version: 0.13.0
 
 ---
 
@@ -62,6 +62,8 @@
 - [x] Spec Self-Review (Step 0.4) — agent re-reads own spec and self-critiques before Spec Approval
 - [x] `/review-spec` command — optional cross-model spec review with external AI CLI before planning
 - [x] Automatic cross-model reviews — `/review-spec` and `/review-plan` run automatically when external CLIs are available
+- [x] `ui-ux-designer` agent — design guidelines and feature design notes (manual invocation, like database-architect)
+- [x] `docs/specs/design-guidelines.md` — living design system document consumed by frontend agents
 
 ## Phase 4: Test Generation for Existing Projects
 

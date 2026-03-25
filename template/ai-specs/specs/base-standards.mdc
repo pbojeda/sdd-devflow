@@ -84,6 +84,7 @@ Quality gates (tests, lint, build, validators) **always run** regardless of leve
 | `production-code-validator` | Pre-commit validation (debug code, TODOs, secrets, spec drift) |
 | `code-review-specialist` | Pre-merge code review |
 | `qa-engineer` | Edge cases, spec verification, regression (Std/Cplx) |
+| `ui-ux-designer` | Design guidelines and feature design notes (invoke manually) |
 | `database-architect` | Schema design, migrations, query optimization (invoke manually) |
 
 ## 5. Shared Types Strategy

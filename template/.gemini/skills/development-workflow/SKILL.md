@@ -72,6 +72,7 @@ Ask user to classify complexity before starting. See `references/complexity-guid
 3. Write spec summary into the ticket's `## Spec` section
 4. **Spec Self-Review:** Re-read the spec critically. Are requirements complete? Edge cases covered? API contract well-defined? Acceptance criteria testable? Does the spec conflict with existing architecture (`key_facts.md`, `decisions.md`)? Update the spec with any fixes found before proceeding.
 5. **Cross-Model Spec Review:** Run `/review-spec`. If at least one external CLI is available (`claude`, `codex`), this provides independent validation from other models. If no external CLIs are detected, skip this step (the self-review above is sufficient).
+6. **Design Review (optional):** If this feature includes UI changes, mention to the user: "This feature has UI changes. Want to invoke `ui-ux-designer` for design notes?" If yes, follow the `ui-ux-designer` agent instructions in `.gemini/agents/`. If `docs/specs/design-guidelines.md` does not exist yet, suggest creating it first.
 
 **→ CHECKPOINT: Spec Approval** — Update tracker (Active Session + Features table): step `0/6 (Spec)`
 
@@ -187,6 +188,7 @@ Update tracker (Active Session + Features table): step `4/6 (Finalize)`. Mark ti
 | `production-code-validator` | 4 | Pre-commit validation |
 | `code-review-specialist` | 5 | Pre-merge review |
 | `qa-engineer` | 5 | Edge cases, spec verification (Std/Cplx) |
+| `ui-ux-designer` | 0 (optional) | Design guidelines, feature design notes |
 | `database-architect` | Any | Schema, migrations, queries |
 
 Agent instructions are in `.gemini/agents/`. Read the relevant agent file when entering its step.
