@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-03-25
+
+### Changed
+
+- `/review-spec` and `/review-plan` are now **automatic** in the development workflow (Steps 0 and 2)
+  - After self-review, the workflow automatically runs the cross-model review command
+  - Only triggers when at least one external CLI is available (`gemini`/`codex` for Claude, `claude`/`codex` for Gemini)
+  - If no external CLIs are detected, the step is skipped (self-review is sufficient)
+  - Previously both commands were optional and required manual invocation
+
 ## [0.11.1] - 2026-03-25
 
 ### Fixed
@@ -412,6 +422,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.12.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.9.9...v0.10.0

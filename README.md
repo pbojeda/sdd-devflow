@@ -307,23 +307,25 @@ SDD DevFlow combines three proven practices:
 
 | Command | What it does |
 |---------|-------------|
-| `/review-spec` | Reviews feature specs using external AI models before planning — catches requirement gaps, ambiguity, and architectural inconsistencies |
-| `/review-plan` | Sends Implementation Plan to external AI models (Codex CLI, Gemini CLI) for independent critique |
+| `/review-spec` | Cross-model spec review — runs automatically after self-review when external CLIs are available; catches requirement gaps, ambiguity, and architectural inconsistencies |
+| `/review-plan` | Cross-model plan review — runs automatically after plan self-review when external CLIs are available; catches implementation blind spots |
 | `/context-prompt` | Generates a context recovery prompt after `/compact` with Workflow Recovery to prevent checkpoint skipping |
 | `/review-project` | Comprehensive project-level review using up to 3 AI models in parallel — 6 domains, audit context, consolidated report with action plan |
 
 ### Spec & Plan Quality
 
-Every Standard/Complex feature spec goes through a **built-in self-review** (Step 0.4) where the agent critically re-reads its own spec checking for completeness, edge cases, API contract clarity, and architectural consistency. For additional confidence, the optional `/review-spec` command sends the spec plus project context (`key_facts.md`, `decisions.md`) to external AI models for independent critique — catching requirement-level blind spots before any planning begins.
+Every Standard/Complex feature spec goes through a **built-in self-review** (Step 0.4) where the agent critically re-reads its own spec checking for completeness, edge cases, API contract clarity, and architectural consistency. Then `/review-spec` **automatically** sends the spec plus project context (`key_facts.md`, `decisions.md`) to external AI models for independent critique — catching requirement-level blind spots before any planning begins.
 
-Every plan then goes through its own **built-in self-review** (Step 2.4) followed by the optional `/review-plan` command for external critique — catching implementation-level blind spots that same-model review misses.
+Every plan then goes through its own **built-in self-review** (Step 2.4) followed by **automatic** `/review-plan` for external critique — catching implementation-level blind spots that same-model review misses.
+
+Cross-model reviews only trigger when at least one external CLI is available (Gemini CLI, Codex CLI). If no CLIs are detected, the step is skipped — the self-review is sufficient.
 
 ### Workflow (Steps 0–6)
 
 ```
-0. SPEC      → spec-creator drafts + self-review → Spec Approval
-1. SETUP     → Branch, ticket, product tracker    → Ticket Approval
-2. PLAN      → Planner creates plan + self-review → Plan Approval
+0. SPEC      → spec-creator drafts + self-review + cross-model review → Spec Approval
+1. SETUP     → Branch, ticket, product tracker                       → Ticket Approval
+2. PLAN      → Planner creates plan + self-review + cross-model review → Plan Approval
 3. IMPLEMENT → Developer agent, TDD
 4. FINALIZE  → Tests/lint/build, validator       → Commit Approval
 5. REVIEW    → PR, code review, QA              → Merge Approval
