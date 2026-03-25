@@ -14,10 +14,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   - 7 spec-focused review criteria: Completeness, Ambiguity, Edge cases, API contract, Scope, Consistency, Testability
   - Same Path A/B/C architecture as `/review-plan` (Gemini CLI + Codex CLI + self-review fallback)
   - Includes project context (`key_facts.md`, `decisions.md`) for architectural consistency checks
-  - Extracts `## Spec` through `## Acceptance Criteria` from ticket — reviewers can validate both requirements and testability
+  - Extracts Spec + Acceptance Criteria sections from ticket — reviewers can validate both requirements and testability
 - **Spec Self-Review** (Step 0.4) added to development workflow SKILL.md
   - Built-in adversarial self-review after `spec-creator` runs, before planning
   - Checks: completeness, edge cases, API contract, testability, architectural consistency
+
+### Fixed
+
+- `/review-spec` extraction now captures Spec + Acceptance Criteria (was stopping at `## Implementation Plan`, missing AC needed for testability review)
+- Removed `--full-auto` flag from Codex invocations in `/review-spec` — review commands should be read-only, not grant write permissions
+
+### Improved
+
+- **Shell hardening across `/review-spec` and `/review-plan`:**
+  - `which` → `command -v` (POSIX-portable CLI detection)
+  - Fixed `/tmp/` paths → project-scoped temp dirs (`/tmp/review-{spec|plan}-$PROJECT/`) to prevent cross-project collisions
+  - `TICKET=$(ls ...)` → safer glob expansion with comment to verify single match
+  - Path A now tracks PIDs and validates exit codes per reviewer — failed CLIs are flagged instead of silently treated as valid reviews
+  - `sed` patterns anchored with `^`/`$` to prevent false matches on subsection headers
 
 ## [0.10.0] - 2026-03-22
 

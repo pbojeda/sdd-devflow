@@ -14,16 +14,18 @@ Review the Spec in the current ticket using external models for independent crit
 2. **Detect available reviewers** — Check which external CLIs are installed:
 
 ```bash
-which claude 2>/dev/null && echo "claude: available" || echo "claude: not found"
-which codex 2>/dev/null && echo "codex: available" || echo "codex: not found"
+command -v claude >/dev/null 2>&1 && echo "claude: available" || echo "claude: not found"
+command -v codex >/dev/null 2>&1 && echo "codex: available" || echo "codex: not found"
 ```
 
-3. **Prepare the review input** — Extract the spec and acceptance criteria, plus project context, into a temp file. Use the feature ID from the Active Session (e.g., `F023`):
+3. **Prepare the review input** — Extract the spec, acceptance criteria, and project context into a temp file. Use the feature ID from the Active Session (e.g., `F023`):
 
 ```bash
-TICKET=$(ls docs/tickets/F023-*.md)  # Use the feature ID from Step 1
+TICKET="$(echo docs/tickets/F023-*.md)"  # Use the feature ID from Step 1; verify exactly one match
+REVIEW_DIR="/tmp/review-spec-$(basename "$PWD")"
+mkdir -p "$REVIEW_DIR"
 
-cat > /tmp/review-spec.txt <<'CRITERIA'
+cat > "$REVIEW_DIR/input.txt" <<'CRITERIA'
 You are reviewing a Feature Specification for a software feature. Your job is to find real problems in the REQUIREMENTS — not the implementation (there is no implementation yet). If the spec is solid, say APPROVED — do not manufacture issues.
 
 Below you will find the Spec (what to build), the Acceptance Criteria, and project context (architecture, decisions). Review the spec and report:
@@ -43,12 +45,12 @@ End with: VERDICT: APPROVED | VERDICT: REVISE (if any CRITICAL or 2+ IMPORTANT i
 SPEC AND ACCEPTANCE CRITERIA:
 CRITERIA
 
-sed -n '/^## Spec$/,/^## Implementation Plan$/p' "$TICKET" >> /tmp/review-spec.txt
+sed -n '/^## Spec$/,/^## Definition of Done$/p' "$TICKET" >> "$REVIEW_DIR/input.txt"
 
-echo -e "\n---\nPROJECT CONTEXT (architecture and decisions):\n" >> /tmp/review-spec.txt
-cat docs/project_notes/key_facts.md >> /tmp/review-spec.txt 2>/dev/null
-echo -e "\n---\n" >> /tmp/review-spec.txt
-cat docs/project_notes/decisions.md >> /tmp/review-spec.txt 2>/dev/null
+echo -e "\n---\nPROJECT CONTEXT (architecture and decisions):\n" >> "$REVIEW_DIR/input.txt"
+cat docs/project_notes/key_facts.md >> "$REVIEW_DIR/input.txt" 2>/dev/null
+echo -e "\n---\n" >> "$REVIEW_DIR/input.txt"
+cat docs/project_notes/decisions.md >> "$REVIEW_DIR/input.txt" 2>/dev/null
 ```
 
 4. **Send for review** — Execute **only one** of the following paths based on Step 2 results:
@@ -56,24 +58,28 @@ cat docs/project_notes/decisions.md >> /tmp/review-spec.txt 2>/dev/null
 #### Path A: Both CLIs available (best — two independent perspectives)
 
 ```bash
-cat /tmp/review-spec.txt | claude --print > /tmp/review-spec-claude.txt 2>&1 &
-cat /tmp/review-spec.txt | codex exec --full-auto - > /tmp/review-spec-codex.txt 2>&1 &
-wait
+cat "$REVIEW_DIR/input.txt" | claude --print > "$REVIEW_DIR/claude.txt" 2>&1 &
+PID_CLAUDE=$!
+cat "$REVIEW_DIR/input.txt" | codex exec - > "$REVIEW_DIR/codex.txt" 2>&1 &
+PID_CODEX=$!
 
-echo "=== CLAUDE REVIEW ===" && cat /tmp/review-spec-claude.txt
-echo "=== CODEX REVIEW ===" && cat /tmp/review-spec-codex.txt
+wait $PID_CLAUDE && echo "Claude: OK" || echo "Claude: FAILED (exit $?) — check $REVIEW_DIR/claude.txt"
+wait $PID_CODEX && echo "Codex: OK" || echo "Codex: FAILED (exit $?) — check $REVIEW_DIR/codex.txt"
+
+echo "=== CLAUDE REVIEW ===" && cat "$REVIEW_DIR/claude.txt"
+echo "=== CODEX REVIEW ===" && cat "$REVIEW_DIR/codex.txt"
 ```
 
-Consolidate findings — issues flagged by both models independently carry higher weight. Deduplicate and prioritize.
+Consolidate findings — issues flagged by both models independently carry higher weight. Deduplicate and prioritize. Ignore output from any reviewer that failed.
 
 #### Path B: One CLI available
 
 ```bash
 # Claude only
-cat /tmp/review-spec.txt | claude --print
+cat "$REVIEW_DIR/input.txt" | claude --print
 
 # Codex only
-cat /tmp/review-spec.txt | codex exec --full-auto -
+cat "$REVIEW_DIR/input.txt" | codex exec -
 ```
 
 #### Path C: No external CLI available (self-review fallback)

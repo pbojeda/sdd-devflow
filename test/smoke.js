@@ -140,13 +140,17 @@ function testDefaults() {
   assertExists(dest, '.gemini/commands/review-project-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
 
-  // Review-spec command exists for both tools
+  // Review-spec command exists for both tools with hardened shell patterns
   assertExists(dest, '.claude/commands/review-spec.md');
   assertFileContains(dest, '.claude/commands/review-spec.md', 'Completeness');
   assertFileContains(dest, '.claude/commands/review-spec.md', 'key_facts.md');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'command -v');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'REVIEW_DIR');
+  assertFileContains(dest, '.claude/commands/review-spec.md', 'Definition of Done');
   assertExists(dest, '.gemini/commands/review-spec.toml');
   assertExists(dest, '.gemini/commands/review-spec-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'Completeness');
+  assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'REVIEW_DIR');
 
   // No sprint references in generated output (regression guard)
   assertNotExists(dest, 'docs/project_notes/sprint-0-tracker.md');
@@ -314,10 +318,12 @@ function testGeminiOnly() {
   assertExists(dest, '.gemini/commands/review-project-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-project-instructions.md', 'Phase 0: Discovery');
 
-  // Review-spec command exists for Gemini-only
+  // Review-spec command exists for Gemini-only with hardened shell patterns
   assertExists(dest, '.gemini/commands/review-spec.toml');
   assertExists(dest, '.gemini/commands/review-spec-instructions.md');
   assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'Completeness');
+  assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'REVIEW_DIR');
+  assertFileContains(dest, '.gemini/commands/review-spec-instructions.md', 'command -v');
 
   // Claude files removed
   assertNotExists(dest, 'CLAUDE.md');
@@ -1286,6 +1292,8 @@ function testUpgradePreservesCustomizations() {
   assertExists(dest, '.claude/commands/review-plan.md');
   assertFileContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
   assertFileNotContains(dest, '.claude/commands/review-plan.md', 'Outdated content');
+  assertFileContains(dest, '.claude/commands/review-plan.md', 'command -v');
+  assertFileContains(dest, '.claude/commands/review-plan.md', 'REVIEW_DIR');
 
   // Verify: context-prompt.md created during upgrade (new template command)
   assertExists(dest, '.claude/commands/context-prompt.md');
