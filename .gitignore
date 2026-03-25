@@ -19,3 +19,6 @@ dist/
 # Environment
 .env
 .env.local
+
+# Claude Code local settings (machine-specific permissions/hooks)
+.claude/settings.local.json
