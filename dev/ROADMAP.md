@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.12.0
+## Current Version: 0.12.1
 
 ---
 

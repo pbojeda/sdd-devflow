@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-03-25
+
+### Fixed
+
+- `spec-creator` no longer creates per-feature spec files in `docs/specs/` — feature specs belong exclusively in the ticket's `## Spec` section
+- Global spec files (`api-spec.yaml`, `ui-components.md`) are still updated as before
+- Adaptation rules updated for backend-only and frontend-only projects
+
 ## [0.12.0] - 2026-03-25
 
 ### Changed
@@ -422,6 +430,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.12.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.10.0...v0.11.0
