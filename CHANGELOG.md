@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-03-28
+
+### Fixed
+
+- **Ticket Status field now updates during workflow** — merge checklist Action 1 sets Status to `Ready for Merge`, Step 6 sets it to `Done` (previously stayed `In Progress` forever — caught in 3 consecutive audits)
+- Ticket template now documents valid Status values: `In Progress | Ready for Merge | Done`
+
 ## [0.13.0] - 2026-03-25
 
 ### Added
@@ -446,6 +453,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.13.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.11.1...v0.12.0

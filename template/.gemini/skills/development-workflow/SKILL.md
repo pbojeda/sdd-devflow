@@ -171,7 +171,7 @@ Update tracker (Active Session + Features table): step `4/6 (Finalize)`. Mark ti
 
 ## Step 6: Complete
 
-1. **Update ticket with final state:** correct test count in acceptance criteria, mark all checkboxes, update Completion Log with all commits and key events
+1. **Update ticket with final state:** update Status to `Done`, correct test count in acceptance criteria, mark all checkboxes, update Completion Log with all commits and key events
 2. Delete feature branch (local + remote)
 3. Update product tracker: Features table status → `done`, add to Completion Log, clear Active Session → "No active work"
 4. Record any bugs found during the feature in `bugs.md`, decisions in `decisions.md`

@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.13.0
+## Current Version: 0.13.1
 
 ---
 
@@ -64,6 +64,7 @@
 - [x] Automatic cross-model reviews — `/review-spec` and `/review-plan` run automatically when external CLIs are available
 - [x] `ui-ux-designer` agent — design guidelines and feature design notes (manual invocation, like database-architect)
 - [x] `docs/specs/design-guidelines.md` — living design system document consumed by frontend agents
+- [x] Ticket Status lifecycle — merge checklist updates Status to `Ready for Merge`, Step 6 to `Done`
 
 ## Phase 4: Test Generation for Existing Projects
 
