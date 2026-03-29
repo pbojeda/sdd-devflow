@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-03-29
+
+### Fixed
+
+- **Enforce strict sequential step execution** — agents can no longer parallelize steps (e.g., generating Implementation Plan while Spec Approval is still pending). Includes Auto checkpoint clarification: auto-approval happens in order, not in parallel. Reviewed by Codex GPT-5.4.
+
 ## [0.13.1] - 2026-03-28
 
 ### Fixed
@@ -453,6 +459,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.13.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.0...v0.12.1

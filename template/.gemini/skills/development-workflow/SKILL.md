@@ -50,6 +50,7 @@ Read the **Autonomy Level** from `GEMINI.md`.
 - **Auto** = proceed without asking; log in product tracker → "Auto-Approved Decisions" table
 - **Required** = ask user explicitly; do NOT continue without approval
 - **Quality gates always run** regardless of level (tests, lint, build, validators)
+- **Steps are strictly sequential.** Do NOT start a later step before the current checkpoint is approved — even when the checkpoint is Auto (auto-approval still happens in order, not in parallel). In particular, do NOT generate the Implementation Plan (Step 2) while Spec Approval (Step 0) is still pending. Reason: if the spec review finds issues, any plan built on the flawed spec must be discarded and redone — parallelizing wastes work and risks shipping a plan that doesn't match the final spec.
 
 ---
 
