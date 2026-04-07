@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-04-07
+
+### Added
+
+- **`/audit-merge` command** — automated compliance audit that runs 11 checks before merge approval: ticket Status, AC/DoD completion, workflow checklist, merge checklist evidence, completion log, tracker sync, key_facts.md, merge base divergence, working tree, and data file integrity. Fixes issues automatically when possible and includes audit output in the merge approval request so human reviewers can skip compliance checks and focus on code/architecture review.
+  - Integrated into merge checklist as Action 9 (before Request Approval, now Action 10)
+  - Works with both Claude Code and Gemini CLI
+  - 5th custom command (alongside review-spec, review-plan, review-project, context-prompt)
+
 ## [0.14.0] - 2026-04-07
 
 ### Added
@@ -210,7 +219,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - `## Merge Checklist Evidence` section in ticket template (option B+D)
   - Empty evidence table in every ticket acts as anchor that survives context compaction
-  - Agent must read `references/merge-checklist.md`, execute all 10 actions (0–9), and fill evidence for actions 0–7
+  - Agent must read `references/merge-checklist.md`, execute all 11 actions (0–10), and fill evidence for actions 0–7
   - Root cause: after `/compact` or long sessions, agents lose SKILL.md context and never reach the "Read merge-checklist.md" instruction. The ticket is always re-read (via tracker Active Session), making it the ideal anchor for forcing the checkpoint.
   - v0.8.9 external reference (option B) works at session start but fails post-compact (validated: F010 PASS, F011 FAIL)
   - New Action 7 (Fill Evidence) + Action 8 (Request Merge) replace old Action 7
@@ -470,6 +479,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.15.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.0...v0.13.1

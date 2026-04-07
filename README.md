@@ -354,7 +354,7 @@ Quality gates (tests, lint, build, validators) **always run** regardless of leve
 Every ticket includes a `## Merge Checklist Evidence` table that the agent must fill before requesting merge approval. This mechanism:
 
 - **Survives context compaction** — the ticket is always re-read via product tracker, so the empty evidence table acts as a persistent reminder
-- **Forces sequential execution** — agent must read `references/merge-checklist.md`, execute 10 actions (0–9), and record evidence
+- **Forces sequential execution** — agent must read `references/merge-checklist.md`, execute 11 actions (0–10), and record evidence
 - **Works at all tiers** — Simple tasks get a lite ticket with the same evidence table
 
 Validated across 16+ features with 87% first-attempt pass rate (failures led to iterative improvements in v0.8.7–v0.9.8).
