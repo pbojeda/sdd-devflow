@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-07
+
+### Added
+
+- **Merge base check in merge checklist** — new Action 7 runs `git merge-base --is-ancestor` to verify the feature branch is up to date with the target branch before merge approval. If diverged, instructs the agent to merge the target branch and re-run quality gates. Prevents merge conflicts discovered at PR time. (Actions renumbered: Evidence is now Action 8, Request Approval is Action 9)
+- **Data file validation in `production-code-validator`** — new check category (section 9) validates JSON/seed files for case consistency in string arrays, duplicate IDs, inconsistent object shapes, and suspicious value ranges. Catches data quality issues like mixed-case aliases that break case-sensitive queries.
+
+### Fixed
+
+- **Ticket Status field now updates at every workflow step** — explicit Status transitions added to SKILL.md: `Spec` (Step 0) → `In Progress` (Step 1) → `Planning` (Step 2) → `In Progress` (Steps 3-4) → `Review` (Step 5) → `Ready for Merge` (merge checklist) → `Done` (Step 6). Previously only the merge checklist (Step 5) and Step 6 set Status, leaving tickets stuck on "In Progress" during most of the workflow. Valid Status values expanded from 3 to 6 in ticket template.
+
 ## [0.13.2] - 2026-03-29
 
 ### Fixed
@@ -199,7 +210,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - `## Merge Checklist Evidence` section in ticket template (option B+D)
   - Empty evidence table in every ticket acts as anchor that survives context compaction
-  - Agent must read `references/merge-checklist.md`, execute all 9 actions (0–8), and fill evidence for actions 0–6
+  - Agent must read `references/merge-checklist.md`, execute all 10 actions (0–9), and fill evidence for actions 0–7
   - Root cause: after `/compact` or long sessions, agents lose SKILL.md context and never reach the "Read merge-checklist.md" instruction. The ticket is always re-read (via tracker Active Session), making it the ideal anchor for forcing the checkpoint.
   - v0.8.9 external reference (option B) works at session start but fails post-compact (validated: F010 PASS, F011 FAIL)
   - New Action 7 (Fill Evidence) + Action 8 (Request Merge) replace old Action 7
@@ -459,6 +470,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.14.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.12.1...v0.13.0
