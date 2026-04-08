@@ -59,18 +59,20 @@ Complex:  0 → 1 (+ADR) → 2 → 3 → 4 → 5 (+QA) → 6
 
 Quality gates (tests, lint, build, validators) **always run** regardless of level.
 
-| Checkpoint | L1 Full Control | L2 Trusted | L3 Autopilot | L4 Full Auto |
-|------------|:-:|:-:|:-:|:-:|
-| Spec Approval | Required | Auto | Auto | Auto |
-| Ticket Approval | Required | Auto | Auto | Auto |
-| Plan Approval | Required | Required | Auto | Auto |
-| Commit Approval | Required | Auto | Auto | Auto |
-| Merge Approval | Required | Required | Required | Auto |
+| Checkpoint | L1 Full Control | L2 Trusted | L3 Autopilot | L4 Full Auto | L5 PM Auto |
+|------------|:-:|:-:|:-:|:-:|:-:|
+| Spec Approval | Required | Auto | Auto | Auto | Auto |
+| Ticket Approval | Required | Auto | Auto | Auto | Auto |
+| Plan Approval | Required | Required | Auto | Auto | Auto |
+| Commit Approval | Required | Auto | Auto | Auto | Auto |
+| Merge Approval | Required | Required | Required | Auto | Auto |
+| Next Feature | — | — | — | — | Auto |
 
 - **L1 Full Control**: New project or learning SDD — human approves every step.
 - **L2 Trusted**: Comfortable with SDD — AI handles routine, human reviews plans and merges.
 - **L3 Autopilot**: Battle-tested workflow — human only reviews PRs before merge.
 - **L4 Full Auto**: Full automation — human reviews completed features only.
+- **L5 PM Autonomous**: PM Orchestrator runs features end-to-end sequentially. Invoke with `start pm`.
 
 **Auto** = proceed without asking; log in product tracker → "Auto-Approved Decisions" table.
 

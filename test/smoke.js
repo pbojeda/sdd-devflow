@@ -2015,6 +2015,132 @@ function testEjectAlreadyEjected() {
   }
 }
 
+// --- Scenario 33: L5 autonomy generates correctly ---
+
+function testL5Autonomy() {
+  const dest = path.join(TMP_BASE, 'test-l5-autonomy');
+  const { generate } = require('../lib/generator');
+  const { BACKEND_STACKS, FRONTEND_STACKS } = require('../lib/config');
+
+  silent(() => generate({
+    projectName: 'test-l5',
+    projectDir: dest,
+    description: 'L5 test',
+    businessContext: '',
+    projectType: 'fullstack',
+    backendStack: 'express-prisma-pg',
+    backendPreset: BACKEND_STACKS[0],
+    frontendStack: 'nextjs-tailwind-radix',
+    frontendPreset: FRONTEND_STACKS[0],
+    aiTools: 'both',
+    autonomyLevel: 5,
+    autonomyName: 'PM Autonomous',
+    branching: 'github-flow',
+    backendPort: 3001,
+    frontendPort: 3000,
+  }));
+
+  assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 5 (PM Autonomous)');
+  assertFileContains(dest, 'GEMINI.md', 'Autonomy Level: 5 (PM Autonomous)');
+}
+
+// --- Scenario 34: pm-orchestrator skill exists for Claude ---
+
+function testPmOrchestratorClaude() {
+  const dest = path.join(TMP_BASE, 'test-l5-autonomy');
+  // Reuse project from Scenario 33
+  assertExists(dest, '.claude/skills/pm-orchestrator/SKILL.md');
+  assertExists(dest, '.claude/skills/pm-orchestrator/references/pm-session-template.md');
+  assertFileContains(dest, '.claude/skills/pm-orchestrator/SKILL.md', 'start pm');
+  assertFileContains(dest, '.claude/skills/pm-orchestrator/SKILL.md', 'continue pm');
+  assertFileContains(dest, '.claude/skills/pm-orchestrator/SKILL.md', 'stop pm');
+  assertFileContains(dest, '.claude/skills/pm-orchestrator/SKILL.md', 'pm-session.lock');
+}
+
+// --- Scenario 35: pm-orchestrator skill exists for Gemini ---
+
+function testPmOrchestratorGemini() {
+  const dest = path.join(TMP_BASE, 'test-l5-autonomy');
+  // Reuse project from Scenario 33
+  assertExists(dest, '.gemini/skills/pm-orchestrator/SKILL.md');
+  assertExists(dest, '.gemini/skills/pm-orchestrator/references/pm-session-template.md');
+  assertFileContains(dest, '.gemini/skills/pm-orchestrator/SKILL.md', 'GEMINI.md');
+  assertFileNotContains(dest, '.gemini/skills/pm-orchestrator/SKILL.md', 'CLAUDE.md');
+}
+
+// --- Scenario 36: SKILL.md checkpoint table has L5 column ---
+
+function testSkillL5Column() {
+  const dest = path.join(TMP_BASE, 'test-l5-autonomy');
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', 'L5 PM Auto');
+  assertFileContains(dest, '.claude/skills/development-workflow/SKILL.md', 'Next Feature (PM loop)');
+  assertFileContains(dest, '.gemini/skills/development-workflow/SKILL.md', 'L5 PM Auto');
+}
+
+// --- Scenario 37: --upgrade preserves L5 autonomy ---
+
+function testUpgradePreservesL5() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-l5');
+  fs.mkdirSync(dest, { recursive: true });
+
+  // Create a mock project and init with L5
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+    name: 'upgrade-l5-test',
+    dependencies: { express: '^4.18.0', '@prisma/client': '^5.0.0' },
+    devDependencies: { jest: '^29.0.0', typescript: '^5.0.0' },
+  }), 'utf8');
+  fs.writeFileSync(path.join(dest, 'tsconfig.json'), '{}', 'utf8');
+  fs.mkdirSync(path.join(dest, 'src', 'controllers'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'services'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), '', 'utf8');
+  fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'),
+    'datasource db {\n  provider = "postgresql"\n  url = env("DATABASE_URL")\n}\n', 'utf8');
+
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateInit } = require('../lib/init-generator');
+  const { generateUpgrade, detectAiTools, detectProjectType, readAutonomyLevel } = require('../lib/upgrade-generator');
+
+  // Init with L5
+  const scanResult = scan(dest);
+  const initConfig = buildInitDefaultConfig(scanResult);
+  initConfig.projectDir = dest;
+  initConfig.autonomyLevel = 5;
+  initConfig.autonomyName = 'PM Autonomous';
+  silent(() => generateInit(initConfig));
+
+  assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 5 (PM Autonomous)');
+
+  // Upgrade
+  const scanResult2 = scan(dest);
+  const aiTools = detectAiTools(dest);
+  const projectType = detectProjectType(dest);
+  const autonomy = readAutonomyLevel(dest);
+  const upgradeConfig = buildInitDefaultConfig(scanResult2);
+  upgradeConfig.projectDir = dest;
+  upgradeConfig.aiTools = aiTools;
+  upgradeConfig.projectType = projectType;
+  upgradeConfig.autonomyLevel = autonomy.level;
+  upgradeConfig.autonomyName = autonomy.name;
+  upgradeConfig.installedVersion = 'unknown';
+  silent(() => generateUpgrade(upgradeConfig));
+
+  // L5 preserved after upgrade
+  assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 5 (PM Autonomous)');
+  // pm-orchestrator skill present after upgrade
+  assertExists(dest, '.claude/skills/pm-orchestrator/SKILL.md');
+}
+
+// --- Scenario 38: AGENTS.md has Available Skills section ---
+
+function testAgentsSkillsSection() {
+  const dest = path.join(TMP_BASE, 'test-l5-autonomy');
+  assertFileContains(dest, 'AGENTS.md', 'Available Skills');
+  assertFileContains(dest, 'AGENTS.md', 'pm-orchestrator');
+  assertFileContains(dest, 'AGENTS.md', 'development-workflow');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -2062,6 +2188,14 @@ try {
   run('Scenario 30: --eject --diff (dry-run preview)', testEjectDiff);
   run('Scenario 31: --eject error conditions', testEjectErrorConditions);
   run('Scenario 32: --eject on already-ejected project', testEjectAlreadyEjected);
+
+  console.log('\n  PM Orchestrator + L5 scenarios:');
+  run('Scenario 33: L5 autonomy generates correctly', testL5Autonomy);
+  run('Scenario 34: pm-orchestrator skill exists for Claude', testPmOrchestratorClaude);
+  run('Scenario 35: pm-orchestrator skill exists for Gemini', testPmOrchestratorGemini);
+  run('Scenario 36: SKILL.md checkpoint table has L5 column', testSkillL5Column);
+  run('Scenario 37: --upgrade preserves L5 autonomy', testUpgradePreservesL5);
+  run('Scenario 38: AGENTS.md has Available Skills section', testAgentsSkillsSection);
 } finally {
   cleanup();
 }

@@ -1,4 +1,4 @@
-# Plan: PM Agent + L5 Autonomous Mode (v0.10.0)
+# Plan: PM Agent + L5 Autonomous Mode (v0.10.0) — Implemented in v0.16.0
 
 ## Context
 

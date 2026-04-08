@@ -59,6 +59,18 @@ The project includes pre-configured hooks in `.claude/settings.json`:
 
 Personal notification hooks (macOS/Linux) are in `.claude/settings.local.json` — see that file for examples.
 
+## Available Skills
+
+Skills orchestrate multi-step workflows. Invoke by telling the AI assistant what you want to do.
+
+| Skill | Invocation | Description |
+|-------|-----------|-------------|
+| `development-workflow` | `start task F001` | Complete feature development (6-step workflow) |
+| `bug-workflow` | `report bug`, `fix bug` | Bug triage, investigation, and resolution |
+| `health-check` | `health check` | Quick project health scan (tests, build, lint, etc.) |
+| `project-memory` | `set up project memory` | Initialize/maintain docs/project_notes/ |
+| `pm-orchestrator` | `start pm`, `continue pm` | L5: Autonomous multi-feature sequential orchestration |
+
 ## Standards References
 
 - [Base Standards](./ai-specs/specs/base-standards.mdc) — Constitution, methodology, workflow, agents

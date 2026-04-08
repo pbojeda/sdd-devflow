@@ -4,7 +4,7 @@
 
 ## Gemini-Specific Configuration
 
-<!-- CONFIG: Set your preferred autonomy level (1-4). See base-standards.mdc § Autonomy Levels for definitions. -->
+<!-- CONFIG: Set your preferred autonomy level (1-5). See base-standards.mdc § Autonomy Levels for definitions. -->
 **Autonomy Level: 2 (Trusted)**
 
 <!-- CONFIG: Set branching strategy in docs/project_notes/key_facts.md (github-flow or gitflow) -->

@@ -338,7 +338,7 @@ Cross-model reviews only trigger when at least one external CLI is available (Ge
 - **Standard** (features): 0 → 1 → 2 → 3 → 4 → 5 (+QA) → 6
 - **Complex** (architectural changes): 0 → 1 (+ADR) → 2 → 3 → 4 → 5 (+QA) → 6
 
-### 4 Autonomy Levels
+### 5 Autonomy Levels
 
 | Level | Name | Human Checkpoints | Best For |
 |-------|------|-------------------|----------|
@@ -346,6 +346,7 @@ Cross-model reviews only trigger when at least one external CLI is available (Ge
 | L2 | Trusted | Plan + Merge | Normal development **(default)** |
 | L3 | Autopilot | Merge only | Well-defined, repetitive tasks |
 | L4 | Full Auto | None (CI/CD gates only) | Bulk simple tasks |
+| L5 | PM Autonomous | None + auto feature sequencing | Multi-feature batch execution via `start pm` |
 
 Quality gates (tests, lint, build, validators) **always run** regardless of level.
 

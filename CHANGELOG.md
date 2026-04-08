@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-08
+
+### Added
+
+- **PM Orchestrator skill (`pm-orchestrator`)** — 5th skill that enables autonomous sequential multi-feature development. Commands: `start pm` (batch classify + loop), `continue pm` (resume after /compact), `stop pm` (graceful halt), `pm status`. Includes rolling batch of 1-3 features, dynamic dependency resolution, and comprehensive session state in `pm-session.md`.
+- **L5 Autonomy Level (PM Autonomous)** — all checkpoints auto-approve (like L4) plus automatic feature sequencing via the PM Orchestrator. Requires explicit `start pm` to activate the loop.
+- **9 guardrails for PM mode** — max 5 features per session, circuit breaker (3 consecutive failures), kill switch (`pm-stop.md`), session lock (`pm-session.lock`), post-merge sanity check (`npm test` on target branch), rolling batch classification, clean workspace validation, quality gates always enforced, `/audit-merge` auto-execution.
+- **Doctor check 11: Autonomy/Skills consistency** — warns if L5 is set but `pm-orchestrator` skill is missing (suggests `--upgrade`).
+- **Available Skills section in AGENTS.md** — lists all 5 skills with invocation commands.
+- **PM-aware compact hook** — `SessionStart` hook now detects `pm-session.md` and injects PM-specific recovery context (`continue pm`) instead of the generic recovery message.
+
+### Changed
+
+- Checkpoint tables (SKILL.md, base-standards.mdc) now include L5 column + "Next Feature" row
+- Complexity guide includes L5 combination row
+- `--diff` output shows "5 skills" (was "4 skills")
+- README updated with 5 autonomy levels (was 4)
+
+### Cross-model reviewed
+
+Plan reviewed by Gemini 2.5 Pro and GPT-5.4 (Codex CLI). Key feedback incorporated: rolling batch (Codex), reduced max features from 10→5 (Gemini), session lock (Codex), dynamic dependency resolution (Gemini).
+
 ## [0.15.0] - 2026-04-07
 
 ### Added
@@ -479,6 +501,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.16.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.1...v0.13.2

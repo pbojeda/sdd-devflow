@@ -2,7 +2,7 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.15.0
+## Current Version: 0.16.0
 
 ---
 
@@ -75,7 +75,7 @@
 ## Phase 5: Advanced Features (v1.0)
 
 - [ ] Agent Teams: parallel execution of independent tasks
-- [ ] PM Agent + L5 Autonomous: AI-driven feature orchestration
+- [x] PM Agent + L5 Autonomous: AI-driven feature orchestration (v0.16.0 — pm-orchestrator skill, 5 autonomy levels, 9 guardrails, cross-model reviewed)
 - [ ] Plugin system for custom agents/skills
 - [ ] Web UI for project setup (alternative to CLI wizard)
 
