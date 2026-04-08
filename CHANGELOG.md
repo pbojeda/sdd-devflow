@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **9 guardrails for PM mode** — max 5 features per session, circuit breaker (3 consecutive failures), kill switch (`pm-stop.md`), session lock (`pm-session.lock`), post-merge sanity check (`npm test` on target branch), rolling batch classification, clean workspace validation, quality gates always enforced, `/audit-merge` auto-execution.
 - **Doctor check 11: Autonomy/Skills consistency** — warns if L5 is set but `pm-orchestrator` skill is missing (suggests `--upgrade`).
 - **Available Skills section in AGENTS.md** — lists all 5 skills with invocation commands.
-- **PM-aware compact hook** — `SessionStart` hook now detects `pm-session.md` and injects PM-specific recovery context (`continue pm`) instead of the generic recovery message.
+- **PM-aware compact hook** — `SessionStart` hook now detects `pm-session.lock` (active PM session) and injects PM-specific recovery context (`continue pm`) instead of the generic recovery message.
 
 ### Changed
 

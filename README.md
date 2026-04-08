@@ -42,6 +42,7 @@ The interactive wizard asks about your stack, AI tools, and autonomy level:
   2) L2 Trusted — Human reviews plans + merges only  ← default
   3) L3 Autopilot — Human only approves merges
   4) L4 Full Auto — No human checkpoints, CI/CD gates only
+  5) L5 PM Autonomous — PM Agent orchestrates features end-to-end
 ```
 
 For defaults (fullstack Express+Next.js, L2 autonomy):
@@ -243,21 +244,19 @@ Customize the generated workflow as your project grows.
 
 Open your project in Claude Code or Gemini and start building:
 
-**Claude Code:**
+**Single feature (L1-L4):**
 ```
-/add-feature "user authentication with JWT"
-/start-task F001
-/show-progress
-/next-task
+add feature "user authentication with JWT"
+start task F001
+show progress
+next task
 ```
 
-**Gemini:**
+**Autonomous multi-feature (L5):**
 ```
-/add-feature "user authentication with JWT"
-/start-task F001
-/show-progress
-/next-task
+start pm
 ```
+The PM Orchestrator reads your product tracker, presents features for batch classification, then develops them sequentially — spec, plan, implement, review, merge — with all quality gates enforced.
 
 The workflow skill guides you through each step — from spec writing to implementation to code review — with checkpoints based on your autonomy level.
 
@@ -295,7 +294,7 @@ SDD DevFlow combines three proven practices:
 | `qa-engineer` | Edge cases, spec verification | 5 |
 | `database-architect` | Schema design, optimization | Any |
 
-### 4 Skills (Slash Commands)
+### 5 Skills (Workflow Orchestration)
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
@@ -303,8 +302,9 @@ SDD DevFlow combines three proven practices:
 | `bug-workflow` | `report bug`, `fix bug`, `hotfix needed` | Bug triage, investigation, and resolution |
 | `project-memory` | `set up project memory`, `log a bug fix` | Maintains institutional knowledge |
 | `health-check` | `health check`, `project health` | Quick scan: tests, build, specs sync, secrets, docs freshness |
+| `pm-orchestrator` | `start pm`, `continue pm`, `stop pm` | **L5**: Autonomous sequential multi-feature execution with guardrails |
 
-### 4 Custom Commands
+### 5 Custom Commands
 
 | Command | What it does |
 |---------|-------------|
@@ -312,6 +312,7 @@ SDD DevFlow combines three proven practices:
 | `/review-plan` | Cross-model plan review — runs automatically after plan self-review when external CLIs are available; catches implementation blind spots |
 | `/context-prompt` | Generates a context recovery prompt after `/compact` with Workflow Recovery to prevent checkpoint skipping |
 | `/review-project` | Comprehensive project-level review using up to 3 AI models in parallel — 6 domains, audit context, consolidated report with action plan |
+| `/audit-merge` | Automated compliance audit — 11 pre-merge checks (ticket, tracker, evidence, merge base, working tree, data files). Auto-fixes issues. |
 
 ### Spec & Plan Quality
 
@@ -349,6 +350,31 @@ Cross-model reviews only trigger when at least one external CLI is available (Ge
 | L5 | PM Autonomous | None + auto feature sequencing | Multi-feature batch execution via `start pm` |
 
 Quality gates (tests, lint, build, validators) **always run** regardless of level.
+
+### PM Orchestrator (L5 — Autonomous Multi-Feature)
+
+At L5, the PM Orchestrator skill develops multiple features sequentially without manual intervention:
+
+```
+> start pm
+
+PM Orchestrator — Batch Classification
+
+These features are ready to develop:
+
+| # | Feature              | Type    | Priority | Dependencies   |
+|---|----------------------|---------|----------|----------------|
+| 1 | F014 — User Roles    | backend | High     | F006 (done)    |
+| 2 | F015 — Email Alerts  | backend | Medium   | none           |
+
+Classify complexity for each (Simple / Standard / Complex):
+```
+
+After classification, the loop runs autonomously: spec → plan → implement → review → merge for each feature, with all quality gates enforced.
+
+**9 guardrails** prevent runaway execution: max 5 features/session, circuit breaker (3 failures → stop), kill switch (`stop pm`), session lock, post-merge sanity check (`npm test`), rolling batch (1-3 features at a time), clean workspace validation, quality gates always on, `/audit-merge` auto-execution.
+
+**Recovery**: after `/compact` or terminal restart, run `continue pm` — the session state in `pm-session.md` tracks exactly where you left off.
 
 ### Merge Checklist (B+D Mechanism)
 
@@ -424,12 +450,14 @@ project/
 │   │   │   └── references/              # Templates, guides, examples
 │   │   ├── bug-workflow/                # Bug triage and resolution
 │   │   ├── health-check/               # Project health diagnostics
+│   │   ├── pm-orchestrator/             # L5: Autonomous multi-feature loop
 │   │   └── project-memory/              # Memory system setup
 │   ├── commands/                        # Custom slash commands
 │   │   ├── review-spec.md              # Cross-model spec review (pre-plan)
 │   │   ├── review-plan.md              # Cross-model plan review
 │   │   ├── context-prompt.md           # Post-compact context recovery
-│   │   └── review-project.md           # Multi-model project review
+│   │   ├── review-project.md           # Multi-model project review
+│   │   └── audit-merge.md             # Pre-merge compliance audit
 │   ├── hooks/quick-scan.sh              # Post-developer quality scan
 │   └── settings.json                    # Shared hooks (git-tracked)
 │
@@ -493,10 +521,10 @@ cp -r node_modules/create-sdd-project/template/ /path/to/your-project/
 
 ## Roadmap
 
-- **PM Agent + L5 Autonomous**: AI-driven feature orchestration — sequential feature loop with automatic checkpoint approval and session state persistence
+- **Agent Teams**: Intra-feature parallelism (e.g., spec review + plan review in parallel)
 - **Monorepo improvements**: Better support for pnpm workspaces and Turbo
 - **Retrofit Testing**: Automated test generation for existing projects with low coverage
-- **Agent Teams**: Parallel execution of independent tasks
+- **Plugin system**: Custom agents and skills marketplace
 
 ## Contributing
 
