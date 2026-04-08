@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **PM Orchestrator: progress output** — agent now prints `[PM] FXXX | Step N/6 | StepName` at each step transition and quality gate result, so the human can follow the autonomous loop.
 - **PM Orchestrator: check existing patterns before architectural decisions** — new constraint requires the agent to search existing codebase, decisions.md, and key_facts.md before choosing new approaches. If uncertain, must ask the user or consult external AI models. If the approach depends on something that doesn't exist yet, must create a follow-up task in product-tracker.md. Found during F112 where the agent chose a new metrics approach without checking existing analytics infrastructure.
 - **PM Orchestrator: `start pm` auto-archives previous sessions** — no longer asks the user to manually delete pm-session.md. Instead, `start pm` detects completed/stopped sessions and renames them to `pm-session-{session-id}.md` (e.g., `pm-session-pm-c3a.md`) before creating a new session. Archived files are kept as historical records.
+- **PM Orchestrator: mandatory compact after 2 features** — changed from "suggest /compact after 3+" to "STOP and require /compact after 2". Added as pre-flight check and batch boundary rule. Context degradation at 14% caused the agent to ignore its own compact recommendation. Now it's a hard stop, not a suggestion.
 
 ## [0.16.0] - 2026-04-08
 
