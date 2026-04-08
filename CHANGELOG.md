@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **PM Orchestrator: pm-session.md now updated during feature lifecycle** — previously only updated at start ("in-progress") and end ("done"), leaving stale state mid-feature. Now updates Notes column with current step, Recovery Instructions with branch and step after each transition. Found during first real PM session on foodXPlorer (F090 showed "pending" at step 5/6).
 - **PM Orchestrator: progress output** — agent now prints `[PM] FXXX | Step N/6 | StepName` at each step transition and quality gate result, so the human can follow the autonomous loop.
 - **PM Orchestrator: check existing patterns before architectural decisions** — new constraint requires the agent to search existing codebase, decisions.md, and key_facts.md before choosing new approaches. If uncertain, must ask the user or consult external AI models. If the approach depends on something that doesn't exist yet, must create a follow-up task in product-tracker.md. Found during F112 where the agent chose a new metrics approach without checking existing analytics infrastructure.
+- **PM Orchestrator: `start pm` auto-archives previous sessions** — no longer asks the user to manually delete pm-session.md. Instead, `start pm` detects completed/stopped sessions and renames them to `pm-session-{session-id}.md` (e.g., `pm-session-pm-c3a.md`) before creating a new session. Archived files are kept as historical records.
 
 ## [0.16.0] - 2026-04-08
 
