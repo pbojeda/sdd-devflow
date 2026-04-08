@@ -139,11 +139,13 @@ Completed: 2/3 | Blocked: 1/3 | Remaining: 0
 ## `continue pm` — Resume After /compact or Restart
 
 1. Read `docs/project_notes/pm-session.md`. If it doesn't exist, inform user there is no active session.
-2. Find the feature with status `in-progress`:
+2. **Validate session Status.** If Status is `completed` or `stopped`, inform user the session has ended. To start a new one, delete pm-session.md and run `start pm`.
+3. **Re-create lock.** If `docs/project_notes/pm-session.lock` is missing (e.g., after terminal crash), re-create it with content: `session resumed at {ISO date}`.
+4. Find the feature with status `in-progress`:
    - Read its ticket file and the product tracker Active Session to determine current step.
    - Resume the `development-workflow` from that step.
-3. After the in-progress feature completes, re-enter the Orchestration Loop at step (e).
-4. If no `in-progress` feature exists but `pending` features remain, pick the next one and enter step (b).
+5. After the in-progress feature completes, re-enter the Orchestration Loop at step (e).
+6. If no `in-progress` feature exists but `pending` features remain, pick the next one and enter step (b).
 
 ---
 

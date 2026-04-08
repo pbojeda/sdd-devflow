@@ -435,7 +435,7 @@ project/
 │
 ├── .gemini/
 │   ├── agents/                          # 10 agents (Gemini format)
-│   ├── skills/                          # Same 4 skills
+│   ├── skills/                          # Same 5 skills
 │   ├── commands/                        # Slash commands (workflow + review + context + project review)
 │   └── settings.json                    # Gemini configuration
 │
