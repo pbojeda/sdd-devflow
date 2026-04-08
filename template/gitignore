@@ -46,3 +46,7 @@ npm-debug.log*
 
 # Claude Code (local settings are personal — hooks, permissions, notifications)
 .claude/settings.local.json
+
+# SDD PM Orchestrator (ephemeral session control files)
+docs/project_notes/pm-session.lock
+docs/project_notes/pm-stop.md

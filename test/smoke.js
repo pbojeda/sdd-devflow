@@ -2128,8 +2128,10 @@ function testUpgradePreservesL5() {
 
   // L5 preserved after upgrade
   assertFileContains(dest, 'CLAUDE.md', 'Autonomy Level: 5 (PM Autonomous)');
-  // pm-orchestrator skill present after upgrade
+  // pm-orchestrator skill present after upgrade (both tools)
   assertExists(dest, '.claude/skills/pm-orchestrator/SKILL.md');
+  assertExists(dest, '.gemini/skills/pm-orchestrator/SKILL.md');
+  assertExists(dest, '.gemini/skills/pm-orchestrator/references/pm-session-template.md');
 }
 
 // --- Scenario 38: AGENTS.md has Available Skills section ---

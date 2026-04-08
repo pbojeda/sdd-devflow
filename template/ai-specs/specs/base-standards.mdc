@@ -22,7 +22,7 @@ alwaysApply: true
 
 These conventions adapt per-project via `<!-- CONFIG: -->` comments in `CLAUDE.md` and `key_facts.md`:
 
-- **Autonomy Level** → `CLAUDE.md` (1-4)
+- **Autonomy Level** → `CLAUDE.md` (1-5)
 - **Tech Stack** → `backend-standards.mdc` / `frontend-standards.mdc`
 - **Monorepo Layout** → `CLAUDE.md`
 - **Branching Strategy** → `key_facts.md` (github-flow or gitflow)
