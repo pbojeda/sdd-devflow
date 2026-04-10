@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- **CI template: scaling tips comment** — `template/.github/workflows/ci.yml` now includes a documented pattern for the path-filter + required-checks deadlock. When users expand from a single CI job to multiple jobs with path filters, branch protection requiring those individual checks deadlocks docs-only PRs. Solution documented inline: add a `ci-success` rollup job with `needs: [...]` and `if: always()`, then require ONLY the rollup in branch protection. Found during foodXPlorer F115 cleanup where a docs-only PR couldn't merge after configuring branch protection.
+
 ### Fixed
 
 - **PM Orchestrator: pm-session.md now updated during feature lifecycle** — previously only updated at start ("in-progress") and end ("done"), leaving stale state mid-feature. Now updates Notes column with current step, Recovery Instructions with branch and step after each transition. Found during first real PM session on foodXPlorer (F090 showed "pending" at step 5/6).
