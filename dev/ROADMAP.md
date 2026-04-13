@@ -2,7 +2,17 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.16.8
+## Current Version: 0.16.9
+
+### v0.16.9 (2026-04-13) — Doctor check #13 for Gemini TOML commands
+
+Closes gap #3 from the v0.16.8 template drift audit (highest-priority remaining: same class as BUG-DEV-GEMINI-CONFIG because upstream Gemini CLI silently skips broken TOML files via `coreEvents.emitFeedback`, never stdout/stderr).
+
+- Doctor check #13 (`checkGeminiCommands`) parses `.gemini/commands/*.toml` with a narrow regex helper (`parseTomlTopLevelKey`) and validates required `prompt: string` + optional `description: string` to mirror Gemini CLI's `FileCommandLoader` Zod schema
+- Scenario 42 smoke test with 7 sub-cases covering missing/invalid/multiline/literal TOML variants
+- Empirical research confirmed: a functional smoke test like Scenario 41 does NOT work here because Gemini CLI does not emit command loading errors to stdout/stderr. The doctor check is the reliable detection surface
+- No runtime dependency added — hand-rolled narrow parser matches our template use case (two top-level string keys). Upgrade to `@iarna/toml` if templates ever need richer TOML features
+- Plan cross-model reviewed by Codex CLI 0.115.0 + Gemini CLI 0.34.0
 
 ### v0.16.8 (2026-04-13) — Meta-improvements to prevent silent failures
 

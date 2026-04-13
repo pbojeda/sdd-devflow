@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.16.9] - 2026-04-13
+
+### Added
+
+- **Doctor check #13: Gemini TOML commands format** — validates `.gemini/commands/*.toml` slash command files for required `prompt` field (must be string) and optional `description` field (if present, must be string). Required because Gemini CLI's `FileCommandLoader` silently skips invalid TOML files at startup — errors only reach the interactive UI event system via `coreEvents.emitFeedback`, never stdout/stderr. Without this check, a schema drift (e.g., Gemini renaming `prompt` → `content`) would silently break every scaffolded project's slash commands, exactly the BUG-DEV-GEMINI-CONFIG failure class. Check brings doctor total from 12 to 13.
+- **Smoke test Scenario 42: testDoctorGeminiCommandsValid** — 16 sub-cases covering the full parser matrix: valid template TOML (PASS), missing required `prompt` field (FAIL), `prompt` as non-string integer (FAIL), `description` as non-string boolean (FAIL), empty file (FAIL), triple-quoted multiline (PASS), single-quoted literal (PASS), unterminated basic string (FAIL), unterminated literal string (FAIL), unterminated triple-quoted (FAIL), trailing junk after string close (FAIL), duplicate top-level key (FAIL), `#` inside a quoted string (PASS — not misclassified as comment), trailing inline comment after string close (PASS), escaped quotes inside basic string (PASS), symlink as TOML file (FAIL — refused with "symlink" in message). Smoke total: 41 → 42.
+- **Strict TOML grammar subset validator** (`validateTomlCommandFile`) in `lib/doctor.js` — hand-rolled parser that enforces a narrow subset sufficient for our templates: top-level `key = <string-literal>` only, bare keys only, all four TOML string forms (basic, literal, triple-quoted basic, triple-quoted literal), rejects unterminated strings, rejects duplicate top-level keys, rejects trailing content after a closed string (only `#` comments allowed), handles `#` inside quoted strings correctly, handles `\\.` escapes in basic strings. Stops scanning at the first `[table]` or `[[array-table]]` section. No runtime dependency added — stays consistent with the library's zero-deps design. If templates ever need richer TOML features, upgrade to `@iarna/toml` as a dep at that point.
+- **Symlink guard** in `checkGeminiCommands` — uses `lstatSync` to detect symlinks in `.gemini/commands/` and refuses to follow them. Low severity in a local CLI, but closes a theoretical path-traversal vector.
+
+### Context: why a doctor check instead of a functional test
+
+Gap #3 from the v0.16.8 template drift audit was "no functional test for Gemini TOML commands". Empirical research for v0.16.9 showed that `gemini --help` and `gemini -p ...` do NOT expose command loading errors to stdout/stderr — the `FileCommandLoader.loadCommands()` emits `coreEvents.emitFeedback('error', ...)` events that only the interactive UI sees. A functional smoke test like Scenario 41 (differential baseline/broken) cannot work here because there is no observable error surface.
+
+The reliable alternative is to mirror the Gemini CLI schema in our doctor check — we encode the same invariants (`prompt: z.string()`, `description: z.string().optional()`) using a narrow TOML parser. If upstream Gemini CLI changes those invariants, our check will pass while user projects silently break; we then investigate and update the check in sync. This is the pattern that BUG-DEV-GEMINI-CONFIG should have caught but didn't, because no equivalent check existed for settings.json before v0.16.7.
+
+### Cross-model reviewed
+
+Plan and patch reviewed by Codex CLI 0.115.0 and Gemini CLI 0.34.0 in parallel. Divergent verdicts:
+
+- **Gemini: APPROVE** — "excellent, pragmatic patch. The regex-based parser is cleverly constrained. Good to merge."
+- **Codex: REJECT** — identified 5 real false-negative cases in the initial draft: unterminated basic strings (`prompt = "abc`), unterminated literal strings (`prompt = 'abc`), unterminated triple-quoted strings, trailing junk after string close (`prompt = "ok" garbage`), and duplicate top-level keys (`prompt = "a"\nprompt = "b"`). Also flagged a theoretical symlink-following path-traversal vector and a false positive against quoted-key TOML syntax.
+
+**Arbitrage: Codex wins on technical correctness.** The initial "shallow key sniffing" approach left the same class of silent failures that v0.16.9 is supposed to close. Rewrote the parser as a **strict grammar subset validator** that enforces:
+
+- Each TOML string form must have a matching closing quote (basic, literal, triple-quoted basic, triple-quoted literal)
+- Duplicate top-level keys are rejected
+- Trailing content after a closed string is rejected (only `#` comments allowed)
+- `#` inside a quoted string is NOT treated as a comment start (previous implementation had this pitfall)
+- Escaped quotes inside basic strings (`"he said \\"hi\\""`) are accepted
+- Symlinks in `.gemini/commands/` are refused via `lstat` check
+
+Also **9 new test sub-cases** added for the hardened parser: cases 8-16 covering unterminated basic/literal/triple, trailing junk, duplicate keys, hash in string, trailing comment, escaped quotes, symlink refusal. Scenario 42 now has 16 sub-cases total. Running `npm test` re-runs all 42 scenarios on every commit.
+
+Codex also suggested using `@iarna/toml` as a runtime dependency instead of hand-rolling. Rejected: the library ships with ZERO runtime and ZERO dev dependencies as a design feature. Breaking that for one doctor check is not justified when a hardened grammar-subset validator reaches zero known false negatives for our narrow template use case. If templates ever need richer TOML features (tables, arrays, numbers, dates), we will upgrade to `@iarna/toml` at that point.
+
+The theoretical false positive Codex flagged — quoted-key TOML (`"prompt" = "x"`) — is acknowledged and accepted: our templates never use quoted keys, and if a user manually writes them, the doctor check will produce a clear error message pointing to the offending line rather than a silent failure.
+
 ## [0.16.8] - 2026-04-13
 
 ### Added
@@ -558,6 +595,7 @@ Plan reviewed by Gemini 2.5 Pro and GPT-5.4 (Codex CLI). Key feedback incorporat
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.16.9]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.8...v0.16.9
 [0.16.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.6...v0.16.7
 [0.16.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.0...v0.16.6

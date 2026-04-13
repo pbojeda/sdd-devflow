@@ -2328,6 +2328,235 @@ function testDoctorGeminiSettingsValid() {
   assert(out3.includes('Gemini settings: valid'), 'rich valid object should PASS');
 }
 
+// --- Scenario 42: Doctor check #13 detects broken Gemini TOML commands (v0.16.9) ---
+//
+// Gemini CLI loads slash commands from .gemini/commands/*.toml at startup and SILENTLY
+// skips any TOML that fails parsing or schema validation (required: `prompt` string,
+// optional: `description` string). Errors appear only in the interactive UI event
+// system — they do not reach stdout/stderr, so a functional smoke test like Scenario 41
+// cannot detect them.
+//
+// Scenario 42 uses the doctor check #13 (checkGeminiCommands) as the detection layer.
+// The check parses top-level TOML assignments with a narrow regex (string literals only)
+// and flags files that are missing `prompt`, have a non-string `prompt`, or have a
+// non-string `description`. This gives us a reliable signal without adding a TOML parser
+// dependency to the library.
+//
+// If upstream Gemini CLI changes the required fields or types (e.g., rename `prompt` →
+// `content`), the template's TOMLs would silently stop working and this scenario would
+// still pass — but the next BUG-DEV-GEMINI-CONFIG-class investigation would find it,
+// because the doctor check mirrors the Gemini schema and can be updated in sync.
+
+function testDoctorGeminiCommandsValid() {
+  // Helper: init a project, optionally mutate .gemini/commands/, run doctor, return output.
+  function runDoctorWithCommands(name, mutations) {
+    const dest = path.join(TMP_BASE, name);
+    fs.mkdirSync(dest, { recursive: true });
+    fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+      name,
+      dependencies: { express: '^4.18.0' },
+    }));
+    fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+    execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+    const commandsDir = path.join(dest, '.gemini', 'commands');
+    for (const [file, content] of Object.entries(mutations)) {
+      const filePath = path.join(commandsDir, file);
+      if (content === null) {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } else {
+        fs.writeFileSync(filePath, content, 'utf8');
+      }
+    }
+
+    let output;
+    try {
+      output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+    } catch (e) {
+      output = e.stdout || '';
+    }
+    return output;
+  }
+
+  // Case 1: All template commands valid (scaffolded state) → PASS
+  const out1 = runDoctorWithCommands('test-doctor-gemini-commands-valid', {});
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out1),
+    `Valid template commands should PASS. Output: ${out1.slice(0, 500)}`
+  );
+  assert(
+    !out1.includes('invalid TOML'),
+    'Valid template commands should not trigger invalid TOML warning'
+  );
+
+  // Case 2: Missing required `prompt` field → FAIL
+  const out2 = runDoctorWithCommands('test-doctor-gemini-commands-missing-prompt', {
+    'start-task.toml': 'description = "missing prompt field"\n',
+  });
+  assert(
+    out2.includes('invalid TOML') || out2.includes("missing required field 'prompt'"),
+    `Missing prompt field should FAIL. Output: ${out2.slice(0, 500)}`
+  );
+
+  // Case 3: Invalid TOML — `prompt` present but not a string (integer)
+  const out3 = runDoctorWithCommands('test-doctor-gemini-commands-non-string-prompt', {
+    'start-task.toml': 'description = "desc"\nprompt = 42\n',
+  });
+  assert(
+    out3.includes('invalid TOML') || out3.includes("'prompt' field is not a string"),
+    `Non-string prompt should FAIL. Output: ${out3.slice(0, 500)}`
+  );
+
+  // Case 4: `description` is present but not a string (boolean) → FAIL
+  const out4 = runDoctorWithCommands('test-doctor-gemini-commands-non-string-desc', {
+    'start-task.toml': 'description = true\nprompt = "test prompt"\n',
+  });
+  assert(
+    out4.includes('invalid TOML') || out4.includes("'description' field is present but not a string"),
+    `Non-string description should FAIL. Output: ${out4.slice(0, 500)}`
+  );
+
+  // Case 5: Empty TOML file → FAIL
+  const out5 = runDoctorWithCommands('test-doctor-gemini-commands-empty', {
+    'start-task.toml': '',
+  });
+  assert(
+    out5.includes('invalid TOML') || out5.includes('empty file'),
+    `Empty TOML file should FAIL. Output: ${out5.slice(0, 500)}`
+  );
+
+  // Case 6: Triple-quoted multiline prompt (valid TOML, must PASS)
+  const out6 = runDoctorWithCommands('test-doctor-gemini-commands-multiline', {
+    'start-task.toml': 'description = "multiline test"\nprompt = """\nThis is a multiline\nprompt body\n"""\n',
+  });
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out6),
+    `Multiline string prompt should PASS. Output: ${out6.slice(0, 500)}`
+  );
+  assert(
+    !out6.includes('invalid TOML'),
+    'Multiline string prompt should not trigger invalid TOML warning'
+  );
+
+  // Case 7: Single-quoted literal string (valid TOML, must PASS)
+  const out7 = runDoctorWithCommands('test-doctor-gemini-commands-literal', {
+    'start-task.toml': "description = 'single quoted'\nprompt = 'literal string prompt'\n",
+  });
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out7),
+    `Single-quoted literal should PASS. Output: ${out7.slice(0, 500)}`
+  );
+
+  // Case 8 (v0.16.9 hardening): Unterminated basic string → FAIL
+  const out8 = runDoctorWithCommands('test-doctor-gemini-commands-unterm-basic', {
+    'start-task.toml': 'description = "desc"\nprompt = "unterminated\n',
+  });
+  assert(
+    out8.includes('invalid TOML') && out8.includes('invalid basic string value'),
+    `Unterminated basic string should FAIL with descriptive message. Output: ${out8.slice(0, 600)}`
+  );
+
+  // Case 9 (v0.16.9 hardening): Unterminated literal string → FAIL
+  const out9 = runDoctorWithCommands('test-doctor-gemini-commands-unterm-literal', {
+    'start-task.toml': "description = 'desc'\nprompt = 'unterminated\n",
+  });
+  assert(
+    out9.includes('invalid TOML') && out9.includes('invalid literal string value'),
+    `Unterminated literal string should FAIL with descriptive message. Output: ${out9.slice(0, 600)}`
+  );
+
+  // Case 10 (v0.16.9 hardening): Unterminated triple-quoted basic → FAIL
+  const out10 = runDoctorWithCommands('test-doctor-gemini-commands-unterm-triple', {
+    'start-task.toml': 'description = "desc"\nprompt = """\nno close\n',
+  });
+  assert(
+    out10.includes('invalid TOML') && out10.includes('unterminated triple-quoted basic string'),
+    `Unterminated triple-quoted basic should FAIL with descriptive message. Output: ${out10.slice(0, 600)}`
+  );
+
+  // Case 11 (v0.16.9 hardening): Trailing junk after string close → FAIL
+  const out11 = runDoctorWithCommands('test-doctor-gemini-commands-trailing-junk', {
+    'start-task.toml': 'description = "desc"\nprompt = "ok" garbage trailing\n',
+  });
+  assert(
+    out11.includes('invalid TOML') && out11.includes('invalid basic string'),
+    `Trailing junk after string should FAIL. Output: ${out11.slice(0, 600)}`
+  );
+
+  // Case 12 (v0.16.9 hardening): Duplicate top-level key → FAIL
+  const out12 = runDoctorWithCommands('test-doctor-gemini-commands-duplicate', {
+    'start-task.toml': 'description = "a"\nprompt = "first"\nprompt = "second"\n',
+  });
+  assert(
+    out12.includes('invalid TOML') && out12.includes('duplicate top-level key'),
+    `Duplicate top-level key should FAIL. Output: ${out12.slice(0, 600)}`
+  );
+
+  // Case 13 (v0.16.9 hardening): '#' inside basic string must NOT be misclassified
+  // as a comment (strip-comments pitfall). Should PASS.
+  const out13 = runDoctorWithCommands('test-doctor-gemini-commands-hash-in-string', {
+    'start-task.toml': 'description = "desc"\nprompt = "Fix issue #42 in #repo/#branch"\n',
+  });
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out13),
+    `Hash inside quoted string should PASS (not treated as comment). Output: ${out13.slice(0, 600)}`
+  );
+
+  // Case 14 (v0.16.9 hardening): Trailing comment after string close → PASS
+  const out14 = runDoctorWithCommands('test-doctor-gemini-commands-trailing-comment', {
+    'start-task.toml': 'description = "desc" # inline comment\nprompt = "body" # another\n',
+  });
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out14),
+    `Trailing comment after string close should PASS. Output: ${out14.slice(0, 600)}`
+  );
+
+  // Case 15 (v0.16.9 hardening): Escaped quotes inside basic string should PASS
+  const out15 = runDoctorWithCommands('test-doctor-gemini-commands-escaped', {
+    'start-task.toml': 'description = "desc"\nprompt = "He said \\"hello\\" and left"\n',
+  });
+  assert(
+    /Gemini commands: \d+\/\d+ valid/.test(out15),
+    `Escaped quotes in basic string should PASS. Output: ${out15.slice(0, 600)}`
+  );
+
+  // Case 16 (v0.16.9 hardening): Symlink TOML file → FAIL (symlink refused)
+  // Create the symlink manually because the mutations object doesn't support it.
+  const dest16 = path.join(TMP_BASE, 'test-doctor-gemini-commands-symlink');
+  fs.mkdirSync(dest16, { recursive: true });
+  fs.writeFileSync(path.join(dest16, 'package.json'), JSON.stringify({
+    name: 'test-doctor-gemini-commands-symlink',
+    dependencies: { express: '^4.18.0' },
+  }));
+  fs.mkdirSync(path.join(dest16, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest16, 'src', 'index.ts'), 'import express from "express";');
+  execSync(`node ${CLI} --init --yes`, { cwd: dest16, stdio: 'pipe' });
+
+  // Replace start-task.toml with a symlink to /etc/hosts (arbitrary external file)
+  const linkTarget = '/etc/hosts';
+  const linkPath = path.join(dest16, '.gemini', 'commands', 'start-task.toml');
+  fs.unlinkSync(linkPath);
+  try {
+    fs.symlinkSync(linkTarget, linkPath);
+  } catch (e) {
+    // If we can't create symlinks on this platform, skip the case
+    console.log(`    (case 16 skipped: symlink creation failed: ${e.code || e.message})`);
+    return;
+  }
+
+  let out16;
+  try {
+    out16 = execSync(`node ${CLI} --doctor`, { cwd: dest16, encoding: 'utf8' });
+  } catch (e) {
+    out16 = e.stdout || '';
+  }
+  assert(
+    out16.includes('invalid TOML') && out16.includes('symlink'),
+    `Symlink TOML should FAIL with "symlink" in message. Output: ${out16.slice(0, 600)}`
+  );
+}
+
 // --- Scenario 41: Gemini CLI accepts the scaffolded settings (functional test, v0.16.8) ---
 //
 // This scenario runs Gemini CLI's differential "baseline vs broken" comparison:
@@ -2497,6 +2726,9 @@ try {
 
   console.log('\n  Gemini CLI functional scenarios (v0.16.8):');
   run('Scenario 41: Gemini CLI accepts scaffolded settings (functional)', testGeminiCliAcceptsScaffoldedSettings);
+
+  console.log('\n  Gemini TOML commands scenarios (v0.16.9):');
+  run('Scenario 42: doctor check #13 validates .gemini/commands/*.toml', testDoctorGeminiCommandsValid);
 } finally {
   cleanup();
 }
