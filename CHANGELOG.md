@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.16.8] - 2026-04-13
+
+### Added
+
+- **Planner agents Pre-Emission Verification section** — `backend-planner.md` and `frontend-planner.md` (both Claude and Gemini templates, 4 files) now have a mandatory section requiring empirical verification of every structural claim before emitting the plan. Planners must grep/read to confirm: file paths exist, types/enums/validation schemas match current code, primary key types match the DB (uuid vs int), enum references are cleaned atomically when dropped, and cited "Existing Code to Reuse" files actually provide what's claimed. Each plan must append a `### Verification commands run` subsection listing every empirical command executed, or prepend a `⚠ TEXT-ONLY` warning. Motivated by foodXPlorer F-UX-B plan review where Codex found 3 M1 blockers (stale shared schema, wrong PK type, dangling enum refs) that a text-only review would miss.
+- **review-spec / review-plan empirical verification checklist** — `review-spec.md` / `review-plan.md` (Claude) and `review-spec-instructions.md` / `review-plan-instructions.md` (Gemini), 4 files, now have an "EMPIRICAL review not text-only" instruction block inside the CRITERIA prompt that forces the reviewer model to grep/read the code before emitting findings. Each review must end with `### Files read during review` and `### Commands executed` subsections listing empirical evidence, or prepend a `⚠ TEXT-ONLY REVIEW` warning. Reviewers that skip empirical checks are explicitly flagged in consolidated output.
+- **Meta-check on reviewer empirical asymmetry** — `review-spec.md` / `review-plan.md` (both tools) now include a shell block after Path A (both CLIs available) that detects when one reviewer produced 0 empirical markers while the other produced 2+, or 0 CRITICAL/IMPORTANT findings while the other produced 2+. When asymmetry is detected, the light reviewer is re-prompted with stricter empirical instructions and the findings are merged into the consolidation. Guards against the F-UX-B pattern where one reviewer (Codex) did empirical verification and found 3 M1 blockers while the other (Gemini) did text-only and found 0.
+- **Cross-model review calibration reference** — new `.claude/skills/development-workflow/references/cross-model-review.md` and `.gemini` equivalent. Documents the empirical observation that Codex CLI tends to be agentic (runs shell commands, catches mechanical bugs) while Gemini CLI tends to be context-aware but text-only (reads standards, catches scope/consistency). Includes historical calibration data from the F-UX-B review. Both reviewers are complementary and needed.
+- **Scenario 41: Gemini CLI functional smoke test** — `test/smoke.js` now scaffolds a fresh project and invokes `gemini --help` against it from the project root, asserting no `Invalid configuration` or `Error in: model` appears in stderr. Conditional: skipped with a note if `gemini` CLI is not installed locally. Catches future schema-format breaks at library test time instead of at downstream user time. This is the scenario that would have caught BUG-DEV-GEMINI-CONFIG months ago if it had existed.
+- **Template drift risk audit** in `dev/testing-notes.md` — inventory of template files with format/schema drift risk (Claude settings hooks, GitHub Actions versions, Gemini TOML commands, SKILL.md frontmatter). Each entry has current state, drift risk level, and mitigation status. Also includes a reusable pattern section documenting the 7-step workflow for future schema-format fixes (audit → fix template → migration → doctor check → smoke tests → docs → cross-model review).
+
+### Cross-model reviewed
+
+Plan and patch reviewed by Codex CLI 0.115.0 and Gemini CLI 0.34.0 in parallel. Both verdicts: REJECT (initial draft). Consensus findings incorporated before merge:
+
+- **Scenario 41 too weak** (both reviewers CRITICAL): initial draft only asserted absence of error strings, which false-passes if Gemini CLI is broken/unusable/segfaults. Rewritten with (a) positive success signal via known help tokens and length assertion, (b) differential test that explicitly injects the known-broken obsolete format and asserts Gemini rejects it. If either upstream Gemini stops loading config during `--help` or changes validation behavior, the differential fails loudly instead of silently passing.
+- **Asymmetry meta-check grep was gameable** (both CRITICAL): initial draft counted lines containing section header names themselves, example text, or discussion — reviewers could score high by repeating template text. Replaced with an `awk` parser that only counts non-empty content lines under the mandatory `### Files read during review` and `### Commands executed` markdown headers, skipping the `(list…)` placeholder prose.
+- **`grep -c || echo 0` pitfall** (Gemini): pattern produces `"0\n0"` when grep finds zero matches (grep exits 1, `|| echo 0` appends a second zero). Replaced with `awk` that returns a clean integer.
+- **Placeholder shell was broken bash** (both): `<light_reviewer_cli>` and `"$REVIEW_DIR/<light>_reprompted.txt"` would execute literally — `<` is bash input redirect and would fail or redirect to a file named `light_reviewer_cli`. Replaced with concrete commented examples for both Claude and Codex reviewers, explicitly marked as documentation skeleton not cargo-cult-runnable.
+- **Claude/Gemini review-command symmetry gap** (both): initial draft had full reprompt logic in `.claude/commands/review-plan.md` and `review-spec.md` but only mentioned the concept in the Gemini equivalents. Mirrored the full logic to `.gemini/commands/review-plan-instructions.md` and `review-spec-instructions.md`.
+- **Findings count asymmetry conflated "nothing to find" with "did no work"** (Codex): triggering reprompt on 0 findings biases toward false positives — a clean plan legitimately produces zero M1/M2 findings. Restricted reprompt trigger to missing empirical evidence only.
+- **Planner verification was gameable** (Codex): models could list bare commands without observed outcomes, or grep symbols without verifying the specific semantic claim. Required format now enforces `<command> → <observed fact> → <impact on plan>` with all three fields, with "bare command without observed fact is cargo-culting" in the explicit guidance.
+- **LLM hallucination risk** (Gemini): models could fabricate commands and outputs to satisfy structural requirements. Added explicit "do NOT hallucinate — use your environment tools to actually execute these checks" constraint to all 4 planner agent files and all 4 review command files. Framed an empty section as preferable to a fake one, so models are incentivized to leave it empty when they haven't done the work.
+- **Time-sensitive documentation rot** (Codex): `dev/testing-notes.md` had "current as of 2026-04-13" phrasing that rots quickly. Reworded to be generic ("pinned major versions will eventually be superseded") so the audit stays evergreen.
+
 ## [0.16.7] - 2026-04-13
 
 ### Fixed
@@ -533,6 +558,7 @@ Plan reviewed by Gemini 2.5 Pro and GPT-5.4 (Codex CLI). Key feedback incorporat
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.16.8]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.6...v0.16.7
 [0.16.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.0...v0.16.6
 [0.16.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.15.0...v0.16.0

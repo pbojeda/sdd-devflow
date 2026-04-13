@@ -2328,6 +2328,113 @@ function testDoctorGeminiSettingsValid() {
   assert(out3.includes('Gemini settings: valid'), 'rich valid object should PASS');
 }
 
+// --- Scenario 41: Gemini CLI accepts the scaffolded settings (functional test, v0.16.8) ---
+//
+// This scenario runs Gemini CLI's differential "baseline vs broken" comparison:
+//   1. Scaffold a fresh project (template state — should be valid).
+//   2. Run `gemini --help` and confirm Gemini does NOT emit config validation errors,
+//      AND confirm a positive success signal (non-empty help output with known tokens).
+//   3. Overwrite .gemini/settings.json with the KNOWN-BROKEN obsolete string format.
+//   4. Re-run `gemini --help` and confirm Gemini NOW emits the validation error.
+//
+// This differential design solves two problems Codex raised in the v0.16.8 review:
+//  (a) "absence of error string" false-passes if the CLI is unusable/segfaults/broken.
+//      Fixed: the baseline must emit real help output with positive success tokens.
+//  (b) "--help may short-circuit before config load in future CLI versions".
+//      Fixed: if --help silently stops loading config upstream, the broken case
+//      will ALSO no longer emit the error, failing the differential assertion.
+//
+// Why this matters: BUG-DEV-GEMINI-CONFIG (v0.16.7) was silent for months because no
+// smoke test invoked Gemini CLI against a scaffolded project. This scenario catches
+// both current and future schema-format breaks at library test time.
+//
+// Skip condition: if `gemini` CLI is not installed locally (common in CI), the test
+// is skipped silently with a note. Most valuable as a local pre-publish gate.
+
+function testGeminiCliAcceptsScaffoldedSettings() {
+  const { spawnSync } = require('child_process');
+
+  // Skip if gemini CLI is not on PATH (use spawnSync, not shell builtin)
+  const probe = spawnSync('gemini', ['--version'], { stdio: 'pipe' });
+  if (probe.error || probe.status !== 0) {
+    console.log('    (skipped: gemini CLI not installed or not runnable)');
+    return;
+  }
+
+  // Helper: run `gemini --help` in a given cwd, return combined stdout+stderr.
+  function runGeminiHelp(cwd) {
+    const r = spawnSync('gemini', ['--help'], {
+      cwd,
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+    if (r.error) throw r.error;
+    return `${r.stdout || ''}${r.stderr || ''}`;
+  }
+
+  // --- Step 1: scaffold and assert baseline (template settings) is accepted ---
+  const dest = path.join(TMP_BASE, 'test-gemini-cli-accepts');
+  execSync(`node ${CLI} test-gemini-cli-accepts --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const baseline = runGeminiHelp(dest);
+
+  // Positive success signal — help output must contain known tokens.
+  // If the CLI segfaults, crashes on auth, or otherwise fails without emitting a
+  // valid help screen, these assertions fail and we get a real error instead of
+  // a silent pass.
+  assert(
+    baseline.length > 100,
+    `Gemini --help produced suspiciously short output (${baseline.length} bytes). Is the CLI broken?`
+  );
+  assert(
+    /usage|Usage|command|Commands|options|Options|gemini/i.test(baseline),
+    `Gemini --help did not emit recognizable help tokens. First 300 chars: ${baseline.slice(0, 300)}`
+  );
+
+  // Negative assertion: no config validation error on the baseline.
+  assert(
+    !/Invalid configuration/i.test(baseline),
+    `BASELINE: Gemini CLI rejected scaffolded settings. First 500 chars: ${baseline.slice(0, 500)}`
+  );
+  assert(
+    !/Error in:\s*[\w.]+/.test(baseline),
+    `BASELINE: Gemini CLI flagged a settings field. First 500 chars: ${baseline.slice(0, 500)}`
+  );
+
+  // --- Step 2: differential test — known-broken obsolete format must be rejected ---
+  // If this step passes, we know (a) the CLI is loading config during --help and
+  // (b) it distinguishes valid from invalid shapes. If the CLI stops loading config
+  // in a future version, this step will fail, flagging the scenario for update.
+  const settingsPath = path.join(dest, '.gemini', 'settings.json');
+  const savedSettings = fs.readFileSync(settingsPath, 'utf8');
+  const brokenSettings = {
+    model: 'gemini-2.5-pro', // obsolete string format
+    temperature: 0.2,
+  };
+  fs.writeFileSync(settingsPath, JSON.stringify(brokenSettings, null, 2) + '\n', 'utf8');
+
+  try {
+    const broken = runGeminiHelp(dest);
+
+    // The known-broken case MUST emit either "Invalid configuration" or
+    // "Error in: model" (or both). If neither appears, Gemini CLI has either
+    // changed its validation behavior or stopped loading config during --help —
+    // in either case, this scenario needs updating to catch the regression.
+    const rejected =
+      /Invalid configuration/i.test(broken) || /Error in:\s*model/i.test(broken);
+    assert(
+      rejected,
+      `DIFFERENTIAL FAILURE: Gemini CLI accepted a KNOWN-BROKEN obsolete string-format model. ` +
+        `This means either (a) upstream Gemini CLI no longer validates this shape, or ` +
+        `(b) --help no longer loads config during startup. Either way, this scenario is ` +
+        `no longer a regression guard and must be updated. First 500 chars of output: ${broken.slice(0, 500)}`
+    );
+  } finally {
+    // Restore baseline for cleanup
+    fs.writeFileSync(settingsPath, savedSettings, 'utf8');
+  }
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -2387,6 +2494,9 @@ try {
   console.log('\n  Gemini settings format scenarios (v0.16.7):');
   run('Scenario 39: --upgrade migrates obsolete .gemini/settings.json model format', testGeminiSettingsMigration);
   run('Scenario 40: doctor check #12 does not false-fail on valid Gemini settings', testDoctorGeminiSettingsValid);
+
+  console.log('\n  Gemini CLI functional scenarios (v0.16.8):');
+  run('Scenario 41: Gemini CLI accepts scaffolded settings (functional)', testGeminiCliAcceptsScaffoldedSettings);
 } finally {
   cleanup();
 }

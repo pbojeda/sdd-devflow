@@ -2,6 +2,50 @@
 
 > Findings from real-world testing of SDD DevFlow.
 
+## Template drift risk audit (v0.16.8, 2026-04-13)
+
+Audit of template files that have schemas or formats that could drift silently as upstream tools evolve. Motivated by the BUG-DEV-GEMINI-CONFIG finding (obsolete model format) which was silent for months because no test caught it.
+
+Audit criteria: a file is a **drift risk** if its format is defined by an external tool (Claude Code, Gemini CLI, GitHub Actions, etc.) that may evolve its schema. Static files (markdown, gitignore, human-facing docs) are low-risk.
+
+### Drift risk inventory
+
+| File | Format owner | Current state | Drift risk | Mitigation |
+|---|---|---|---|---|
+| `template/.gemini/settings.json` | Gemini CLI | **Fixed v0.16.7** (`model` is object) | Low (now covered by doctor check #12 + Scenario 39 migration tests + Scenario 41 functional test) | Already mitigated |
+| `template/.claude/settings.json` | Claude Code | `hooks` with `SubagentStop` / `SessionStart` / `Notification` matchers | **Medium**: if Claude Code changes hook types, matcher syntax, or env var names (`CLAUDE_PROJECT_DIR`), the template will silently stop working | Doctor check #9 (`checkHooksAndDeps`) validates JSON parse + presence of `hooks` key, but NOT matcher types or hook semantics. Consider: schema validation against Claude Code's settings-validation docs if they become available |
+| `template/.github/workflows/ci.yml` | GitHub Actions | Uses pinned major versions of `actions/checkout` and `actions/setup-node` | **Medium**: action major versions become stale as upstream releases new majors | No smoke test. Manual check at publish time. Consider: a scenario that parses ci.yml and warns when actions lag behind the latest published major version |
+| `template/.gemini/commands/*.toml` | Gemini CLI commands | TOML with `description` + `prompt` keys | **Low-Medium**: Gemini command format is new and may evolve. If the TOML schema changes, all 9 commands break at once | Scenario 1 asserts `.gemini/commands/start-task.toml` exists. Consider: functional test that invokes `gemini --help` from a scaffolded project and parses the output for "command loaded" signals |
+| `template/.claude/skills/*/SKILL.md` | Claude Code skills | Markdown with YAML frontmatter (`name`, `description`, etc.) | **Low-Medium**: Claude skill format could add required frontmatter fields. Scenarios 34-36 assert file existence but not frontmatter validity | Consider: YAML parse + required-field check in a dedicated scenario |
+| `template/.gemini/skills/*/SKILL.md` | Gemini CLI skills | Plain markdown (no frontmatter) | **Low** — pure content | Covered by Scenarios 34-36 via `assertFileContains` on key sections |
+| `template/CLAUDE.md` / `template/GEMINI.md` | Human-facing configs | Markdown with Autonomy Level marker | **Low** — tool-agnostic | Covered by Scenarios 1, 33 (autonomy level string match) |
+| `template/gitignore` | Git | Static patterns | **Very low** | Covered by Scenario 1 |
+| `template/package.json` | npm | Template has no direct deps (generated per-project) | **Very low** | N/A |
+
+### Known gaps (not fixed in v0.16.8, tracked for future)
+
+1. **No functional test for Claude Code settings hooks**: Scenario 18 (`testDoctorHealthy`) checks JSON validity but not hook execution. A hook syntax change upstream would pass the doctor check but fail at Claude Code runtime. Fix idea: spawn a `.claude/hooks/quick-scan.sh` in test and assert it exits cleanly under `CLAUDE_PROJECT_DIR`.
+
+2. **No version staleness check for GitHub Actions**: template pins action majors that will eventually be superseded. No smoke test catches this. Fix idea: a scenario that parses `ci.yml` and warns (not fails) if any `uses: action@vN` lags behind the latest published major version — requires network access, so conditional like Scenario 41.
+
+3. **No functional test for Gemini TOML commands**: Scenario 4 asserts existence of `.gemini/commands/start-task.toml` but doesn't verify Gemini CLI can actually parse and load the command. If TOML schema changes, all 9 commands silently stop working. Fix idea: conditional scenario (like 41) that runs `gemini <command>` with a trivial command and parses stderr for "command not recognized" or "schema mismatch" errors.
+
+4. **No schema validation for Claude SKILL.md frontmatter**: YAML frontmatter could have required fields added. Fix idea: a scenario that YAML-parses each SKILL.md and asserts required fields (`name`, `description`) are present.
+
+### Reusable pattern for future drift fixes
+
+When a template drift is discovered (upstream tool changes schema, existing template is silently obsolete):
+
+1. **Audit the template file** to confirm the upstream-expected format (read schema files in `node_modules`, run `<tool> --help`, or check upstream docs)
+2. **Fix the template** with the new format
+3. **Write a migration function** in `lib/upgrade-generator.js` that detects the obsolete format in existing projects and converts it, preserving any user customizations (inverted merge strategy: start from `{ ...userSettings }`, only transform the broken field)
+4. **Add a doctor check** that flags the obsolete format with a hint to run `--upgrade`
+5. **Write smoke tests** covering: scaffolded format (assert correct shape), migration (8+ sub-cases including default, custom name preservation, rich object, user extra keys, malformed null/array recovery), doctor detection (assert FAIL on obsolete), doctor no-false-fail (assert PASS on valid edge cases), functional smoke test (invoke the upstream tool against a scaffolded project)
+6. **Document** in CHANGELOG + dev/testing-notes.md + bugs.md (if discovered via a downstream incident)
+7. **Cross-model review** the plan with Codex + Gemini CLI in parallel before implementing — both tend to catch different classes of issues (Codex: mechanical bugs, null/array crashes, UUID vs int mismatches; Gemini: semantic issues, scope, standards compliance)
+
+This pattern is now embodied in v0.16.7 (Gemini settings fix) and v0.16.8 (meta improvements to prevent the same class of silent failures).
+
 ## Test: Gemini settings format migration (v0.16.7)
 
 **Date**: 2026-04-13
