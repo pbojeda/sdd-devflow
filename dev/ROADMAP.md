@@ -2,7 +2,16 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.16.0
+## Current Version: 0.16.7
+
+### v0.16.7 (2026-04-13) — Gemini settings format fix
+
+- Fix obsolete `model` string format in `template/.gemini/settings.json` (Gemini CLI ≥0.34 requires object)
+- Add `--upgrade` migration that preserves user customizations and only transforms the broken `model` field
+- Add doctor check #12 (`checkGeminiSettings`) — narrowly detects obsolete and malformed shapes only
+- Smoke tests: 38 → 40 (add `testGeminiSettingsMigration` with 8 sub-cases + `testDoctorGeminiSettingsValid`)
+- Plan cross-model reviewed by Codex CLI 0.115.0 + Gemini CLI 0.34.0 (both APPROVE WITH CHANGES, all critical findings incorporated)
+- Discovered during foodXPlorer F-UX-B Spec v2 — agent had to invoke Gemini from `/tmp` because the project settings were rejected with `Expected object, received string`
 
 ---
 

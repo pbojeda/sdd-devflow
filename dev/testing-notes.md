@@ -2,6 +2,46 @@
 
 > Findings from real-world testing of SDD DevFlow.
 
+## Test: Gemini settings format migration (v0.16.7)
+
+**Date**: 2026-04-13
+**Discovered in**: foodXPlorer F-UX-B Spec v2 cross-model review
+**Failure mode**: Gemini CLI 0.34.0 rejects the legacy `"model": "gemini-2.5-pro"` (string) format with `Invalid configuration ... Error in: model — Expected object, received string`. The string format had been in the template since the initial Gemini config commit (2026-02-23), affecting every project scaffolded with sdd-devflow that includes the Gemini setup.
+
+**Test pattern (reusable for future schema-format migrations)**:
+
+The new `Scenario 39: testGeminiSettingsMigration` introduces a reusable helper for testing field-level migration logic on `--upgrade`:
+
+```javascript
+function migrate(name, userSettings) {
+  // 1. Scaffold a fresh project
+  // 2. Overwrite the target settings file with the user's "before" state
+  // 3. Run --upgrade
+  // 4. Return the resulting parsed settings
+}
+```
+
+It then runs 8 sub-cases against the same helper:
+- Default obsolete → migrated
+- Custom obsolete name → migrated preserving custom name
+- Already-object → unchanged
+- Rich object with extra sub-keys → all keys preserved
+- User customized other top-level keys → preserved (NOT clobbered)
+- Malformed `null` → reset to template default, no crash
+- Malformed array → reset to template default, no crash
+- Extra root keys → preserved
+
+This pattern is the recommended template for future schema-format fixes (whether for Gemini, Claude, or other config files): test each migration path against the same helper, with assertions that distinguish "migrated correctly" from "preserved untouched".
+
+**Empirical verification before merge**: Functional test against Gemini CLI 0.34.0 inside both a fixed and a broken project — broken project produces the validation error, fixed project does not.
+
+**Cross-model review caught**:
+1. `typeof null === 'object'` → migration logic would have crashed on `null` model (both reviewers)
+2. Migration was too destructive — earlier draft would clobber user `temperature`/`instructions` (both reviewers)
+3. Test coverage was missing rich-object preservation assertions (both reviewers)
+4. Doctor check was over-validating relative to upstream Gemini (Codex)
+5. Backward-compat language was overstated as "≥0.34 requires" without empirical proof (Codex)
+
 ## Test: --init on i04_cgm
 
 **Project**: `/Users/pb/Developer/1_Desarrollo/node/i04_cgm`

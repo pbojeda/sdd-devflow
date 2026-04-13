@@ -106,6 +106,17 @@ function testDefaults() {
   assertExists(dest, '.gemini/skills/project-memory/SKILL.md');
   assertExists(dest, '.gemini/commands/start-task.toml');
 
+  // .gemini/settings.json uses object format for model (v0.16.7 fix — Gemini CLI 0.34+ requires object)
+  const geminiSettingsPath = path.join(dest, '.gemini', 'settings.json');
+  const geminiSettings = JSON.parse(fs.readFileSync(geminiSettingsPath, 'utf8'));
+  assert(
+    typeof geminiSettings.model === 'object'
+      && geminiSettings.model !== null
+      && !Array.isArray(geminiSettings.model),
+    '.gemini/settings.json model must be a valid object (not string)'
+  );
+  assert(geminiSettings.model.name === 'gemini-2.5-pro', '.gemini/settings.json model.name must be set');
+
   // Merge Checklist Evidence in ticket template (B+D)
   assertFileContains(dest, '.claude/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
   assertFileContains(dest, '.gemini/skills/development-workflow/references/ticket-template.md', '## Merge Checklist Evidence');
@@ -1459,6 +1470,13 @@ function testDoctorProblems() {
   // 5. Create mismatch between claude and gemini agents
   fs.writeFileSync(path.join(dest, '.claude', 'agents', 'my-custom-agent.md'), '# Custom', 'utf8');
 
+  // 6. Corrupt .gemini/settings.json with obsolete string model format (v0.16.7 doctor check #12)
+  fs.writeFileSync(
+    path.join(dest, '.gemini', 'settings.json'),
+    JSON.stringify({ model: 'gemini-2.5-pro', temperature: 0.2 }, null, 2),
+    'utf8'
+  );
+
   // Run doctor — should exit 1 (unhealthy) due to corrupted settings.json
   let output;
   try {
@@ -1482,6 +1500,12 @@ function testDoctorProblems() {
 
   // Check memory file missing
   assert(output.includes('3/4') || output.includes('bugs.md'), 'Should detect missing memory file');
+
+  // Check Gemini settings obsolete format detection (v0.16.7 doctor check #12)
+  assert(
+    output.includes('obsolete model format') || output.includes('Gemini settings'),
+    'Should detect obsolete Gemini model format'
+  );
 }
 
 // --- Scenario 20: --doctor on backend-only (no frontend standards expected) ---
@@ -2143,6 +2167,167 @@ function testAgentsSkillsSection() {
   assertFileContains(dest, 'AGENTS.md', 'development-workflow');
 }
 
+// --- Scenario 39: --upgrade migrates obsolete .gemini/settings.json model format (v0.16.7) ---
+
+function testGeminiSettingsMigration() {
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateUpgrade, detectAiTools, detectProjectType, readAutonomyLevel } = require('../lib/upgrade-generator');
+
+  // Helper: scaffold a project with the wizard, then mutate .gemini/settings.json,
+  // then run upgrade and return the resulting parsed settings.
+  function migrate(name, userSettings) {
+    const dest = path.join(TMP_BASE, name);
+    execSync(`node ${CLI} ${name} --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+    // Overwrite .gemini/settings.json with the user's "before" state
+    const settingsPath = path.join(dest, '.gemini', 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify(userSettings, null, 2) + '\n', 'utf8');
+
+    // Run upgrade
+    const scanResult = scan(dest);
+    const aiTools = detectAiTools(dest);
+    const projectType = detectProjectType(dest);
+    const autonomy = readAutonomyLevel(dest);
+    const upgradeConfig = buildInitDefaultConfig(scanResult);
+    upgradeConfig.projectDir = dest;
+    upgradeConfig.aiTools = aiTools;
+    upgradeConfig.projectType = projectType;
+    upgradeConfig.autonomyLevel = autonomy.level;
+    upgradeConfig.autonomyName = autonomy.name;
+    upgradeConfig.installedVersion = 'unknown';
+    silent(() => generateUpgrade(upgradeConfig));
+
+    return JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  }
+
+  // b.1 — String format with default model name → migrated to object
+  const r1 = migrate('test-gemini-mig-1', {
+    model: 'gemini-2.5-pro',
+    temperature: 0.2,
+    instructions: 'baseline',
+  });
+  assert.deepStrictEqual(r1.model, { name: 'gemini-2.5-pro' }, 'b.1: default string → object');
+  assert.strictEqual(r1.temperature, 0.2, 'b.1: temperature preserved');
+  assert.strictEqual(r1.instructions, 'baseline', 'b.1: instructions preserved');
+
+  // b.2 — String format with CUSTOM model name → migrated preserving custom name
+  const r2 = migrate('test-gemini-mig-2', {
+    model: 'gemini-2.5-flash',
+    temperature: 0.5,
+    instructions: 'custom',
+  });
+  assert.deepStrictEqual(r2.model, { name: 'gemini-2.5-flash' }, 'b.2: custom string name preserved');
+  assert.strictEqual(r2.temperature, 0.5, 'b.2: custom temperature preserved');
+  assert.strictEqual(r2.instructions, 'custom', 'b.2: custom instructions preserved');
+
+  // b.3 — Already-object format with default name → unchanged
+  const r3 = migrate('test-gemini-mig-3', {
+    model: { name: 'gemini-2.5-pro' },
+    temperature: 0.2,
+    instructions: 'already migrated',
+  });
+  assert.deepStrictEqual(r3.model, { name: 'gemini-2.5-pro' }, 'b.3: already-object unchanged');
+  assert.strictEqual(r3.instructions, 'already migrated', 'b.3: instructions preserved');
+
+  // b.4 — Rich object preservation (extra sub-keys survive upgrade)
+  const r4 = migrate('test-gemini-mig-4', {
+    model: { name: 'gemini-2.5-pro', maxSessionTurns: 100, summarizeToolOutput: true },
+    temperature: 0.2,
+    instructions: 'rich',
+  });
+  assert.strictEqual(r4.model.name, 'gemini-2.5-pro', 'b.4: rich object name preserved');
+  assert.strictEqual(r4.model.maxSessionTurns, 100, 'b.4: rich object maxSessionTurns preserved');
+  assert.strictEqual(r4.model.summarizeToolOutput, true, 'b.4: rich object summarizeToolOutput preserved');
+
+  // b.5 — User customized temperature/instructions are preserved (NOT clobbered)
+  const r5 = migrate('test-gemini-mig-5', {
+    model: 'gemini-2.5-pro',
+    temperature: 0.9,
+    instructions: 'I really care about my custom instructions',
+  });
+  assert.strictEqual(r5.temperature, 0.9, 'b.5: user temperature not clobbered');
+  assert.strictEqual(r5.instructions, 'I really care about my custom instructions', 'b.5: user instructions not clobbered');
+  assert.deepStrictEqual(r5.model, { name: 'gemini-2.5-pro' }, 'b.5: model still migrated');
+
+  // b.6 — Malformed model: null → reset to template default, no crash
+  const r6 = migrate('test-gemini-mig-6', {
+    model: null,
+    temperature: 0.2,
+  });
+  assert.strictEqual(typeof r6.model, 'object', 'b.6: model is object after reset');
+  assert.ok(r6.model && r6.model.name, 'b.6: model.name is set after reset (no crash)');
+
+  // b.7 — Malformed model: array → reset to template default, no crash
+  const r7 = migrate('test-gemini-mig-7', {
+    model: ['gemini-2.5-pro'],
+    temperature: 0.2,
+  });
+  assert.ok(!Array.isArray(r7.model), 'b.7: model is no longer array');
+  assert.ok(r7.model && r7.model.name, 'b.7: model.name set after reset');
+
+  // b.8 — User-added extra root key → preserved
+  const r8 = migrate('test-gemini-mig-8', {
+    model: 'gemini-2.5-pro',
+    temperature: 0.2,
+    instructions: 'baseline',
+    extraUserKey: 'preserved please',
+  });
+  assert.strictEqual(r8.extraUserKey, 'preserved please', 'b.8: unknown user key preserved');
+  assert.deepStrictEqual(r8.model, { name: 'gemini-2.5-pro' }, 'b.8: model still migrated');
+}
+
+// --- Scenario 40: doctor #12 does not false-fail on valid edge cases (v0.16.7) ---
+
+function testDoctorGeminiSettingsValid() {
+  // Helper to create a project, write custom .gemini/settings.json, and run doctor
+  function runDoctorWith(name, settings) {
+    const dest = path.join(TMP_BASE, name);
+    fs.mkdirSync(dest, { recursive: true });
+    fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify({
+      name,
+      dependencies: { express: '^4.18.0' },
+    }));
+    fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+    execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+    fs.writeFileSync(
+      path.join(dest, '.gemini', 'settings.json'),
+      JSON.stringify(settings, null, 2) + '\n',
+      'utf8'
+    );
+    let output;
+    try {
+      output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+    } catch (e) {
+      output = e.stdout;
+    }
+    return output;
+  }
+
+  // Case 1: model field absent entirely → should NOT FAIL on missing model
+  const out1 = runDoctorWith('test-doctor-gemini-no-model', {
+    temperature: 0.2,
+    instructions: 'no model field',
+  });
+  assert(!out1.includes('obsolete model format'), 'absent model should not be flagged as obsolete');
+  assert(!out1.includes('model field has invalid type'), 'absent model should not be flagged as invalid type');
+
+  // Case 2: model is valid object with custom name → PASS
+  const out2 = runDoctorWith('test-doctor-gemini-custom', {
+    model: { name: 'gemini-2.5-flash' },
+    temperature: 0.2,
+  });
+  assert(out2.includes('Gemini settings: valid'), 'valid object with custom name should PASS');
+
+  // Case 3: rich valid object → PASS
+  const out3 = runDoctorWith('test-doctor-gemini-rich', {
+    model: { name: 'gemini-2.5-pro', maxSessionTurns: 50, summarizeToolOutput: true },
+    temperature: 0.2,
+  });
+  assert(out3.includes('Gemini settings: valid'), 'rich valid object should PASS');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -2198,6 +2383,10 @@ try {
   run('Scenario 36: SKILL.md checkpoint table has L5 column', testSkillL5Column);
   run('Scenario 37: --upgrade preserves L5 autonomy', testUpgradePreservesL5);
   run('Scenario 38: AGENTS.md has Available Skills section', testAgentsSkillsSection);
+
+  console.log('\n  Gemini settings format scenarios (v0.16.7):');
+  run('Scenario 39: --upgrade migrates obsolete .gemini/settings.json model format', testGeminiSettingsMigration);
+  run('Scenario 40: doctor check #12 does not false-fail on valid Gemini settings', testDoctorGeminiSettingsValid);
 } finally {
   cleanup();
 }

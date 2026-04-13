@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.16.7] - 2026-04-13
+
+### Fixed
+
+- **`.gemini/settings.json` template uses obsolete `model` format** — the template had `"model": "gemini-2.5-pro"` (string), but Gemini CLI's settings schema (verified against v0.34.0) defines `model` as an object with a nested `name` property. Confirmed empirically via Gemini's own `settings-validation.test.js` ("should reject model.name as object instead of string"). Running `gemini` from inside any SDD-scaffolded project produced `Invalid configuration ... Error in: model — Expected object, received string`, causing Gemini CLI to fall back to defaults and ignore the project's `instructions` field. This degraded every cross-model review run from inside an SDD project — Gemini was reading from defaults instead of the project context. Discovered during foodXPlorer F-UX-B Spec v2 cross-model review, when the agent had to invoke `gemini` from `/tmp` as a workaround. Fix: template now uses `{ "name": "gemini-2.5-pro" }`.
+- **`--upgrade` now migrates obsolete `.gemini/settings.json` model format** — previously the upgrade path overwrote user `.gemini/settings.json` with the template wholesale, clobbering any user-customized `temperature`, `instructions`, or extra keys. New behavior: preserves all user-provided keys (including unknown ones like `summarizeToolOutput` or custom `extraUserKey`) and only transforms the `model` field if it's in the obsolete string format (`"model": "gemini-2.5-pro"` → `"model": { "name": "gemini-2.5-pro" }`). User-customized model names (e.g. `gemini-2.5-flash`) are preserved during migration. Malformed shapes (`null`, array, primitive, object without `name`) are reset to the template default with no crash.
+
+### Added
+
+- **Doctor check #12: Gemini settings format** — validates `.gemini/settings.json` exists and has a parseable, non-obsolete `model` field. Returns FAIL on invalid JSON, obsolete string format, or malformed object shape (null, array, primitive). Returns WARN on missing file or `model` object without `name`. Does NOT enforce stricter rules than upstream Gemini (e.g., does not require `model` to be present, since Gemini's `settings-validation.js` treats top-level fields as optional). Brings doctor check count from 11 to 12.
+- **Smoke tests for Gemini settings format and migration** — `testDefaults` now asserts the object format after scaffold; new `Scenario 39: testGeminiSettingsMigration` covers 8 migration sub-cases (default obsolete → object, custom name preservation, rich-object preservation with extra sub-keys, user-customized `temperature`/`instructions` preservation, malformed `null`/array recovery, extra user root keys preservation); `testDoctorProblems` extended to detect the obsolete string format; new `Scenario 40: testDoctorGeminiSettingsValid` ensures doctor doesn't false-fail on absent `model` or rich valid configs. Smoke total: 38 → 40.
+
+### Cross-model reviewed
+
+Plan reviewed by Codex CLI 0.115.0 and Gemini CLI 0.34.0 in parallel. Both verdicts: APPROVE WITH CHANGES. Critical findings incorporated: null/array crash fix in migration logic (consensus — `typeof null === 'object'` would have thrown `TypeError: Cannot read properties of null`), inverted migration strategy from "template-owned" to "user-owned, migrate model only" (consensus — earlier draft would clobber user customizations to `temperature`/`instructions`), test coverage expanded to 8 migration sub-cases (consensus — rich-object preservation was not asserted), doctor check narrowed to detectably-broken formats only (Codex — earlier draft was over-validating relative to Gemini's own settings-validation.js which treats top-level fields as optional), backward-compat language softened to "verified on 0.34.0" (Codex — earlier draft asserted "≥0.34 requires" without empirical proof).
+
+## [0.16.6] - 2026-04-10
+
 ### Added
 
 - **CI template: scaling tips comment** — `template/.github/workflows/ci.yml` now includes a documented pattern for the path-filter + required-checks deadlock. When users expand from a single CI job to multiple jobs with path filters, branch protection requiring those individual checks deadlocks docs-only PRs. Solution documented inline: add a `ci-success` rollup job with `needs: [...]` and `if: always()`, then require ONLY the rollup in branch protection. Found during foodXPlorer F115 cleanup where a docs-only PR couldn't merge after configuring branch protection.
@@ -515,6 +533,8 @@ Plan reviewed by Gemini 2.5 Pro and GPT-5.4 (Codex CLI). Key feedback incorporat
 - Template system: agents, skills, standards, documentation
 - Smoke test suite
 
+[0.16.7]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.6...v0.16.7
+[0.16.6]: https://github.com/pbojeda/sdd-devflow/compare/v0.16.0...v0.16.6
 [0.16.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/pbojeda/sdd-devflow/compare/v0.13.2...v0.14.0
