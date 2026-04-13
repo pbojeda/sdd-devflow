@@ -3034,6 +3034,416 @@ function testForceTemplateFlag() {
   );
 }
 
+// --- Scenario 50: create-sdd-project writes .sdd-meta.json (v0.17.0) ---
+//
+// Fresh scaffold must produce a valid provenance file with hashes for
+// every expected tracked file. Primary sanity check for the write path
+// in lib/generator.js.
+
+function testCreateWritesMetaJson() {
+  const dest = path.join(TMP_BASE, 'test-create-meta');
+  execSync(`node ${CLI} test-create-meta --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  assertExists(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(meta.schemaVersion, 1, 'schemaVersion must be 1');
+  assert.ok(typeof meta.hashes === 'object' && meta.hashes !== null, 'hashes must be an object');
+
+  // Default scaffold is fullstack + both → 10 unique template agents × 2 tool dirs + AGENTS.md = 21
+  const hashCount = Object.keys(meta.hashes).length;
+  assert.strictEqual(hashCount, 21, `Expected 21 hash entries, got ${hashCount}`);
+
+  // Spot check: backend-planner + AGENTS.md present, valid shape
+  const HASH_RE = /^sha256:[0-9a-f]{64}$/;
+  assert.ok(
+    HASH_RE.test(meta.hashes['.claude/agents/backend-planner.md']),
+    'backend-planner hash must match sha256:<hex>'
+  );
+  assert.ok(HASH_RE.test(meta.hashes['AGENTS.md']), 'AGENTS.md hash must match sha256:<hex>');
+}
+
+// --- Scenario 51: --init writes .sdd-meta.json after stack adaptations (v0.17.0) ---
+//
+// --init applies stack adaptations (Zod → validation, Prisma → detected,
+// DDD → layered). The post-init backend-developer.md must differ from
+// the raw template, and its hash must reflect the adapted content.
+
+function testInitWritesMetaJsonAfterStackAdaptations() {
+  const dest = path.join(TMP_BASE, 'test-init-meta');
+  fs.mkdirSync(dest, { recursive: true });
+  // Create a minimal backend project that the scanner will detect as
+  // Express + Mongoose (non-Prisma) → triggers ORM adaptations.
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({
+      name: 'test-init-meta',
+      dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+    })
+  );
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  assertExists(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.ok(Object.keys(meta.hashes).length > 0, 'hashes must not be empty');
+
+  // backend-developer.md was stack-adapted: Prisma → Mongoose. Its hash
+  // should reflect the adapted content, not the raw template.
+  const backendDev = fs.readFileSync(path.join(dest, '.claude/agents/backend-developer.md'), 'utf8');
+  assert.ok(
+    backendDev.includes('Mongoose') || !backendDev.includes('Prisma ORM'),
+    'backend-developer.md should have been stack-adapted to Mongoose'
+  );
+}
+
+// --- Scenario 52: --upgrade updates .sdd-meta.json (v0.17.0) ---
+//
+// Round-trip: fresh scaffold → upgrade (same version, --force) → meta
+// file is still valid and present.
+
+function testUpgradeUpdatesMetaJson() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-meta');
+  execSync(`node ${CLI} test-upgrade-meta --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  assertExists(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(meta.schemaVersion, 1);
+  assert.strictEqual(Object.keys(meta.hashes).length, 21);
+}
+
+// --- Scenario 53: hash path produces no preserve warnings on clean upgrade ---
+//
+// **PRIMARY CODEX P1 REGRESSION GUARD**.
+//
+// Fresh v0.17.0 scaffold → upgrade twice with zero user edits → second
+// upgrade MUST NOT produce a "Review preserved customizations" block
+// for any template agent or AGENTS.md. This is the cross-version-drift
+// fix at work: hash match proves the file is tool-canonical, upgrade
+// replaces cleanly regardless of template evolution.
+
+function testUpgradeHashPathReplacesWithoutWarning() {
+  const dest = path.join(TMP_BASE, 'test-hash-path-clean');
+  execSync(`node ${CLI} test-hash-path-clean --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  assert.ok(
+    !output.includes('Review preserved customizations'),
+    `Second upgrade on pristine v0.17.0 project must not warn about customizations. Output: ${output.slice(0, 800)}`
+  );
+}
+
+// --- Scenario 54: hash mismatch preserves file AND keeps old hash ---
+//
+// **PRIMARY CODEX M1 REGRESSION GUARD**.
+//
+// v0.17.0 scaffold → customize backend-planner → upgrade → file is
+// preserved (good). Critically, the stored hash for backend-planner
+// MUST still point at the ORIGINAL adapted content (pre-customization),
+// NOT the customized content. Otherwise the next upgrade would hash-
+// match the customization and silently overwrite it — reintroducing the
+// exact class of bug v0.16.10 fixed.
+
+function testUpgradeHashMismatchPreservesAndKeepsOldHash() {
+  const dest = path.join(TMP_BASE, 'test-hash-mismatch');
+  execSync(`node ${CLI} test-hash-mismatch --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const metaBefore = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const originalBackendPlannerHash = metaBefore.hashes['.claude/agents/backend-planner.md'];
+  assert.ok(originalBackendPlannerHash, 'expected an initial hash for backend-planner');
+
+  // Customize the file
+  const plannerPath = path.join(dest, '.claude/agents/backend-planner.md');
+  fs.writeFileSync(plannerPath, fs.readFileSync(plannerPath, 'utf8') + '\n## My Edit\n');
+
+  // Upgrade
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // File is preserved
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'My Edit');
+  assert.ok(
+    output.includes('backend-planner.md') && output.includes('not updated'),
+    'Upgrade output must flag backend-planner.md as preserved'
+  );
+
+  // Hash UNCHANGED (Codex M1 invariant)
+  const metaAfter = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter.hashes['.claude/agents/backend-planner.md'],
+    originalBackendPlannerHash,
+    'CODEX M1 VIOLATION: preserved file must NOT get a new hash entry — otherwise next upgrade would silently clobber the customization'
+  );
+
+  // Second upgrade: still preserved, still unchanged hash
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'My Edit');
+  const metaAfter2 = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter2.hashes['.claude/agents/backend-planner.md'],
+    originalBackendPlannerHash,
+    'Hash must remain stable across subsequent preserve-only upgrades'
+  );
+}
+
+// --- Scenario 55: fallback path handles init-stack-adapted files cleanly ---
+//
+// **PRIMARY GEMINI M1 REGRESSION GUARD**.
+//
+// Simulate a pre-v0.17.0 --init project: scaffold via --init (which
+// applies stack adaptations), then delete .sdd-meta.json. Run upgrade.
+// The fallback path must compare the user's stack-adapted file against
+// applyStackAdaptationsToContent(adaptedCoreTarget) — NOT the bare core
+// target — otherwise every init-adapted file would false-positive as
+// "customized".
+
+function testFallbackPathHandlesInitStackAdaptedFiles() {
+  const dest = path.join(TMP_BASE, 'test-fallback-init');
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({
+      name: 'test-fallback-init',
+      dependencies: { express: '^4.18.0', mongoose: '^7.0.0' },
+    })
+  );
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Simulate pre-v0.17.0: no meta file
+  fs.unlinkSync(path.join(dest, '.sdd-meta.json'));
+
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // The fallback path must NOT flag backend-developer.md as customized.
+  // If applyStackAdaptationsToContent is broken, this assertion fails
+  // because the comparison target lacks Mongoose adaptations and every
+  // stack-adapted file mismatches.
+  assert.ok(
+    !/backend-developer\.md.*not updated/.test(output),
+    `Fallback path must handle init-stack-adapted backend-developer.md without false positive. Output: ${output.slice(0, 1000)}`
+  );
+  assert.ok(
+    !/backend-planner\.md.*not updated/.test(output),
+    `Fallback path must handle init-stack-adapted backend-planner.md without false positive`
+  );
+
+  // After the upgrade, meta is re-written
+  assertExists(dest, '.sdd-meta.json');
+
+  // Second upgrade uses the hash path and should be clean
+  const output2 = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+  assert.ok(
+    !output2.includes('Review preserved customizations'),
+    `Second upgrade via hash path must be clean. Output: ${output2.slice(0, 800)}`
+  );
+}
+
+// --- Scenario 56: stack adaptations are idempotent (unit) ---
+//
+// Every rule in applyStackAdaptationsToContent must be safe to apply
+// more than once. If a rule's source pattern re-appears in its own
+// replacement, the second pass would further mutate the content and
+// break the smart-diff invariant ("same input → same output").
+
+function testStackAdaptationsIdempotent() {
+  const { applyStackAdaptationsToContent } = require('../lib/stack-adaptations');
+  const templateDir = path.join(__dirname, '..', 'template');
+
+  const scan = {
+    backend: { orm: 'Mongoose', db: 'MongoDB', validation: 'Joi' },
+    srcStructure: { pattern: 'layered' },
+  };
+  const config = { projectType: 'backend', aiTools: 'claude' };
+
+  const filesToTest = [
+    '.claude/agents/backend-developer.md',
+    '.claude/agents/backend-planner.md',
+    '.claude/agents/spec-creator.md',
+    '.claude/agents/production-code-validator.md',
+    '.claude/agents/database-architect.md',
+    '.claude/skills/development-workflow/SKILL.md',
+    '.claude/skills/development-workflow/references/ticket-template.md',
+  ];
+
+  for (const relPath of filesToTest) {
+    const absPath = path.join(templateDir, relPath);
+    const raw = fs.readFileSync(absPath, 'utf8');
+
+    const once = applyStackAdaptationsToContent(raw, relPath, scan, config);
+    const twice = applyStackAdaptationsToContent(once, relPath, scan, config);
+
+    assert.strictEqual(
+      once,
+      twice,
+      `IDEMPOTENCY VIOLATION in ${relPath}: applying rules twice changes content. ` +
+      `This would break the hash invariant.`
+    );
+  }
+}
+
+// --- Scenario 57: doctor check #15 validates .sdd-meta.json integrity ---
+
+function testDoctorMetaJsonValidity() {
+  const dest = path.join(TMP_BASE, 'test-doctor-meta');
+  execSync(`node ${CLI} test-doctor-meta --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Fresh scaffold has valid meta — doctor should PASS check #15
+  let output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  assert.ok(
+    output.includes('Provenance metadata: valid'),
+    `Fresh scaffold should have valid provenance. Output: ${output.slice(0, 800)}`
+  );
+
+  // Delete meta → informational PASS
+  fs.unlinkSync(path.join(dest, '.sdd-meta.json'));
+  output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  assert.ok(
+    output.includes('Provenance metadata: not present'),
+    `Missing meta should report informationally, not WARN. Output: ${output.slice(0, 800)}`
+  );
+
+  // Corrupt meta with invalid JSON → WARN
+  fs.writeFileSync(path.join(dest, '.sdd-meta.json'), 'not json', 'utf8');
+  try {
+    output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  } catch (e) {
+    output = e.stdout || '';
+  }
+  assert.ok(
+    output.includes('invalid JSON'),
+    `Corrupt meta should be reported as invalid JSON. Output: ${output.slice(0, 800)}`
+  );
+
+  // Orphan entry → WARN
+  const validWithOrphan = {
+    schemaVersion: 1,
+    hashes: {
+      'AGENTS.md': 'sha256:' + 'a'.repeat(64),
+      'some/orphan/path.md': 'sha256:' + 'b'.repeat(64),
+    },
+  };
+  fs.writeFileSync(path.join(dest, '.sdd-meta.json'), JSON.stringify(validWithOrphan), 'utf8');
+  try {
+    output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  } catch (e) {
+    output = e.stdout || '';
+  }
+  assert.ok(
+    output.includes('orphan'),
+    `Orphan entry should be flagged. Output: ${output.slice(0, 800)}`
+  );
+}
+
+// --- Scenario 58b: --init excludes pre-existing user files from provenance ---
+//
+// **CODEX ROUND 2 P1 REGRESSION GUARD**.
+//
+// When --init runs on a project that already has AGENTS.md (user-owned),
+// copyFileIfNotExists skips it and records it in `skipped`. The post-init
+// `.sdd-meta.json` must NOT contain a hash for AGENTS.md — otherwise the
+// next upgrade would hash-match the user's file and silently overwrite
+// it with SDD's template content.
+
+function testInitExcludesPreExistingUserFiles() {
+  const dest = path.join(TMP_BASE, 'test-init-preexisting');
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({ name: 'test-preexisting', dependencies: { express: '^4.18.0' } })
+  );
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  // Create a pre-existing AGENTS.md that the user owns. --init must
+  // skip it and NOT hash it.
+  fs.writeFileSync(
+    path.join(dest, 'AGENTS.md'),
+    '# Our custom AGENTS.md\n\nDo not touch this.\n'
+  );
+
+  // Also create an existing .gitignore so appendGitignore runs.
+  fs.writeFileSync(path.join(dest, '.gitignore'), 'node_modules/\n');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // AGENTS.md was preserved
+  assertFileContains(dest, 'AGENTS.md', 'Our custom AGENTS.md');
+  assertFileContains(dest, 'AGENTS.md', 'Do not touch this');
+
+  // .sdd-meta.json exists but does NOT contain AGENTS.md hash
+  assertExists(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.ok(
+    !('AGENTS.md' in meta.hashes),
+    'CODEX ROUND 2 P1 VIOLATION: pre-existing AGENTS.md must NOT be hashed by --init. ' +
+    'If it is, the next upgrade will silently overwrite user content.'
+  );
+
+  // .gitignore now includes .sdd-meta.json and .sdd-backup (Codex round 2 P2 fix)
+  assertFileContains(dest, '.gitignore', '.sdd-meta.json');
+  assertFileContains(dest, '.gitignore', '.sdd-backup/');
+
+  // Now run upgrade. AGENTS.md should still be the user's version.
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  assertFileContains(dest, 'AGENTS.md', 'Our custom AGENTS.md');
+}
+
+// --- Scenario 58: scanner overrides wizard on upgrade (documented semantics) ---
+//
+// Documents the v0.17.0 design decision that scanner is the authoritative
+// source of truth post-install. A project scaffolded via create-sdd-project
+// captures wizard-driven adaptations at install. Post-install, when the
+// user adds real source code (e.g., Mongoose), the scanner detects the
+// actual stack. First upgrade: hash matches (user didn't edit) → replace
+// → scanner-driven adaptations apply → file now reflects Mongoose.
+
+function testScannerOverridesWizardOnUpgrade() {
+  const dest = path.join(TMP_BASE, 'test-scanner-wizard');
+  // Fresh scaffold (generator.js path — lighter adaptations, Prisma default)
+  execSync(`node ${CLI} test-scanner-wizard --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Simulate user installing Mongoose after scaffold
+  const pkgPath = path.join(dest, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  pkg.dependencies = pkg.dependencies || {};
+  pkg.dependencies.mongoose = '^7.0.0';
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
+
+  // Upgrade — scanner detects Mongoose, stack adaptations re-apply. This
+  // scenario asserts the upgrade COMPLETES without crashing and the
+  // backend-developer.md does NOT still claim "Prisma ORM" afterwards.
+  // (Hash match → replace → stack adaptations → Mongoose in, Prisma out.)
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  const backendDev = fs.readFileSync(path.join(dest, '.claude/agents/backend-developer.md'), 'utf8');
+  assert.ok(
+    !backendDev.includes('Prisma ORM'),
+    'Post-upgrade backend-developer.md must not contain Prisma ORM — scanner detected Mongoose'
+  );
+  // Documented: the replacement does NOT necessarily include the word
+  // "Mongoose" (the replacement rule swaps "Prisma ORM, and PostgreSQL"
+  // for ORM+DB labels). Just assert the Prisma reference is gone.
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -3108,6 +3518,18 @@ try {
   run('Scenario 47: planner templates are project-agnostic', testAgentExamplesAreProjectAgnostic);
   run('Scenario 48: --upgrade idempotently appends .sdd-backup/ to .gitignore', testUpgradeGitignoreAppend);
   run('Scenario 49: --force-template replaces customized AGENTS.md', testForceTemplateFlag);
+
+  console.log('\n  Provenance tracking scenarios (v0.17.0):');
+  run('Scenario 50: create writes .sdd-meta.json', testCreateWritesMetaJson);
+  run('Scenario 51: --init writes .sdd-meta.json after stack adaptations', testInitWritesMetaJsonAfterStackAdaptations);
+  run('Scenario 52: --upgrade updates .sdd-meta.json', testUpgradeUpdatesMetaJson);
+  run('Scenario 53: hash path replaces pristine files cleanly (Codex P1 guard)', testUpgradeHashPathReplacesWithoutWarning);
+  run('Scenario 54: hash mismatch preserves and keeps old hash (Codex M1 guard)', testUpgradeHashMismatchPreservesAndKeepsOldHash);
+  run('Scenario 55: fallback path handles init-stack-adapted files (Gemini M1 guard)', testFallbackPathHandlesInitStackAdaptedFiles);
+  run('Scenario 56: stack adaptations are idempotent', testStackAdaptationsIdempotent);
+  run('Scenario 57: doctor check #15 validates .sdd-meta.json integrity', testDoctorMetaJsonValidity);
+  run('Scenario 58: scanner overrides wizard on upgrade (design note)', testScannerOverridesWizardOnUpgrade);
+  run('Scenario 58b: --init excludes pre-existing user files (Codex round 2 P1 guard)', testInitExcludesPreExistingUserFiles);
 } finally {
   cleanup();
 }

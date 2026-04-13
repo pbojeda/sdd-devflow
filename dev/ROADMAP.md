@@ -2,7 +2,38 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.16.10
+## Current Version: 0.17.0
+
+### v0.17.0 (2026-04-13) — Provenance tracking + unified stack adaptations
+
+Closes the Codex P1 finding from v0.16.10 cross-model review: cross-version upgrades no longer false-positive-preserve pristine user files. Hash-based smart-diff via `.sdd-meta.json` answers "did the user edit this file since the last tool-write?" precisely, independent of template evolution across versions. Also unifies `--init` and `--upgrade` stack-adaptation pipelines so init-adapted projects converge cleanly on upgrade.
+
+**New modules**:
+- `lib/meta.js` — provenance helper (computeHash, readMeta, writeMeta, pruneExpectedAbsent, POSIX normalization, graceful fallback on corrupted/missing files).
+- `lib/stack-adaptations.js` — shared stack-adaptation rules (Zod → validation, Prisma → detected ORM, DDD → layered, shared/src/schemas/ cleanup). Two entry points: file-based `applyStackAdaptations(dest, scan, config, allowlist)` and pure in-memory `applyStackAdaptationsToContent(content, posixPath, scan, config)`. Extracted from `lib/init-generator.js`'s old `adaptCopiedFiles` body. Idempotent by rule design — smoke scenario 56 enforces this.
+
+**Hash-based decision tree** (in `lib/upgrade-generator.js`):
+1. File missing / `--force-template` → unconditional write + hash update.
+2. Stored hash exists → compare current file hash → match replaces, mismatch preserves (no hash update — Codex M1 invariant).
+3. No stored hash → fall back to v0.16.10 content compare against the FULL adapted target (applyStackAdaptationsToContent applied in-memory — Gemini M1 fix). Match replaces, mismatch preserves.
+
+After the loop, `applyStackAdaptations` is called with the `filesToAdapt` allowlist (only replaced-or-new files). Preserved user-edited files are NEVER touched by stack adaptations. Hashes are then recomputed for allowlisted files, pruned by expected-presence (not on-disk-presence — Gemini M3 fix), and written to `.sdd-meta.json`.
+
+**Doctor check #15** (`lib/doctor.js`) — validates `.sdd-meta.json` structural integrity (schema version, hash shape, no orphans). Does NOT warn on hash mismatches (Codex M3 fix — mismatches are normal customization, not integrity issues). Brings total 14 → 15.
+
+**Related fix**: `adaptAgentsMd` now uses `meaningfulDirs` (not `rootDirs`) to build the project-tree block, so the output is stable between install-time (when `ai-specs/` and `docs/` don't exist yet) and upgrade-time (when SDD has installed those dirs). Without this fix, `--init` projects would false-positive-preserve AGENTS.md on every upgrade because the tree section would include SDD-infrastructure dirs on upgrade but not on install.
+
+**Cross-model review trail**:
+- **Round 1 (plan v1.0)** — Codex REJECT (2 M1 + M2 + M3), Gemini APPROVE WITH CHANGES (M1 + 2 M2 + M3). All 8 consensus findings incorporated into plan v1.1.
+- **Round 2 (post-implementation patch)** — Gemini APPROVE (all 7 invariants verified), Codex P1 + P2 on `--init` path (pre-existing-files hashed, `.sdd-meta.json` not gitignored on init). Both fixed with regression guard (scenario 58b).
+
+**Smoke tests**: 49 → **59** (+10). Three primary regression guards: scenario 53 (Codex P1), scenario 54 (Codex M1), scenario 55 (Gemini M1). Plus scenario 58b (Codex round 2 P1).
+
+**Known limitation**: provenance tracking scope is limited to template agents + AGENTS.md. `SKILL.md`, `ticket-template.md`, `documentation-standards.mdc`, and `ai-specs/specs/*.mdc` standards continue with v0.16.10 behavior (wholesale-recopy + stack-adaptation / existing isStandardModified compare). First-class smart-diff for those files is a v0.17.x candidate.
+
+### v0.17.x (next) — First-class smart-diff for SKILL.md / ticket-template.md / documentation-standards.mdc
+
+Extends v0.17.0's hash-based smart-diff to the remaining stack-adapted files currently handled via wholesale-recopy. Same decision tree, same `.sdd-meta.json` schema extension. Codex M1 option 2 from v0.17.0 plan review, deferred.
 
 ### v0.16.10 (2026-04-13) — Smart-diff protection + backup safety net for --upgrade
 
