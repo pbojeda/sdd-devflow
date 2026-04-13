@@ -2,7 +2,39 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.16.9
+## Current Version: 0.16.10
+
+### v0.16.10 (2026-04-13) — Smart-diff protection + backup safety net for --upgrade
+
+Closes the foodXPlorer v0.16.9 regression where `npx create-sdd-project --upgrade --force --yes` silently overwrote customized `AGENTS.md` + `.claude/agents/backend-planner.md` + `.gemini/agents/backend-planner.md`. Recovery done via `git show f8e5929:<path>` on branch `fix/restore-customizations-lost-in-v0.16.9-upgrade`.
+
+- **Smart-diff for template agents** (mirrors standards smart-diff since v0.15): per-file comparison against `adaptAgentContentString(rawTemplate, file, projectType)`. Customizations preserved, `.new` backup contains adapted target.
+- **Smart-diff for `AGENTS.md`**: compares existing file against `adaptAgentsMd(template, config, scan)`.
+- **Backup-before-replace**: `.sdd-backup/<YYYYMMDD-HHMMSS-NNNN>/` nuclear safety net for every file the upgrade replaces. Idempotent per run, non-fatal on failure, millisecond suffix for collision safety. `.gitignore` entry added to template + idempotently appended to existing projects' `.gitignore`.
+- **Pure-function extraction**: `adaptAgentContentString(content, filename, projectType)` + `AGENT_ADAPTATION_RULES` data table extracted from `adapt-agents.js` so the upgrade smart-diff shares the exact same rules as the install adapter.
+- **Root-cause fix in `adaptAgentsMd`** (`lib/init-generator.js`): no longer produces `Backend patterns ()` empty parens when scanner can't detect framework. Uses `config.projectType` as authoritative source for pruning `[Frontend Standards]` / `[Backend Standards]` links instead of unreliable scanner detection. Guards the project-tree rewrite to only trigger when scanner found non-SDD directories. This is the exact shape of the broken AGENTS.md foodXPlorer ended up with.
+- **`--force-template` CLI flag**: escape hatch to accept new template content in bulk without preservation warnings. Backup still happens.
+- **Doctor check #14: AGENTS.md standards references**: detects `Backend patterns ()` empty parens + unsubstituted placeholders. Severity WARN. Brings doctor total 13 → 14.
+- **Generalized planner template examples**: removed foodXPlorer-specific strings (`PortionContext`, `StandardPortion`, `formatPortionTermLabel`, `@foodxplorer`, `dishId`, `croqueta`, `pgvector`, `racion`, `tapa`, `pincho`) from all 4 planner templates. Replaced with neutral examples (`Status`, `cuid()`, `formatStatusLabel`, `src/shared/`). Smoke test #47 guards against future overfit regressions.
+- **CRLF-safe comparison** (Gemini cross-model finding): `normalizeForCompare` helper strips CR, trailing whitespace per-line, and leading/trailing blank lines before comparing. Prevents Windows false positives under `git core.autocrlf=true`.
+- **Seven new smoke tests (43–49)**: customization preservation, pristine fullstack, pure-function unit test for `adaptAgentContentString`, doctor #14 empty parens detection, project-agnostic examples guard, idempotent `.gitignore` append, `--force-template` override. Total 42 → 49.
+
+**Known limitation (accepted trade-off, documented in CHANGELOG)**: cross-version pristine upgrades (v0.16.10 → v0.16.11+ when template files change) will trigger conservative preserve warnings on files the user never touched, because the smart-diff compares against the NEW template's adapted output. Users should re-run with `--force-template` to accept the new template content, or manually merge from `.sdd-backup/<ts>/<path>.new`. Backup always happens; recovery is always possible. Codex cross-model review raised this as P1 in post-implementation; the finding was already raised as H-severity in the plan review and explicitly deferred to v0.17.0. v0.16.10 ships with improved summary output that tells the user exactly what to do.
+
+**Cross-model review (post-implementation)**:
+- **Codex**: P1 × 2 — cross-version drift (both agents and AGENTS.md). Re-escalation of the deferred plan finding. **Status**: accepted trade-off per plan, escape hatch via `--force-template`, v0.17.0 provenance planned next.
+- **Gemini**: M2 CRLF mismatch on Windows (FIXED via `normalizeForCompare`). M2 overly broad doctor regex catching user markdown links (FIXED by restricting to placeholder-shaped `[...]` with hint words like "your", "example", "framework"). M3 split/join vs `.replace()` inconsistency (deferred — low impact, target strings appear once per template). First Gemini pass flagged a mangled string in the templates — verified as a hallucination, files are correct.
+
+### v0.17.0 (next) — Provenance tracking for accurate smart-diff
+
+**Priority**: HIGH. Closes the Codex P1 finding from v0.16.10.
+
+- Write `.sdd-content-hashes.json` at install/upgrade time storing SHA-256 of each template file's adapted output.
+- At upgrade time, compare the user's file against the stored hash (not against the new template). Match → pristine, replace. No match → customized, preserve.
+- Fall back to current v0.16.10 behavior (conservative compare-against-new-template) when hashes are missing (first v0.17.0 upgrade from pre-v0.17.0).
+- Plan needs its own cross-model review round before implementation.
+- Eliminates false positives on cross-version upgrades from v0.17.0 onwards.
+- Also lays groundwork for richer metadata: track install date, modifying tool, previous version.
 
 ### v0.16.9 (2026-04-13) — Doctor check #13 for Gemini TOML commands
 

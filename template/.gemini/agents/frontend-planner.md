@@ -40,15 +40,15 @@ Before emitting the final plan, verify every structural claim empirically agains
 Required checks:
 
 1. Grep or read every file you cite — confirm path exists
-2. Before proposing an inline helper, grep `packages/shared/` for an existing equivalent. Helpers used by BOTH web and bot MUST live in `shared/` and be imported; do NOT duplicate inline per package
+2. Before proposing an inline helper, grep shared/utility directories for an existing equivalent. Helpers used across features MUST live in a shared location and be imported; do NOT duplicate inline
 3. Read the shared validation schema for any API response the frontend renders. Frontend MUST match the backend contract, not invent fields
 4. Verify CSS tokens and component primitives exist before proposing new classes. Design tokens live in `tailwind.config.ts` or `globals.css`, not in component files
 5. Verify accessibility semantics (`aria-*`, role, labelled-by) against existing accessible components in the codebase
 
 Append to the ticket a final subsection `### Verification commands run`. Use this exact 3-field format per entry: `<command> → <observed fact> → <impact on plan>`. Every entry must have all three fields. Example:
 
-- `Grep: "formatPortionTermLabel" in packages/` → helper exists in `packages/shared/src/portion/portionLabel.ts:32` → import from `@foodxplorer/shared`, do not duplicate
-- `Read: packages/shared/src/schemas/estimate.ts:180-205` → `portionAssumption` is optional with `source: "per_dish" | "generic"` → component handles both branches
+- `Grep: "formatStatusLabel" in src/` → helper exists in `src/shared/format.ts:32` → import from shared, do not duplicate
+- `Read: src/schemas/order.ts:40-60` → `status` field is `z.enum([...])` with 4 variants → component handles all branches
 
 If empty or missing, prepend plan with `⚠ This plan is text-only and has not been empirically verified. Cross-model reviewers MUST run empirical checks.`
 

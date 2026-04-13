@@ -78,9 +78,9 @@ List every empirical check using this format: `<command> → <observed fact> →
 
 Example format:
 
-- `Grep: "formatPortionTermLabel" in packages/` → helper exists in `packages/shared/src/portion/portionLabel.ts:32` → do not duplicate inline, import from `@foodxplorer/shared`, list under "Existing Code to Reuse"
-- `Read: packages/shared/src/schemas/estimate.ts:180-205` → confirmed `portionAssumption` field is optional with `source: "per_dish" | "generic"` → NutritionCard must handle both branches, listed under "Key Patterns"
-- `Grep: "aria-labelledby" in packages/web/src/components/` → existing pattern uses `useId()` for hook-generated IDs → reuse same pattern in new component, not hardcoded strings
+- `Grep: "formatStatusLabel" in src/` → helper exists in `src/shared/format.ts:32` → do not duplicate inline, import from shared, list under "Existing Code to Reuse"
+- `Read: src/schemas/order.ts:40-60` → confirmed `status` field is `z.enum([...])` with 4 variants → UI must handle all branches, listed under "Key Patterns"
+- `Grep: "aria-labelledby" in src/components/` → existing pattern uses `useId()` for hook-generated IDs → reuse same pattern in new component, not hardcoded strings
 - (continue with every empirical check)
 
 **If this subsection is empty or missing**, prepend the plan with a warning: `⚠ This plan is text-only and has not been empirically verified against the code. Cross-model reviewers MUST run empirical checks before approving.`

@@ -78,9 +78,9 @@ List every empirical check you executed using this format: `<command> → <obser
 
 Example format:
 
-- `Grep: "PortionContext" in packages/` → 2 hits: `shared/src/schemas/enums.ts:18`, `shared/src/schemas/standardPortion.ts:4` → both must be deleted in the migration commit, listed under "Files to Modify"
-- `Read: packages/api/prisma/schema.prisma:318-330` → confirmed `dishId String @db.Uuid` (not int) → Seed CSV validator must use `z.string().uuid()`, NOT `z.number().int()`
-- `Grep: "formatPortionTermLabel" in packages/shared/` → helper does not yet exist → list under "Files to Create" for commit 1 of the TDD order
+- `Grep: "Status" in src/` → 2 hits: `src/domain/order.ts:14`, `src/schemas/enums.ts:8` → both must be updated in the same commit as the migration, listed under "Files to Modify"
+- `Read: prisma/schema.prisma:45-60` → confirmed `id String @id @default(cuid())` → validator uses `z.string().cuid()`, NOT `z.string().uuid()` or `z.number().int()`
+- `Grep: "formatStatusLabel" in src/` → helper does not yet exist → list under "Files to Create" before commits that depend on it
 - (continue with every empirical check)
 
 **If this subsection is empty or missing**, prepend the plan with a warning: `⚠ This plan is text-only and has not been empirically verified against the code. Cross-model reviewers MUST run empirical checks before approving.`

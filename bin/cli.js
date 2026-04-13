@@ -11,6 +11,7 @@ const isInit = args.includes('--init');
 const isUpgrade = args.includes('--upgrade');
 const isDoctor = args.includes('--doctor');
 const isForce = args.includes('--force');
+const isForceTemplate = args.includes('--force-template');
 const isEject = args.includes('--eject');
 const isDiff = args.includes('--diff');
 
@@ -185,6 +186,7 @@ async function runUpgrade() {
   config.autonomyLevel = autonomy.level;
   config.autonomyName = autonomy.name;
   config.installedVersion = installedVersion;
+  config.forceTemplate = isForceTemplate;
 
   // Build and show summary
   const state = {

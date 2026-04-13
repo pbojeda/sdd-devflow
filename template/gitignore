@@ -50,3 +50,6 @@ npm-debug.log*
 # SDD PM Orchestrator (ephemeral session control files)
 docs/project_notes/pm-session.lock
 docs/project_notes/pm-stop.md
+
+# sdd-devflow upgrade backups (ignored — kept locally for recovery only)
+.sdd-backup/

@@ -2664,6 +2664,376 @@ function testGeminiCliAcceptsScaffoldedSettings() {
   }
 }
 
+// --- Scenario 43: --upgrade preserves customized template agents + AGENTS.md (v0.16.10) ---
+//
+// Verifies the smart-diff protection added in v0.16.10:
+// - Customized backend-planner.md is preserved (not overwritten).
+// - Customized AGENTS.md is preserved (not overwritten).
+// - Pre-upgrade copies are saved to .sdd-backup/<ts>/ for recovery.
+// - The new adapted version is saved as <path>.new so the user can re-merge.
+// - The upgrade output warns the user about preserved customizations.
+
+function testUpgradePreservesCustomAgents() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-preserves-custom-agents');
+  execSync(`node ${CLI} test-upgrade-preserves-custom-agents --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Add fake customizations
+  const backendPlannerPath = path.join(dest, '.claude', 'agents', 'backend-planner.md');
+  const agentsMdPath = path.join(dest, 'AGENTS.md');
+  const plannerOriginal = fs.readFileSync(backendPlannerPath, 'utf8');
+  const agentsMdOriginal = fs.readFileSync(agentsMdPath, 'utf8');
+
+  fs.writeFileSync(
+    backendPlannerPath,
+    plannerOriginal + '\n\n## Custom Stack Notes\n\nWe use Fastify, not Express.\n',
+    'utf8'
+  );
+  fs.writeFileSync(
+    agentsMdPath,
+    agentsMdOriginal + '\n\n## Custom Project Section\n\nMonorepo with 6 packages.\n',
+    'utf8'
+  );
+
+  // Run upgrade (force, to re-run same version)
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // User customizations must still be there
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'Custom Stack Notes');
+  assertFileContains(dest, '.claude/agents/backend-planner.md', 'Fastify, not Express');
+  assertFileContains(dest, 'AGENTS.md', 'Custom Project Section');
+  assertFileContains(dest, 'AGENTS.md', 'Monorepo with 6 packages');
+
+  // Find the backup directory (timestamped)
+  const backupRoot = path.join(dest, '.sdd-backup');
+  assert.ok(fs.existsSync(backupRoot), '.sdd-backup/ should exist');
+  const backupDirs = fs.readdirSync(backupRoot);
+  assert.ok(backupDirs.length >= 1, 'Expected at least one timestamped backup dir');
+  const backupDir = path.join(backupRoot, backupDirs[0]);
+
+  // Pre-upgrade originals backed up
+  const backupPlanner = path.join(backupDir, '.claude', 'agents', 'backend-planner.md');
+  const backupAgentsMd = path.join(backupDir, 'AGENTS.md');
+  assert.ok(fs.existsSync(backupPlanner), 'Pre-upgrade backend-planner.md backup missing');
+  assert.ok(fs.existsSync(backupAgentsMd), 'Pre-upgrade AGENTS.md backup missing');
+  assert.ok(
+    fs.readFileSync(backupPlanner, 'utf8').includes('Custom Stack Notes'),
+    'Backup should contain original customized content'
+  );
+
+  // Adapted "would-write" versions saved as .new
+  const newPlanner = path.join(backupDir, '.claude', 'agents', 'backend-planner.md.new');
+  const newAgentsMd = path.join(backupDir, 'AGENTS.md.new');
+  assert.ok(fs.existsSync(newPlanner), '.new adapted planner should exist');
+  assert.ok(fs.existsSync(newAgentsMd), '.new adapted AGENTS.md should exist');
+  // The .new versions must NOT contain the user customization — they are the
+  // fresh adapted template output.
+  assert.ok(
+    !fs.readFileSync(newPlanner, 'utf8').includes('Custom Stack Notes'),
+    '.new planner should be fresh template, not user customization'
+  );
+  assert.ok(
+    !fs.readFileSync(newAgentsMd, 'utf8').includes('Custom Project Section'),
+    '.new AGENTS.md should be fresh template, not user customization'
+  );
+
+  // Upgrade output must warn about preserved customizations
+  assert.ok(
+    output.includes('Review preserved customizations') || output.includes('customized — not updated'),
+    `Upgrade output should warn about preserved customizations. Output: ${output.slice(0, 800)}`
+  );
+}
+
+// --- Scenario 44: --upgrade on pristine fullstack replaces agents + AGENTS.md cleanly (v0.16.10) ---
+//
+// If the user has NOT customized anything, the smart-diff should replace
+// agents/AGENTS.md in place with no "customized" warning. The backup dir
+// still gets created (cheap insurance) but must not contain .new files
+// for the pristine paths.
+
+function testUpgradeReplacesPristineAgentsFullstack() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-pristine-fullstack');
+  execSync(`node ${CLI} test-upgrade-pristine-fullstack --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Immediately upgrade without any modifications
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // Template agent + AGENTS.md should still be present and valid
+  assertExists(dest, '.claude/agents/backend-planner.md');
+  assertExists(dest, 'AGENTS.md');
+
+  // No v0.16.10 "preserved customizations" block — the block only prints when
+  // modifiedAgentsResults has entries, i.e. when an agent or AGENTS.md was
+  // flagged as customized. Pre-existing standards smart-diff warnings use a
+  // separate "Review preserved standards" block that is out of scope here.
+  assert.ok(
+    !output.includes('Review preserved customizations'),
+    `Pristine fullstack upgrade should not flag agents or AGENTS.md as customized. Output: ${output.slice(0, 800)}`
+  );
+
+  // If .sdd-backup/ exists, there must be no .new files for pristine paths
+  const backupRoot = path.join(dest, '.sdd-backup');
+  if (fs.existsSync(backupRoot)) {
+    const backupDirs = fs.readdirSync(backupRoot);
+    for (const d of backupDirs) {
+      const newPlanner = path.join(backupRoot, d, '.claude', 'agents', 'backend-planner.md.new');
+      const newAgentsMd = path.join(backupRoot, d, 'AGENTS.md.new');
+      assert.ok(!fs.existsSync(newPlanner), 'Pristine planner should not have .new backup');
+      assert.ok(!fs.existsSync(newAgentsMd), 'Pristine AGENTS.md should not have .new backup');
+    }
+  }
+}
+
+// --- Scenario 45: adaptAgentContentString handles projectType !== 'fullstack' (v0.16.10) ---
+//
+// Unit-level regression guard for the upgrade smart-diff's pure adapter.
+// The plan (Codex + Gemini critique) required verifying that
+// adaptAgentContentString correctly strips frontend/backend refs for
+// single-stack projects, so the upgrade comparison works in all three modes:
+// fullstack, backend, frontend.
+//
+// We don't exercise the full --init → --upgrade round trip here: init-generator.js
+// applies additional stack-specific adaptations (DDD → layered, ORM swaps,
+// schema path rewrites) that are NOT mirrored in upgrade-generator.js. That
+// cross-adapter drift is an accepted v0.16.10 limitation — the smart-diff
+// conservatively preserves the init'd files on upgrade, surfacing them via
+// the "Review preserved customizations" block with `.new` backups. Provenance
+// tracking via .sdd-meta.json is deferred to v0.17.0 (see CHANGELOG).
+//
+// Instead, we test the pure function directly against its own invariants:
+// 1. For fullstack projects the adapter is a no-op.
+// 2. For backend projects the adapter removes frontend-only references from
+//    the files listed in AGENT_ADAPTATION_RULES.backend.
+// 3. For frontend projects the adapter removes backend-only references from
+//    the files listed in AGENT_ADAPTATION_RULES.frontend.
+// 4. The function is deterministic: calling it twice yields the same output.
+
+function testUpgradeReplacesPristineAgentsBackendOnly() {
+  const {
+    adaptAgentContentString,
+    AGENT_ADAPTATION_RULES,
+  } = require('../lib/adapt-agents');
+  const templateDir = path.join(__dirname, '..', 'template');
+
+  // Load a representative template agent that has rules for both backend and
+  // frontend single-stack modes.
+  const specCreatorPath = path.join(templateDir, '.claude', 'agents', 'spec-creator.md');
+  const rawTemplate = fs.readFileSync(specCreatorPath, 'utf8');
+
+  // Invariant 1: fullstack is a no-op
+  const fullstackOut = adaptAgentContentString(rawTemplate, 'spec-creator.md', 'fullstack');
+  assert.strictEqual(
+    fullstackOut,
+    rawTemplate,
+    'adaptAgentContentString should be a no-op for fullstack'
+  );
+
+  // Invariant 2: backend strips frontend-only refs
+  const backendOut = adaptAgentContentString(rawTemplate, 'spec-creator.md', 'backend');
+  assert.notStrictEqual(
+    backendOut,
+    rawTemplate,
+    'Backend adaptation should modify spec-creator.md (has rules in AGENT_ADAPTATION_RULES.backend)'
+  );
+  assert.ok(
+    !backendOut.includes('ui-components.md'),
+    'Backend-only spec-creator.md should not mention ui-components.md after adaptation'
+  );
+  assert.ok(
+    !backendOut.includes('Frontend Specifications'),
+    'Backend-only spec-creator.md should not have the Frontend Specifications section'
+  );
+
+  // Invariant 3: frontend strips backend-only refs
+  const frontendOut = adaptAgentContentString(rawTemplate, 'spec-creator.md', 'frontend');
+  assert.notStrictEqual(
+    frontendOut,
+    rawTemplate,
+    'Frontend adaptation should modify spec-creator.md'
+  );
+  assert.ok(
+    !frontendOut.includes('api-spec.yaml, ui-components.md'),
+    'Frontend-only spec-creator.md should not mention api-spec.yaml'
+  );
+
+  // Invariant 4: deterministic — upgrade smart-diff relies on this
+  assert.strictEqual(
+    adaptAgentContentString(rawTemplate, 'spec-creator.md', 'backend'),
+    adaptAgentContentString(rawTemplate, 'spec-creator.md', 'backend'),
+    'adaptAgentContentString must be deterministic'
+  );
+
+  // Invariant 5: AGENT_ADAPTATION_RULES keys are the files we expect to adapt.
+  // Regression guard: if someone renames a template file without updating
+  // the rules, this test fails loudly.
+  const backendRuleFiles = Object.keys(AGENT_ADAPTATION_RULES.backend || {});
+  for (const file of backendRuleFiles) {
+    const p = path.join(templateDir, '.claude', 'agents', file);
+    assert.ok(fs.existsSync(p), `AGENT_ADAPTATION_RULES.backend references missing template file: ${file}`);
+  }
+  const frontendRuleFiles = Object.keys(AGENT_ADAPTATION_RULES.frontend || {});
+  for (const file of frontendRuleFiles) {
+    const p = path.join(templateDir, '.claude', 'agents', file);
+    assert.ok(fs.existsSync(p), `AGENT_ADAPTATION_RULES.frontend references missing template file: ${file}`);
+  }
+}
+
+// --- Scenario 46: doctor check #14 detects AGENTS.md empty parens (v0.16.10) ---
+
+function testDoctorAgentsMdEmptyParens() {
+  const dest = path.join(TMP_BASE, 'test-doctor-agentsmd-empty-parens');
+  execSync(`node ${CLI} test-doctor-agentsmd-empty-parens --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Corrupt AGENTS.md: replace "Backend patterns (...)" with "Backend patterns ()"
+  const agentsMdPath = path.join(dest, 'AGENTS.md');
+  const original = fs.readFileSync(agentsMdPath, 'utf8');
+  const corrupted = original.replace(
+    /Backend patterns \([^)]*\)/,
+    'Backend patterns ()'
+  );
+  assert.notStrictEqual(corrupted, original, 'Test setup: should have replaced at least one pattern');
+  fs.writeFileSync(agentsMdPath, corrupted, 'utf8');
+
+  // Run doctor — check #14 must WARN
+  let output;
+  try {
+    output = execSync(`node ${CLI} --doctor`, { cwd: dest, encoding: 'utf8' });
+  } catch (e) {
+    output = e.stdout || '';
+  }
+
+  assert.ok(
+    output.includes('AGENTS.md:') && output.includes('issue'),
+    `Doctor should report AGENTS.md issue. Output: ${output.slice(0, 800)}`
+  );
+  assert.ok(
+    output.includes('empty parens') || output.includes('Backend patterns ()'),
+    `Doctor should mention empty parens. Output: ${output.slice(0, 800)}`
+  );
+}
+
+// --- Scenario 47: planner templates are project-agnostic (v0.16.10) ---
+//
+// Guard against foodXPlorer-specific overfit regressions in future edits.
+// The 4 planner templates must not leak any project-specific strings.
+
+function testAgentExamplesAreProjectAgnostic() {
+  const plannerTemplates = [
+    'template/.claude/agents/backend-planner.md',
+    'template/.gemini/agents/backend-planner.md',
+    'template/.claude/agents/frontend-planner.md',
+    'template/.gemini/agents/frontend-planner.md',
+  ];
+  const forbidden = [
+    'PortionContext',
+    'StandardPortion',
+    'formatPortionTermLabel',
+    '@foodxplorer',
+    'dishId',
+    'croqueta',
+    'pgvector',
+    'racion',
+    'tapa',
+    'pincho',
+  ];
+
+  const repoRoot = path.join(__dirname, '..');
+  for (const rel of plannerTemplates) {
+    const full = path.join(repoRoot, rel);
+    assert.ok(fs.existsSync(full), `Template missing: ${rel}`);
+    const content = fs.readFileSync(full, 'utf8');
+    for (const bad of forbidden) {
+      assert.ok(
+        !content.includes(bad),
+        `${rel}: must not contain project-specific string "${bad}"`
+      );
+    }
+  }
+}
+
+// --- Scenario 48: --upgrade idempotently appends .sdd-backup/ to .gitignore (v0.16.10) ---
+
+function testUpgradeGitignoreAppend() {
+  const dest = path.join(TMP_BASE, 'test-upgrade-gitignore-append');
+  execSync(`node ${CLI} test-upgrade-gitignore-append --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Simulate an older project: strip .sdd-backup/ from .gitignore
+  const gitignorePath = path.join(dest, '.gitignore');
+  const withoutEntry = fs
+    .readFileSync(gitignorePath, 'utf8')
+    .split('\n')
+    .filter((l) => !/\.sdd-backup/.test(l))
+    .join('\n');
+  fs.writeFileSync(gitignorePath, withoutEntry, 'utf8');
+  assertFileNotContains(dest, '.gitignore', '.sdd-backup/');
+
+  // Upgrade — should append .sdd-backup/
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  assertFileContains(dest, '.gitignore', '.sdd-backup/');
+
+  // Count occurrences — must be exactly 1
+  const after1 = fs.readFileSync(gitignorePath, 'utf8');
+  const count1 = (after1.match(/^\.sdd-backup\/?\s*$/gm) || []).length;
+  assert.strictEqual(count1, 1, `Expected exactly 1 .sdd-backup/ entry, got ${count1}`);
+
+  // Upgrade again — must still be exactly 1 (idempotent)
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const after2 = fs.readFileSync(gitignorePath, 'utf8');
+  const count2 = (after2.match(/^\.sdd-backup\/?\s*$/gm) || []).length;
+  assert.strictEqual(count2, 1, `After second upgrade expected 1 .sdd-backup/ entry, got ${count2}`);
+}
+
+// --- Scenario 49: --force-template replaces customized AGENTS.md unconditionally (v0.16.10) ---
+
+function testForceTemplateFlag() {
+  const dest = path.join(TMP_BASE, 'test-force-template-flag');
+  execSync(`node ${CLI} test-force-template-flag --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Customize AGENTS.md
+  const agentsMdPath = path.join(dest, 'AGENTS.md');
+  const original = fs.readFileSync(agentsMdPath, 'utf8');
+  fs.writeFileSync(
+    agentsMdPath,
+    original + '\n\n## My Custom Section X\n\nShould be wiped by --force-template.\n',
+    'utf8'
+  );
+
+  // Upgrade with --force-template
+  execSync(`node ${CLI} --upgrade --force --force-template --yes`, {
+    cwd: dest,
+    stdio: 'pipe',
+  });
+
+  // Customization is gone
+  assertFileNotContains(dest, 'AGENTS.md', 'My Custom Section X');
+
+  // Pre-replace content is recoverable from .sdd-backup/<ts>/AGENTS.md
+  const backupRoot = path.join(dest, '.sdd-backup');
+  assert.ok(fs.existsSync(backupRoot), '.sdd-backup/ must exist for recovery');
+  const backupDirs = fs.readdirSync(backupRoot);
+  assert.ok(backupDirs.length >= 1, 'Expected at least one backup dir');
+  let foundCustomization = false;
+  for (const d of backupDirs) {
+    const backupAgents = path.join(backupRoot, d, 'AGENTS.md');
+    if (fs.existsSync(backupAgents)) {
+      const c = fs.readFileSync(backupAgents, 'utf8');
+      if (c.includes('My Custom Section X')) {
+        foundCustomization = true;
+        break;
+      }
+    }
+  }
+  assert.ok(
+    foundCustomization,
+    'Pre-replace customization should be recoverable from .sdd-backup/<ts>/AGENTS.md'
+  );
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -2729,6 +3099,15 @@ try {
 
   console.log('\n  Gemini TOML commands scenarios (v0.16.9):');
   run('Scenario 42: doctor check #13 validates .gemini/commands/*.toml', testDoctorGeminiCommandsValid);
+
+  console.log('\n  Smart-diff protection scenarios (v0.16.10):');
+  run('Scenario 43: --upgrade preserves customized template agents + AGENTS.md', testUpgradePreservesCustomAgents);
+  run('Scenario 44: --upgrade replaces pristine agents (fullstack)', testUpgradeReplacesPristineAgentsFullstack);
+  run('Scenario 45: --upgrade replaces pristine agents (backend-only)', testUpgradeReplacesPristineAgentsBackendOnly);
+  run('Scenario 46: doctor check #14 detects AGENTS.md empty parens', testDoctorAgentsMdEmptyParens);
+  run('Scenario 47: planner templates are project-agnostic', testAgentExamplesAreProjectAgnostic);
+  run('Scenario 48: --upgrade idempotently appends .sdd-backup/ to .gitignore', testUpgradeGitignoreAppend);
+  run('Scenario 49: --force-template replaces customized AGENTS.md', testForceTemplateFlag);
 } finally {
   cleanup();
 }

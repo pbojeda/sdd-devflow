@@ -45,8 +45,8 @@ Required checks:
 
 Append to the ticket a final subsection `### Verification commands run`. Use this exact 3-field format per entry: `<command> → <observed fact> → <impact on plan>`. Every entry must have all three fields — a bare command without an observed fact is not verification. Example:
 
-- `Grep: "PortionContext" in packages/` → 2 hits (`enums.ts:18`, `standardPortion.ts:4`) → both must be deleted in the migration commit
-- `Read: packages/api/prisma/schema.prisma:323` → `dishId String @db.Uuid` (not int) → validator uses `z.string().uuid()`
+- `Grep: "Status" in src/` → 2 hits (`src/domain/order.ts:14`, `src/schemas/enums.ts:8`) → both must be updated in the same commit as the migration
+- `Read: prisma/schema.prisma:45-60` → `id String @id @default(cuid())` → validator uses `z.string().cuid()`, NOT `z.string().uuid()` or `z.number().int()`
 
 If the subsection is empty or missing, prepend the plan with `⚠ This plan is text-only and has not been empirically verified. Cross-model reviewers MUST run empirical checks.`
 
