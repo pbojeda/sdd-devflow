@@ -4012,6 +4012,52 @@ function testNormalizationResilienceAllTrackedFiles() {
   }
 }
 
+function testUpgradeMessageCopy() {
+  // Feature 3 (v0.17.1): the post-upgrade warning shown when files are
+  // preserved must use the new wording that explains provenance tracking
+  // correctly, and must NOT contain the stale v0.16.10 copy that misleadingly
+  // implied provenance tracking was future work.
+  //
+  // Setup: scaffold a v0.17.0 project, customize one tracked file to force
+  // a preserved-customization warning, run --upgrade --force --yes, capture
+  // stdout, assert wording.
+  const dest = path.join(TMP_BASE, 'test-upgrade-message-copy');
+  execSync(`node ${CLI} test-upgrade-message-copy --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Force a preserved customization so the warning block is emitted
+  const plannerPath = path.join(dest, '.claude/agents/backend-planner.md');
+  fs.writeFileSync(plannerPath, fs.readFileSync(plannerPath, 'utf8') + '\n## My Edit\n');
+
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // New wording must appear
+  assert.ok(
+    output.includes('first v0.17.0+ upgrade from a pre-v0.17.0 project'),
+    `new wording must appear in upgrade output. Got:\n${output}`
+  );
+  assert.ok(
+    output.includes('hash-based precision'),
+    `new wording (hash-based precision) must appear. Got:\n${output}`
+  );
+  assert.ok(
+    output.includes('will only warn on files the user actually edited'),
+    `new wording (only warn on user-edited files) must appear. Got:\n${output}`
+  );
+
+  // Stale v0.16.10 wording must NOT appear
+  assert.ok(
+    !output.includes('v0.16.10 uses conservative preserve semantics'),
+    `stale v0.16.10 wording must NOT appear. Got:\n${output}`
+  );
+  assert.ok(
+    !output.includes('Provenance tracking (v0.17.0) will eliminate these false positives'),
+    `stale "future work" claim must NOT appear. Got:\n${output}`
+  );
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -4113,6 +4159,9 @@ try {
   run('Scenario 66: standards adapters are idempotent', testIdempotencyExtendedRules);
   run('Scenario 67: full upgrade idempotency (two consecutive --upgrade runs)', testFullUpgradeIdempotency);
   run('Scenario 68: normalization resilience (CRLF drift across all tracked files)', testNormalizationResilienceAllTrackedFiles);
+
+  console.log('\n  v0.17.1 CLI message cleanup (Feature 3):');
+  run('Scenario 69: --upgrade post-warning uses new wording (no stale v0.16.10 copy)', testUpgradeMessageCopy);
 } finally {
   cleanup();
 }
