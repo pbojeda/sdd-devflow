@@ -4,6 +4,21 @@
 
 ## Current Version: 0.17.2
 
+### Known follow-ups (v0.17.3 or v0.18.x candidates)
+
+**1. Scanner detection for language / tests / architecture is NOT workspace-aware** (discovered during fx v0.17.2 empirical validation, 2026-04-15). v0.17.1 and v0.17.2 made `detectBackend` / `detectFrontend` workspace-aware via `enumerateWorkspaces`, but these other detection functions still run only against the project root:
+
+   - `detectLanguage(projectDir)` — checks root `tsconfig.json` + root `src/*.ts`. For fx (monorepo with TS code in `packages/*/src/`), the root has no tsconfig.json and no `src/*.ts`, so it returns `'javascript'`. `adaptBackendStandards` then writes `Runtime: Node.js with JavaScript` even though the actual backend is TypeScript.
+   - `detectTests(projectDir, pkg)` — similarly looks at root for jest/vitest config + root test dirs. fx's tests live in `packages/api/__tests__/` etc., so the root scan misses them → `Testing: Not configured`.
+   - `detectArchitecture(projectDir, pkg)` — inspects root `src/` for domain/application/infrastructure/layered patterns. fx has no root `src/`, so returns `pattern: 'unknown'` → `Architecture — Custom` with generic placeholder.
+   - `detectFrontend` sparse result for fx: detects `Next.js` from `packages/web/package.json` via the v0.17.2 workspace fallback, but `styling`, `components`, `state` all stay null → doctor check #14 fires the WARN `"Frontend patterns has only 1 entry (Next.js) — scanner detection may be incomplete"`. Cosmetic WARN (exit 0) but a UX signal that the frontend detection needs the same workspace-aware treatment.
+
+   **Action**: extend `detectLanguage`, `detectTests`, `detectArchitecture`, and `detectFrontend`'s auxiliary detection (styling/components/state) to use the same workspace-enumeration path added in v0.17.1/v0.17.2 for framework detection. Likely pattern: when `isMonorepo && !<field>.framework_detected_at_root`, run the auxiliary detector against the same workspace that provided the framework (via `backend.workspaceSource` / `frontend.workspaceSource`), falling back to root if absent.
+
+   **Severity**: Medium. Not a correctness bug — the library still ships correct code and preserves user customizations. But `adaptBackendStandards` / `adaptFrontendStandards` produce lower-quality output for monorepos than for single-package projects. Cosmetic impact on standards file content + doctor WARN noise.
+
+   **Discovery**: fx v0.17.2 upgrade produced `backend-standards.mdc` with `Runtime: Node.js with JavaScript` (should be TypeScript) and `Testing: Not configured` (fx has Jest). AGENTS.md post-upgrade Frontend patterns line is `(Next.js)` single-entry → doctor sparse-patterns check WARN.
+
 ### v0.17.2 (2026-04-15) — Scanner monorepo partial-detection hotfix
 
 Closes a defect in v0.17.1's scanner monorepo fix discovered via empirical validation against foodXPlorer on 2026-04-15 (less than 2h after v0.17.1 publish).
