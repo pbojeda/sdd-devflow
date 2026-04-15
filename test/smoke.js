@@ -3051,7 +3051,8 @@ function testCreateWritesMetaJson() {
 
   // Default scaffold is fullstack + both → 10 unique template agents × 2 tool dirs + AGENTS.md = 21
   const hashCount = Object.keys(meta.hashes).length;
-  assert.strictEqual(hashCount, 21, `Expected 21 hash entries, got ${hashCount}`);
+  // v0.17.0 = 21 (10 agents × 2 tools + AGENTS.md). v0.17.1 adds 4 standards + 6 workflow-core files × 2 tools = 31 total.
+  assert.strictEqual(hashCount, 31, `Expected 31 hash entries (v0.17.1), got ${hashCount}`);
 
   // Spot check: backend-planner + AGENTS.md present, valid shape
   const HASH_RE = /^sha256:[0-9a-f]{64}$/;
@@ -3112,7 +3113,7 @@ function testUpgradeUpdatesMetaJson() {
   assertExists(dest, '.sdd-meta.json');
   const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
   assert.strictEqual(meta.schemaVersion, 1);
-  assert.strictEqual(Object.keys(meta.hashes).length, 21);
+  assert.strictEqual(Object.keys(meta.hashes).length, 31);
 }
 
 // --- Scenario 53: hash path produces no preserve warnings on clean upgrade ---
