@@ -2,7 +2,58 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.17.0
+## Current Version: 0.17.1
+
+### v0.17.1 (2026-04-15) — Smart-diff expansion + scanner monorepo fix + CLI message cleanup
+
+Closes three gaps from v0.17.0: (1) smart-diff only covered template agents + `AGENTS.md` (21 paths), leaving the B+D checkpoint mechanism vulnerable to silent customization loss; (2) `lib/scanner.js` only read root `package.json`, producing `(DDD, Express, Prisma)` fallback literals on monorepos (foodXPlorer 2026-04-14 incident); (3) the post-upgrade CLI warning claimed provenance tracking was "future work".
+
+**Smart-diff expansion — 10 new tracked files** (31 total):
+- 4 standards (`ai-specs/specs/{base,backend,frontend,documentation}-standards.mdc`), project-type-filtered
+- 6 development-workflow skill core files (SKILL.md + ticket-template.md + merge-checklist.md × 2 tools), aiTools-filtered
+- Each uses the full hash decision tree (missing/force → write, stored hash match → replace, stored hash mismatch → preserve + `.new` backup, no stored hash → fallback compare against FULL adapted target or raw template). **Codex M1 invariant holds**: preserved files never get a new hash entry.
+- The 6 workflow-core files are captured into `workflowCoreBackup` Map BEFORE the wholesale `skills/` delete-and-copy, then smart-diffed post-copy against the backup. The B+D checkpoint mechanism (SKILL.md + ticket-template + merge-checklist) is now protected — closes "el problema central de la librería" gap.
+
+**Scanner monorepo fix** (`lib/scanner.js`):
+- `enumerateWorkspaces(dir, pkg)` + `expandWorkspacePattern(dir, pattern)` — parse `pkg.workspaces` (array or object form), expand single-wildcard patterns, filter to dirs containing `package.json` (Codex round-3 finding 1), deduplicate by normalized POSIX path with first-occurrence-wins.
+- `scan()` runs workspace enumeration as FALLBACK when `isMonorepo && (!backend.detected || !frontend.detected)`. First workspace with `detected: true` wins per backend + frontend slot.
+- Adds `scan.backend.workspaceSource` / `scan.frontend.workspaceSource` fields for observability.
+- **Scanner additive invariant**: single-package projects produce byte-identical output to v0.17.0. Enforced by scenario 63c.
+- **Scope limitations**: no pnpm-workspace.yaml, no `**` recursive patterns, no `!exclude` negation — deferred to v0.17.2.
+
+**CLI message cleanup** (`lib/upgrade-generator.js` runUpgrade preserved-customizations warning):
+- Removed the stale v0.16.10-era claim that "Provenance tracking (v0.17.0) will eliminate these false positives" (misleading in v0.17.0, wrong in v0.17.1).
+- New wording: fallback path is expected only on first v0.17.0+ upgrade from pre-v0.17.0 projects; subsequent upgrades use hash-based precision.
+
+**Related fixes**:
+- `adaptFrontendStandards` Project Structure regex is now idempotent (was duplicating the trailing TODO marker on repeat applications).
+- Upgrade fallback compare now accepts BOTH adapted target AND raw template as valid pristine states (critical for v0.17.0 → v0.17.1 upgrades — `generator.js` scaffolds raw templates while `init-generator.js` adapts them).
+- `isStandardModified` removed, renamed to `normalizedContentEquals` (file-agnostic helper), collocated with `normalizeForCompare` in `lib/meta.js`.
+
+**Doctor check #14 extension**: sparse-entry observability for `Backend patterns` / `Frontend patterns` in AGENTS.md — WARN when exactly 1 entry (scanner detection likely incomplete). Informational only, exit 0.
+
+**New module exports** (`lib/adapt-agents.js`):
+- `adaptWorkflowCoreContentForProjectType(content, posixPath, projectType)` — pure helper for workflow-core project-type rules (SKILL.md + ticket-template.md)
+- `adaptBaseStandardsContentForProjectType(content, projectType)` — pure helper for base-standards project-type rules
+- Same `WORKFLOW_CORE_PROJECT_TYPE_RULES` / `BASE_STANDARDS_PROJECT_TYPE_RULES` tables feed both the install-time disk-writing path and the upgrade-time fallback comparison target. **Single source of truth** for project-type rules going forward.
+
+**Cross-model review trail**:
+- **Round 1 (plan v1.0)** — Codex APPROVE WITH CHANGES (7 findings), Gemini APPROVE WITH CHANGES (6 findings including CRITICAL scope sizing). → plan v1.1 addresses 10/13.
+- **Round 2 (plan v1.1)** — both APPROVE WITH CHANGES + "proceed to implementation" (9 tightening findings → plan v1.2).
+- **Round 3 (post-implementation diff)** — Gemini APPROVE WITH CHANGES (1 HIGH, 2 false positives verified against code); Codex REJECT (1 HIGH, 2 MEDIUM test-hardening deferred). Both HIGH findings fixed; scenario 70 added as explicit regression guard.
+
+**Smoke tests**: 59 → **72** (+13). New scenarios 60–70 + sub-scenarios 63b, 63c. Primary regression guards: scenario 63c (scanner additive), scenario 67 (full upgrade idempotency), scenario 70 (Gemini round-3 workflow-core preserve invariant).
+
+### v0.17.2 (next) — Full smart-diff coverage for remaining template files
+
+Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
+
+- **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
+- **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+- **Scanner extensions**: pnpm-workspace.yaml support, `**` recursive patterns, `!exclude` negation
+- **Test hardening** (Codex round-3 findings 2 + 3): scenario 61 dedicated raw-template branch assertion; scenario 63c frozen snapshot for byte-exact single-package invariant check
+- **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
+- **Dependency**: empirical validation of v0.17.1 against foodXPlorer (in progress, post-publish)
 
 ### v0.17.0 (2026-04-13) — Provenance tracking + unified stack adaptations
 
@@ -29,11 +80,7 @@ After the loop, `applyStackAdaptations` is called with the `filesToAdapt` allowl
 
 **Smoke tests**: 49 → **59** (+10). Three primary regression guards: scenario 53 (Codex P1), scenario 54 (Codex M1), scenario 55 (Gemini M1). Plus scenario 58b (Codex round 2 P1).
 
-**Known limitation**: provenance tracking scope is limited to template agents + AGENTS.md. `SKILL.md`, `ticket-template.md`, `documentation-standards.mdc`, and `ai-specs/specs/*.mdc` standards continue with v0.16.10 behavior (wholesale-recopy + stack-adaptation / existing isStandardModified compare). First-class smart-diff for those files is a v0.17.x candidate.
-
-### v0.17.x (next) — First-class smart-diff for SKILL.md / ticket-template.md / documentation-standards.mdc
-
-Extends v0.17.0's hash-based smart-diff to the remaining stack-adapted files currently handled via wholesale-recopy. Same decision tree, same `.sdd-meta.json` schema extension. Codex M1 option 2 from v0.17.0 plan review, deferred.
+**Known limitation** (closed in v0.17.1): provenance tracking scope was limited to template agents + AGENTS.md. `SKILL.md`, `ticket-template.md`, `documentation-standards.mdc`, and `ai-specs/specs/*.mdc` standards continued with v0.16.10 behavior until v0.17.1 extended first-class smart-diff to them.
 
 ### v0.16.10 (2026-04-13) — Smart-diff protection + backup safety net for --upgrade
 
@@ -55,17 +102,6 @@ Closes the foodXPlorer v0.16.9 regression where `npx create-sdd-project --upgrad
 **Cross-model review (post-implementation)**:
 - **Codex**: P1 × 2 — cross-version drift (both agents and AGENTS.md). Re-escalation of the deferred plan finding. **Status**: accepted trade-off per plan, escape hatch via `--force-template`, v0.17.0 provenance planned next.
 - **Gemini**: M2 CRLF mismatch on Windows (FIXED via `normalizeForCompare`). M2 overly broad doctor regex catching user markdown links (FIXED by restricting to placeholder-shaped `[...]` with hint words like "your", "example", "framework"). M3 split/join vs `.replace()` inconsistency (deferred — low impact, target strings appear once per template). First Gemini pass flagged a mangled string in the templates — verified as a hallucination, files are correct.
-
-### v0.17.0 (next) — Provenance tracking for accurate smart-diff
-
-**Priority**: HIGH. Closes the Codex P1 finding from v0.16.10.
-
-- Write `.sdd-content-hashes.json` at install/upgrade time storing SHA-256 of each template file's adapted output.
-- At upgrade time, compare the user's file against the stored hash (not against the new template). Match → pristine, replace. No match → customized, preserve.
-- Fall back to current v0.16.10 behavior (conservative compare-against-new-template) when hashes are missing (first v0.17.0 upgrade from pre-v0.17.0).
-- Plan needs its own cross-model review round before implementation.
-- Eliminates false positives on cross-version upgrades from v0.17.0 onwards.
-- Also lays groundwork for richer metadata: track install date, modifying tool, previous version.
 
 ### v0.16.9 (2026-04-13) — Doctor check #13 for Gemini TOML commands
 
