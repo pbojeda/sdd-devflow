@@ -3444,6 +3444,199 @@ function testScannerOverridesWizardOnUpgrade() {
   // for ORM+DB labels). Just assert the Prisma reference is gone.
 }
 
+// --- v0.17.1 Scenarios 62-63c: Monorepo scanner detection + additive invariant ---
+
+function setupFakeMonorepo(destName, opts = {}) {
+  const dest = path.join(TMP_BASE, destName);
+  const workspaces = opts.workspaces || ['packages/*'];
+  const wsPackages = opts.wsPackages || [
+    { relPath: 'packages/api', name: '@test/api', deps: { fastify: '^5.0.0', '@prisma/client': '^6.0.0' } },
+  ];
+  const rootDeps = opts.rootDeps || {};
+
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({ name: destName, workspaces, dependencies: rootDeps }, null, 2)
+  );
+  for (const ws of wsPackages) {
+    const wsDir = path.join(dest, ...ws.relPath.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(wsDir, 'package.json'),
+      JSON.stringify({ name: ws.name, dependencies: ws.deps || {} }, null, 2)
+    );
+  }
+  return dest;
+}
+
+function testMonorepoScannerDetection() {
+  // Root has NO backend deps; workspace packages/api has fastify + prisma.
+  // v0.17.0 scanner would return { detected: false } because it only reads
+  // root package.json. v0.17.1 scanner must enumerate workspaces and detect
+  // the Fastify + Prisma stack from packages/api, recording workspaceSource.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-scanner');
+
+  const result = scan(dest);
+
+  assert.strictEqual(result.isMonorepo, true, 'isMonorepo should be true');
+  assert.strictEqual(
+    result.backend.detected,
+    true,
+    'backend should be detected via workspace enumeration (v0.17.1 monorepo fix)'
+  );
+  assert.strictEqual(result.backend.framework, 'Fastify', 'framework should be Fastify');
+  assert.strictEqual(result.backend.orm, 'Prisma', 'orm should be Prisma');
+  assert.strictEqual(
+    result.backend.workspaceSource,
+    'packages/api',
+    'workspaceSource should name the detected workspace'
+  );
+}
+
+function testAgentsMdMonorepoOutput() {
+  // Same fixture as scenario 62: monorepo with Fastify+Prisma in packages/api.
+  // After Feature 2 scanner fix, adaptAgentsMd must substitute the template
+  // literal `Backend patterns (DDD, Express, Prisma)` with the detected stack.
+  delete require.cache[require.resolve('../lib/scanner')];
+  delete require.cache[require.resolve('../lib/init-generator')];
+  const { scan } = require('../lib/scanner');
+  const { adaptAgentsMd } = require('../lib/init-generator');
+  const dest = setupFakeMonorepo('test-agents-md-monorepo');
+
+  const scanResult = scan(dest);
+  const template = fs.readFileSync(path.join(__dirname, '..', 'template', 'AGENTS.md'), 'utf8');
+  const config = { projectType: 'backend', aiTools: 'both' };
+  const adapted = adaptAgentsMd(template, config, scanResult);
+
+  assert.ok(
+    !adapted.includes('Backend patterns (DDD, Express, Prisma)'),
+    'adaptAgentsMd output must NOT contain the unsubstituted template literal'
+  );
+  assert.ok(
+    /Backend patterns \([^)]*Fastify[^)]*\)/.test(adapted),
+    'adaptAgentsMd output must include Fastify in Backend patterns (...)'
+  );
+}
+
+function testMonorepoGlobOrdering() {
+  // Two patterns, multiple matches per pattern. Iteration order MUST be:
+  //   declaration order outer, lexical Unicode codepoint order inner,
+  //   deduplicated by normalized path (first occurrence wins).
+  delete require.cache[require.resolve('../lib/scanner')];
+  const scannerMod = require('../lib/scanner');
+  assert.ok(
+    typeof scannerMod.enumerateWorkspaces === 'function',
+    'scanner.enumerateWorkspaces must be exported for deterministic ordering tests'
+  );
+
+  // Case 1: typical non-overlapping patterns, two declaration groups
+  const dest1 = path.join(TMP_BASE, 'test-monorepo-ordering-1');
+  fs.mkdirSync(dest1, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest1, 'package.json'),
+    JSON.stringify({ name: 'test-ordering-1', workspaces: ['packages/*', 'apps/*'] }, null, 2)
+  );
+  for (const rel of ['packages/web', 'packages/api', 'packages/shared', 'apps/landing', 'apps/admin']) {
+    const wsDir = path.join(dest1, ...rel.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(path.join(wsDir, 'package.json'), JSON.stringify({ name: rel }, null, 2));
+  }
+  const order1 = scannerMod.enumerateWorkspaces(dest1, {
+    name: 'test-ordering-1',
+    workspaces: ['packages/*', 'apps/*'],
+  });
+  assert.deepStrictEqual(
+    order1,
+    ['packages/api', 'packages/shared', 'packages/web', 'apps/admin', 'apps/landing'],
+    'declaration order outer, lexical inner'
+  );
+
+  // Case 2: overlapping patterns must dedupe by normalized path, first wins
+  const dest2 = path.join(TMP_BASE, 'test-monorepo-ordering-2');
+  fs.mkdirSync(dest2, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest2, 'package.json'),
+    JSON.stringify({ name: 'test-ordering-2', workspaces: ['packages/*', 'packages/api'] }, null, 2)
+  );
+  for (const rel of ['packages/api', 'packages/bot', 'packages/shared']) {
+    const wsDir = path.join(dest2, ...rel.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(path.join(wsDir, 'package.json'), JSON.stringify({ name: rel }, null, 2));
+  }
+  const order2 = scannerMod.enumerateWorkspaces(dest2, {
+    name: 'test-ordering-2',
+    workspaces: ['packages/*', 'packages/api'],
+  });
+  assert.deepStrictEqual(
+    order2,
+    ['packages/api', 'packages/bot', 'packages/shared'],
+    'overlapping patterns dedupe by normalized path, first occurrence wins'
+  );
+}
+
+function testScannerAdditiveInvariant() {
+  // Scanner additive invariant: for single-package projects, v0.17.1 produces
+  // the SAME result as v0.17.0 (no workspace enumeration fires). For monorepos
+  // where v0.17.0 would have returned { detected: false }, v0.17.1 returns
+  // equal-or-richer detection.
+  //
+  // Since we cannot run v0.17.0 binary in-process, we structurally verify:
+  //   (a) single-package with root backend deps → workspaceSource is undefined
+  //       (enumeration never ran — same behavior as v0.17.0)
+  //   (b) monorepo with workspace-only deps → workspaceSource is set
+  //       (new behavior — strict superset of v0.17.0)
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+
+  // Case (a): single-package project, root has express+prisma
+  const destA = path.join(TMP_BASE, 'test-additive-single');
+  fs.mkdirSync(destA, { recursive: true });
+  fs.writeFileSync(
+    path.join(destA, 'package.json'),
+    JSON.stringify({
+      name: 'test-single',
+      dependencies: { express: '^4.0.0', '@prisma/client': '^6.0.0' },
+    }, null, 2)
+  );
+  const scanA = scan(destA);
+  assert.strictEqual(scanA.backend.detected, true, 'single-package backend must be detected from root');
+  assert.strictEqual(scanA.backend.framework, 'Express');
+  assert.strictEqual(scanA.backend.orm, 'Prisma');
+  assert.strictEqual(
+    scanA.backend.workspaceSource,
+    undefined,
+    'single-package project must not have workspaceSource set (enumeration did not fire — byte-identical to v0.17.0)'
+  );
+  assert.strictEqual(scanA.isMonorepo, false, 'single-package project must not be flagged as monorepo');
+
+  // Case (b): monorepo, root has no deps, workspace has fastify+prisma
+  const destB = setupFakeMonorepo('test-additive-monorepo');
+  const scanB = scan(destB);
+  assert.strictEqual(scanB.isMonorepo, true);
+  assert.strictEqual(scanB.backend.detected, true, 'monorepo backend must be detected via workspace enumeration');
+  assert.strictEqual(scanB.backend.framework, 'Fastify');
+  assert.strictEqual(scanB.backend.workspaceSource, 'packages/api');
+
+  // Parenthesis-entry-count invariant: v0.17.1 adaptAgentsMd for monorepo
+  // must produce ≥ entries than the v0.17.0 equivalent (empty, because the
+  // template literal would have stayed unsubstituted).
+  delete require.cache[require.resolve('../lib/init-generator')];
+  const { adaptAgentsMd } = require('../lib/init-generator');
+  const template = fs.readFileSync(path.join(__dirname, '..', 'template', 'AGENTS.md'), 'utf8');
+  const config = { projectType: 'backend', aiTools: 'both' };
+  const adaptedB = adaptAgentsMd(template, config, scanB);
+  const matchB = adaptedB.match(/Backend patterns \(([^)]*)\)/);
+  assert.ok(matchB, 'adapted AGENTS.md must contain a Backend patterns (...) line');
+  const entriesB = matchB[1].split(',').filter((s) => s.trim().length > 0).length;
+  assert.ok(
+    entriesB >= 2,
+    `v0.17.1 monorepo adaptAgentsMd must produce ≥2 Backend patterns entries (got ${entriesB}: "${matchB[1]}")`
+  );
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -3530,6 +3723,12 @@ try {
   run('Scenario 57: doctor check #15 validates .sdd-meta.json integrity', testDoctorMetaJsonValidity);
   run('Scenario 58: scanner overrides wizard on upgrade (design note)', testScannerOverridesWizardOnUpgrade);
   run('Scenario 58b: --init excludes pre-existing user files (Codex round 2 P1 guard)', testInitExcludesPreExistingUserFiles);
+
+  console.log('\n  v0.17.1 scanner monorepo fix (Feature 2):');
+  run('Scenario 62: scanner detects backend in monorepo workspace', testMonorepoScannerDetection);
+  run('Scenario 63: adaptAgentsMd produces detected stack for monorepo', testAgentsMdMonorepoOutput);
+  run('Scenario 63b: enumerateWorkspaces is deterministic + dedupes overlapping patterns', testMonorepoGlobOrdering);
+  run('Scenario 63c: scanner additive invariant (single-package unchanged, monorepo richer)', testScannerAdditiveInvariant);
 } finally {
   cleanup();
 }
