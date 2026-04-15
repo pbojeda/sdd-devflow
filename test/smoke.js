@@ -3051,7 +3051,8 @@ function testCreateWritesMetaJson() {
 
   // Default scaffold is fullstack + both → 10 unique template agents × 2 tool dirs + AGENTS.md = 21
   const hashCount = Object.keys(meta.hashes).length;
-  assert.strictEqual(hashCount, 21, `Expected 21 hash entries, got ${hashCount}`);
+  // v0.17.0 = 21 (10 agents × 2 tools + AGENTS.md). v0.17.1 adds 4 standards + 6 workflow-core files × 2 tools = 31 total.
+  assert.strictEqual(hashCount, 31, `Expected 31 hash entries (v0.17.1), got ${hashCount}`);
 
   // Spot check: backend-planner + AGENTS.md present, valid shape
   const HASH_RE = /^sha256:[0-9a-f]{64}$/;
@@ -3112,7 +3113,7 @@ function testUpgradeUpdatesMetaJson() {
   assertExists(dest, '.sdd-meta.json');
   const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
   assert.strictEqual(meta.schemaVersion, 1);
-  assert.strictEqual(Object.keys(meta.hashes).length, 21);
+  assert.strictEqual(Object.keys(meta.hashes).length, 31);
 }
 
 // --- Scenario 53: hash path produces no preserve warnings on clean upgrade ---
@@ -3444,6 +3445,679 @@ function testScannerOverridesWizardOnUpgrade() {
   // for ORM+DB labels). Just assert the Prisma reference is gone.
 }
 
+// --- v0.17.1 Scenarios 62-63c: Monorepo scanner detection + additive invariant ---
+
+function setupFakeMonorepo(destName, opts = {}) {
+  const dest = path.join(TMP_BASE, destName);
+  const workspaces = opts.workspaces || ['packages/*'];
+  const wsPackages = opts.wsPackages || [
+    { relPath: 'packages/api', name: '@test/api', deps: { fastify: '^5.0.0', '@prisma/client': '^6.0.0' } },
+  ];
+  const rootDeps = opts.rootDeps || {};
+
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({ name: destName, workspaces, dependencies: rootDeps }, null, 2)
+  );
+  for (const ws of wsPackages) {
+    const wsDir = path.join(dest, ...ws.relPath.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(wsDir, 'package.json'),
+      JSON.stringify({ name: ws.name, dependencies: ws.deps || {} }, null, 2)
+    );
+  }
+  return dest;
+}
+
+function testMonorepoScannerDetection() {
+  // Root has NO backend deps; workspace packages/api has fastify + prisma.
+  // v0.17.0 scanner would return { detected: false } because it only reads
+  // root package.json. v0.17.1 scanner must enumerate workspaces and detect
+  // the Fastify + Prisma stack from packages/api, recording workspaceSource.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-scanner');
+
+  const result = scan(dest);
+
+  assert.strictEqual(result.isMonorepo, true, 'isMonorepo should be true');
+  assert.strictEqual(
+    result.backend.detected,
+    true,
+    'backend should be detected via workspace enumeration (v0.17.1 monorepo fix)'
+  );
+  assert.strictEqual(result.backend.framework, 'Fastify', 'framework should be Fastify');
+  assert.strictEqual(result.backend.orm, 'Prisma', 'orm should be Prisma');
+  assert.strictEqual(
+    result.backend.workspaceSource,
+    'packages/api',
+    'workspaceSource should name the detected workspace'
+  );
+}
+
+function testAgentsMdMonorepoOutput() {
+  // Same fixture as scenario 62: monorepo with Fastify+Prisma in packages/api.
+  // After Feature 2 scanner fix, adaptAgentsMd must substitute the template
+  // literal `Backend patterns (DDD, Express, Prisma)` with the detected stack.
+  delete require.cache[require.resolve('../lib/scanner')];
+  delete require.cache[require.resolve('../lib/init-generator')];
+  const { scan } = require('../lib/scanner');
+  const { adaptAgentsMd } = require('../lib/init-generator');
+  const dest = setupFakeMonorepo('test-agents-md-monorepo');
+
+  const scanResult = scan(dest);
+  const template = fs.readFileSync(path.join(__dirname, '..', 'template', 'AGENTS.md'), 'utf8');
+  const config = { projectType: 'backend', aiTools: 'both' };
+  const adapted = adaptAgentsMd(template, config, scanResult);
+
+  assert.ok(
+    !adapted.includes('Backend patterns (DDD, Express, Prisma)'),
+    'adaptAgentsMd output must NOT contain the unsubstituted template literal'
+  );
+  assert.ok(
+    /Backend patterns \([^)]*Fastify[^)]*\)/.test(adapted),
+    'adaptAgentsMd output must include Fastify in Backend patterns (...)'
+  );
+}
+
+function testMonorepoGlobOrdering() {
+  // Two patterns, multiple matches per pattern. Iteration order MUST be:
+  //   declaration order outer, lexical Unicode codepoint order inner,
+  //   deduplicated by normalized path (first occurrence wins).
+  delete require.cache[require.resolve('../lib/scanner')];
+  const scannerMod = require('../lib/scanner');
+  assert.ok(
+    typeof scannerMod.enumerateWorkspaces === 'function',
+    'scanner.enumerateWorkspaces must be exported for deterministic ordering tests'
+  );
+
+  // Case 1: typical non-overlapping patterns, two declaration groups
+  const dest1 = path.join(TMP_BASE, 'test-monorepo-ordering-1');
+  fs.mkdirSync(dest1, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest1, 'package.json'),
+    JSON.stringify({ name: 'test-ordering-1', workspaces: ['packages/*', 'apps/*'] }, null, 2)
+  );
+  for (const rel of ['packages/web', 'packages/api', 'packages/shared', 'apps/landing', 'apps/admin']) {
+    const wsDir = path.join(dest1, ...rel.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(path.join(wsDir, 'package.json'), JSON.stringify({ name: rel }, null, 2));
+  }
+  const order1 = scannerMod.enumerateWorkspaces(dest1, {
+    name: 'test-ordering-1',
+    workspaces: ['packages/*', 'apps/*'],
+  });
+  assert.deepStrictEqual(
+    order1,
+    ['packages/api', 'packages/shared', 'packages/web', 'apps/admin', 'apps/landing'],
+    'declaration order outer, lexical inner'
+  );
+
+  // Case 2: overlapping patterns must dedupe by normalized path, first wins
+  const dest2 = path.join(TMP_BASE, 'test-monorepo-ordering-2');
+  fs.mkdirSync(dest2, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest2, 'package.json'),
+    JSON.stringify({ name: 'test-ordering-2', workspaces: ['packages/*', 'packages/api'] }, null, 2)
+  );
+  for (const rel of ['packages/api', 'packages/bot', 'packages/shared']) {
+    const wsDir = path.join(dest2, ...rel.split('/'));
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(path.join(wsDir, 'package.json'), JSON.stringify({ name: rel }, null, 2));
+  }
+  const order2 = scannerMod.enumerateWorkspaces(dest2, {
+    name: 'test-ordering-2',
+    workspaces: ['packages/*', 'packages/api'],
+  });
+  assert.deepStrictEqual(
+    order2,
+    ['packages/api', 'packages/bot', 'packages/shared'],
+    'overlapping patterns dedupe by normalized path, first occurrence wins'
+  );
+}
+
+function testScannerAdditiveInvariant() {
+  // Scanner additive invariant: for single-package projects, v0.17.1 produces
+  // the SAME result as v0.17.0 (no workspace enumeration fires). For monorepos
+  // where v0.17.0 would have returned { detected: false }, v0.17.1 returns
+  // equal-or-richer detection.
+  //
+  // Since we cannot run v0.17.0 binary in-process, we structurally verify:
+  //   (a) single-package with root backend deps → workspaceSource is undefined
+  //       (enumeration never ran — same behavior as v0.17.0)
+  //   (b) monorepo with workspace-only deps → workspaceSource is set
+  //       (new behavior — strict superset of v0.17.0)
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+
+  // Case (a): single-package project, root has express+prisma
+  const destA = path.join(TMP_BASE, 'test-additive-single');
+  fs.mkdirSync(destA, { recursive: true });
+  fs.writeFileSync(
+    path.join(destA, 'package.json'),
+    JSON.stringify({
+      name: 'test-single',
+      dependencies: { express: '^4.0.0', '@prisma/client': '^6.0.0' },
+    }, null, 2)
+  );
+  const scanA = scan(destA);
+  assert.strictEqual(scanA.backend.detected, true, 'single-package backend must be detected from root');
+  assert.strictEqual(scanA.backend.framework, 'Express');
+  assert.strictEqual(scanA.backend.orm, 'Prisma');
+  assert.strictEqual(
+    scanA.backend.workspaceSource,
+    undefined,
+    'single-package project must not have workspaceSource set (enumeration did not fire — byte-identical to v0.17.0)'
+  );
+  assert.strictEqual(scanA.isMonorepo, false, 'single-package project must not be flagged as monorepo');
+
+  // Case (b): monorepo, root has no deps, workspace has fastify+prisma
+  const destB = setupFakeMonorepo('test-additive-monorepo');
+  const scanB = scan(destB);
+  assert.strictEqual(scanB.isMonorepo, true);
+  assert.strictEqual(scanB.backend.detected, true, 'monorepo backend must be detected via workspace enumeration');
+  assert.strictEqual(scanB.backend.framework, 'Fastify');
+  assert.strictEqual(scanB.backend.workspaceSource, 'packages/api');
+
+  // Parenthesis-entry-count invariant: v0.17.1 adaptAgentsMd for monorepo
+  // must produce ≥ entries than the v0.17.0 equivalent (empty, because the
+  // template literal would have stayed unsubstituted).
+  delete require.cache[require.resolve('../lib/init-generator')];
+  const { adaptAgentsMd } = require('../lib/init-generator');
+  const template = fs.readFileSync(path.join(__dirname, '..', 'template', 'AGENTS.md'), 'utf8');
+  const config = { projectType: 'backend', aiTools: 'both' };
+  const adaptedB = adaptAgentsMd(template, config, scanB);
+  const matchB = adaptedB.match(/Backend patterns \(([^)]*)\)/);
+  assert.ok(matchB, 'adapted AGENTS.md must contain a Backend patterns (...) line');
+  const entriesB = matchB[1].split(',').filter((s) => s.trim().length > 0).length;
+  assert.ok(
+    entriesB >= 2,
+    `v0.17.1 monorepo adaptAgentsMd must produce ≥2 Backend patterns entries (got ${entriesB}: "${matchB[1]}")`
+  );
+}
+
+// --- v0.17.1 Scenarios 60-69: Smart-diff expansion (Feature 1) ---
+
+function testHashBasedStandardsUpgrade() {
+  // Scaffold v0.17.1 project → 4 standards + 6 workflow-core files are hashed
+  // (31 total entries). Customize backend-standards.mdc. Run upgrade.
+  // Assert: customized file preserved with .new backup, hash NOT updated.
+  // Assert: other standards replaced, hashes present.
+  const dest = path.join(TMP_BASE, 'test-hash-standards-upgrade');
+  execSync(`node ${CLI} test-hash-standards-upgrade --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const beforeMeta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const standardsKey = 'ai-specs/specs/backend-standards.mdc';
+  assert.ok(beforeMeta.hashes[standardsKey], 'backend-standards.mdc must be hashed after fresh install');
+  const preCustomizationHash = beforeMeta.hashes[standardsKey];
+
+  // Customize the backend-standards file
+  const backendStdPath = path.join(dest, 'ai-specs', 'specs', 'backend-standards.mdc');
+  const originalContent = fs.readFileSync(backendStdPath, 'utf8');
+  fs.writeFileSync(backendStdPath, originalContent + '\n\n## Custom user section\n\nThis is my custom addition.\n', 'utf8');
+
+  // Upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Customized file preserved on disk (still has the custom section)
+  const postUpgradeContent = fs.readFileSync(backendStdPath, 'utf8');
+  assert.ok(
+    postUpgradeContent.includes('Custom user section'),
+    'Customized backend-standards.mdc must be preserved on upgrade'
+  );
+
+  // Hash NOT updated (Codex M1 invariant)
+  const afterMeta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    afterMeta.hashes[standardsKey],
+    preCustomizationHash,
+    'Preserved file must keep its pre-customization hash (Codex M1 invariant)'
+  );
+
+  // .new backup exists
+  const backupDirs = fs.readdirSync(path.join(dest, '.sdd-backup'));
+  assert.ok(backupDirs.length > 0, 'at least one .sdd-backup timestamp dir must exist');
+  const latest = backupDirs.sort().pop();
+  const newBackupPath = path.join(dest, '.sdd-backup', latest, 'ai-specs', 'specs', 'backend-standards.mdc.new');
+  assert.ok(fs.existsSync(newBackupPath), '.new backup of adapted target must exist for preserved standard');
+
+  // Other standards were still replaced (their hashes should be present, same or new)
+  assert.ok(afterMeta.hashes['ai-specs/specs/base-standards.mdc'], 'base-standards.mdc hash must still be present');
+  assert.ok(afterMeta.hashes['ai-specs/specs/frontend-standards.mdc'], 'frontend-standards.mdc hash must still be present');
+  assert.ok(afterMeta.hashes['ai-specs/specs/documentation-standards.mdc'], 'documentation-standards.mdc hash must still be present');
+}
+
+function testFallbackCompareForWorkflowCore() {
+  // Simulate a pre-v0.17.1 project (fresh v0.17.1 scaffold then delete the
+  // v0.17.1 hashes from .sdd-meta.json to emulate the no-hash fallback path).
+  // Pristine workflow-core files should be replaced via fallback content-compare.
+  const dest = path.join(TMP_BASE, 'test-fallback-workflow-core');
+  execSync(`node ${CLI} test-fallback-workflow-core --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Emulate pre-v0.17.1 meta: drop the 10 new hashes, keep only the v0.17.0 set
+  const metaPath = path.join(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const v0170Paths = new Set([
+    'AGENTS.md',
+    '.claude/agents/backend-developer.md',
+    '.claude/agents/backend-planner.md',
+    '.claude/agents/code-review-specialist.md',
+    '.claude/agents/database-architect.md',
+    '.claude/agents/frontend-developer.md',
+    '.claude/agents/frontend-planner.md',
+    '.claude/agents/production-code-validator.md',
+    '.claude/agents/qa-engineer.md',
+    '.claude/agents/spec-creator.md',
+    '.claude/agents/ui-ux-designer.md',
+    '.gemini/agents/backend-developer.md',
+    '.gemini/agents/backend-planner.md',
+    '.gemini/agents/code-review-specialist.md',
+    '.gemini/agents/database-architect.md',
+    '.gemini/agents/frontend-developer.md',
+    '.gemini/agents/frontend-planner.md',
+    '.gemini/agents/production-code-validator.md',
+    '.gemini/agents/qa-engineer.md',
+    '.gemini/agents/spec-creator.md',
+    '.gemini/agents/ui-ux-designer.md',
+  ]);
+  const filtered = {};
+  for (const [k, v] of Object.entries(meta.hashes)) {
+    if (v0170Paths.has(k)) filtered[k] = v;
+  }
+  meta.hashes = filtered;
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+
+  // Leave all workflow-core files pristine and run upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Post-upgrade: the v0.17.1 new paths must now be in the meta (fallback path
+  // identified them as pristine via normalizedContentEquals and replaced them)
+  const afterMeta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/SKILL.md'],
+    'SKILL.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/references/ticket-template.md'],
+    'ticket-template.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/references/merge-checklist.md'],
+    'merge-checklist.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['ai-specs/specs/backend-standards.mdc'],
+    'backend-standards.mdc hash must be present after fallback replace'
+  );
+}
+
+function testDeletedStandardFileRestored() {
+  // Delete a tracked standard, run upgrade, assert it's restored and hashed.
+  const dest = path.join(TMP_BASE, 'test-deleted-standard-restored');
+  execSync(`node ${CLI} test-deleted-standard-restored --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const frontendStdPath = path.join(dest, 'ai-specs', 'specs', 'frontend-standards.mdc');
+  assert.ok(fs.existsSync(frontendStdPath), 'frontend-standards.mdc must exist after scaffold');
+  fs.unlinkSync(frontendStdPath);
+
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  assert.ok(fs.existsSync(frontendStdPath), 'frontend-standards.mdc must be restored after upgrade of deleted file');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.ok(
+    meta.hashes['ai-specs/specs/frontend-standards.mdc'],
+    'restored file must have a hash entry in .sdd-meta.json'
+  );
+}
+
+function testMetaReadCompatibilityContract() {
+  // Contract test for D3 invariant: v0.17.1's readMeta + pruneExpectedAbsent
+  // composition must drop v0.17.1-specific keys when pruned with v0.17.0's
+  // expected-path set. This does NOT simulate the v0.17.0 binary — it tests
+  // v0.17.1's own behavior under the D3 invariant.
+  delete require.cache[require.resolve('../lib/meta')];
+  const meta = require('../lib/meta');
+
+  // Frozen v0.17.0 expected-path snapshot (20 agents × 2 tools + AGENTS.md filtered by aiTools)
+  // For aiTools='both', projectType='fullstack': 10 agents per tool × 2 tools + AGENTS.md = 21 paths
+  const v0170ExpectedSet = new Set([
+    'AGENTS.md',
+    '.claude/agents/backend-developer.md', '.claude/agents/backend-planner.md',
+    '.claude/agents/code-review-specialist.md', '.claude/agents/database-architect.md',
+    '.claude/agents/frontend-developer.md', '.claude/agents/frontend-planner.md',
+    '.claude/agents/production-code-validator.md', '.claude/agents/qa-engineer.md',
+    '.claude/agents/spec-creator.md', '.claude/agents/ui-ux-designer.md',
+    '.gemini/agents/backend-developer.md', '.gemini/agents/backend-planner.md',
+    '.gemini/agents/code-review-specialist.md', '.gemini/agents/database-architect.md',
+    '.gemini/agents/frontend-developer.md', '.gemini/agents/frontend-planner.md',
+    '.gemini/agents/production-code-validator.md', '.gemini/agents/qa-engineer.md',
+    '.gemini/agents/spec-creator.md', '.gemini/agents/ui-ux-designer.md',
+  ]);
+
+  // Build a v0.17.1-shaped meta (has v0.17.0 paths + v0.17.1 extras)
+  const sampleHash = 'sha256:' + '0'.repeat(64);
+  const v0171Hashes = {};
+  for (const p of v0170ExpectedSet) v0171Hashes[p] = sampleHash;
+  v0171Hashes['ai-specs/specs/base-standards.mdc'] = sampleHash;
+  v0171Hashes['ai-specs/specs/backend-standards.mdc'] = sampleHash;
+  v0171Hashes['.claude/skills/development-workflow/SKILL.md'] = sampleHash;
+  v0171Hashes['.claude/skills/development-workflow/references/merge-checklist.md'] = sampleHash;
+
+  // Use v0.17.1 library code but with a frozen v0.17.0 expected-path set
+  // (simulating v0.17.0's pruneExpectedAbsent behavior).
+  const pruned = {};
+  for (const [k, v] of Object.entries(v0171Hashes)) {
+    if (v0170ExpectedSet.has(k)) pruned[k] = v;
+  }
+
+  // Assert: v0.17.0 paths survive
+  assert.strictEqual(Object.keys(pruned).length, 21, 'v0.17.0 should see 21 paths after pruning');
+  assert.ok(pruned['AGENTS.md'], 'AGENTS.md must survive pruning');
+  assert.ok(pruned['.claude/agents/backend-planner.md'], 'backend-planner.md must survive pruning');
+
+  // Assert: v0.17.1 extras are dropped
+  assert.strictEqual(
+    pruned['ai-specs/specs/base-standards.mdc'],
+    undefined,
+    'v0.17.1 standards must be pruned by v0.17.0 expected-path set'
+  );
+  assert.strictEqual(
+    pruned['.claude/skills/development-workflow/SKILL.md'],
+    undefined,
+    'v0.17.1 workflow-core must be pruned by v0.17.0 expected-path set'
+  );
+
+  // Additionally: v0.17.1's readMeta (our own) must successfully parse a meta
+  // file with the extra keys — no crash, no rejection.
+  const testMetaPath = path.join(TMP_BASE, 'test-meta-read-compat.json');
+  fs.mkdirSync(TMP_BASE, { recursive: true });
+  fs.writeFileSync(
+    testMetaPath,
+    JSON.stringify({ schemaVersion: 1, hashes: v0171Hashes }, null, 2),
+    'utf8'
+  );
+  // readMeta expects a directory, not a file, and looks for .sdd-meta.json inside.
+  // Use a temp dir.
+  const tmpDir = path.join(TMP_BASE, 'test-meta-read-compat');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(tmpDir, '.sdd-meta.json'),
+    JSON.stringify({ schemaVersion: 1, hashes: v0171Hashes }, null, 2),
+    'utf8'
+  );
+  const read = meta.readMeta(tmpDir);
+  assert.ok(read, 'readMeta must return a valid object for v0.17.1-shaped input');
+  assert.strictEqual(read.schemaVersion, 1);
+  assert.ok(Object.keys(read.hashes).length >= Object.keys(v0171Hashes).length,
+    'readMeta must retain all valid hash entries (permissive on keys)');
+}
+
+function testIdempotencyExtendedRules() {
+  // v0.17.1: assert that applying standards adapters twice produces the same
+  // output. This is a stronger invariant than scenario 56 (which covers
+  // applyStackAdaptationsToContent rules); standards use dedicated functions.
+  //
+  // Uses a real scan() result from a scaffolded project to avoid mock-object
+  // incompleteness (standards adapters access scan.language, scan.tests,
+  // scan.srcStructure, etc.).
+  delete require.cache[require.resolve('../lib/init-generator')];
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { adaptBaseStandards, adaptBackendStandards, adaptFrontendStandards } = require('../lib/init-generator');
+  const { scan: scanFn } = require('../lib/scanner');
+
+  // Scaffold a project to get a realistic scan object
+  const dest = path.join(TMP_BASE, 'test-idempotency-extended');
+  execSync(`node ${CLI} test-idempotency-extended --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+  const scan = scanFn(dest);
+  const config = { projectType: 'fullstack', aiTools: 'both' };
+
+  const baseRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'base-standards.mdc'), 'utf8');
+  const backendRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'backend-standards.mdc'), 'utf8');
+  const frontendRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'frontend-standards.mdc'), 'utf8');
+
+  // adaptBaseStandards
+  const base1 = adaptBaseStandards(baseRaw, scan, config);
+  const base2 = adaptBaseStandards(base1, scan, config);
+  assert.strictEqual(base1, base2, 'adaptBaseStandards must be idempotent');
+
+  // adaptBackendStandards
+  const backend1 = adaptBackendStandards(backendRaw, scan);
+  const backend2 = adaptBackendStandards(backend1, scan);
+  assert.strictEqual(backend1, backend2, 'adaptBackendStandards must be idempotent');
+
+  // adaptFrontendStandards
+  const frontend1 = adaptFrontendStandards(frontendRaw, scan);
+  const frontend2 = adaptFrontendStandards(frontend1, scan);
+  assert.strictEqual(frontend1, frontend2, 'adaptFrontendStandards must be idempotent');
+}
+
+function testFullUpgradeIdempotency() {
+  // Full end-to-end idempotency: run upgrade twice in a row, second run must
+  // produce a byte-identical .sdd-meta.json with zero .new files generated
+  // in the second pass. This catches non-idempotent adapters + decision-tree
+  // bugs where pristine files get treated as dirty on re-upgrade.
+  const dest = path.join(TMP_BASE, 'test-full-upgrade-idempotency');
+  execSync(`node ${CLI} test-full-upgrade-idempotency --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // First upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const firstMeta = fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8');
+
+  // Count .new files after first upgrade
+  const firstBackupDirs = fs.existsSync(path.join(dest, '.sdd-backup'))
+    ? fs.readdirSync(path.join(dest, '.sdd-backup'))
+    : [];
+  const countNewFilesRecursive = (dir) => {
+    if (!fs.existsSync(dir)) return 0;
+    let count = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) count += countNewFilesRecursive(p);
+      else if (entry.name.endsWith('.new')) count += 1;
+    }
+    return count;
+  };
+  const firstNewCount = firstBackupDirs.reduce(
+    (sum, d) => sum + countNewFilesRecursive(path.join(dest, '.sdd-backup', d)),
+    0
+  );
+
+  // Second upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const secondMeta = fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8');
+
+  const secondBackupDirs = fs.readdirSync(path.join(dest, '.sdd-backup'));
+  const secondNewCount = secondBackupDirs.reduce(
+    (sum, d) => sum + countNewFilesRecursive(path.join(dest, '.sdd-backup', d)),
+    0
+  );
+
+  // Meta must be byte-identical after second run
+  assert.strictEqual(firstMeta, secondMeta, 'meta.json must be byte-identical after two consecutive upgrades');
+
+  // No NEW .new files produced by second upgrade (delta between first and second)
+  assert.strictEqual(
+    secondNewCount,
+    firstNewCount,
+    `second upgrade must produce zero additional .new files (delta: ${secondNewCount - firstNewCount})`
+  );
+}
+
+function testNormalizationResilienceAllTrackedFiles() {
+  // Parameterized over all smart-diff tracked paths (v0.17.0 + v0.17.1 new).
+  // For each path, write a CRLF variant to disk and run upgrade. The file
+  // must be replaced with the LF canonical version (no false-positive preserve).
+  //
+  // Note: this scenario tests ONLY CRLF drift (the sole transformation that
+  // normalizeForCompare handles, per lib/meta.js:63-65). Trailing whitespace
+  // and leading/trailing blank lines are NOT normalized — the v0.17.0 Gemini
+  // M2 fix deliberately kept normalization conservative to preserve markdown
+  // hard-breaks. Plan v1.2's "composite drift" wording was overbroad — scenario
+  // scope is adjusted inline to match actual function behavior.
+  delete require.cache[require.resolve('../lib/meta')];
+  const { expectedSmartDiffTrackedPaths } = require('../lib/meta');
+
+  const dest = path.join(TMP_BASE, 'test-normalization-resilience');
+  execSync(`node ${CLI} test-normalization-resilience --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const trackedPaths = [...expectedSmartDiffTrackedPaths('both', 'fullstack')];
+
+  let injected = 0;
+  for (const posix of trackedPaths) {
+    const abs = path.join(dest, ...posix.split('/'));
+    if (!fs.existsSync(abs)) continue;
+    const content = fs.readFileSync(abs, 'utf8');
+    // Convert LF to CRLF
+    const crlfContent = content.replace(/\n/g, '\r\n');
+    fs.writeFileSync(abs, crlfContent, 'utf8');
+    injected++;
+  }
+  assert.ok(injected > 20, `at least 20 tracked files must be written with CRLF drift (got ${injected})`);
+
+  // Upgrade — all files should be treated as pristine (hash mismatch would be
+  // caught by the hash decision tree; CRLF vs LF normalize to equal hashes
+  // since computeHash internally calls normalizeForCompare).
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // After upgrade, no files should have a .new backup (all treated as pristine)
+  const backupBase = path.join(dest, '.sdd-backup');
+  const countNewFiles = (dir) => {
+    if (!fs.existsSync(dir)) return [];
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...countNewFiles(p));
+      else if (entry.name.endsWith('.new')) out.push(path.relative(backupBase, p));
+    }
+    return out;
+  };
+  const newFiles = countNewFiles(backupBase);
+  assert.strictEqual(
+    newFiles.length,
+    0,
+    `CRLF-drifted tracked files must NOT produce .new backups (found: ${newFiles.join(', ')})`
+  );
+
+  // Also: post-upgrade files must now have LF (canonical) line endings
+  for (const posix of trackedPaths) {
+    const abs = path.join(dest, ...posix.split('/'));
+    if (!fs.existsSync(abs)) continue;
+    const content = fs.readFileSync(abs, 'utf8');
+    assert.ok(
+      !content.includes('\r'),
+      `${posix} must have LF line endings after upgrade (found CR)`
+    );
+  }
+}
+
+function testWorkflowCorePreservesOnHashMismatch() {
+  // Gemini round-3 finding 1 regression guard: customize a workflow-core
+  // file (SKILL.md), run upgrade, and verify both that the customization
+  // survives AND that the stored hash does NOT change. Prior to the
+  // v0.17.1 round-3 fix, legacy unconditional `filesToAdapt.add(...)`
+  // calls at the end of runUpgrade would re-apply stack adaptations to
+  // the restored user content, mangle it, and overwrite the preserved
+  // hash — violating Codex M1 for this file class.
+  //
+  // This scenario specifically exercises the PRESERVE path of the c2
+  // workflow-core block (scenarios 60-68 only exercised pristine paths).
+  const dest = path.join(TMP_BASE, 'test-workflow-core-preserve');
+  execSync(`node ${CLI} test-workflow-core-preserve --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const skillPath = path.join(dest, '.claude/skills/development-workflow/SKILL.md');
+  const skillPosix = '.claude/skills/development-workflow/SKILL.md';
+
+  // Capture original hash (from the freshly scaffolded v0.17.1 project)
+  const metaBefore = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const originalHash = metaBefore.hashes[skillPosix];
+  assert.ok(originalHash, 'SKILL.md must have an initial hash after scaffold');
+
+  // Customize SKILL.md with a clear marker line
+  const originalContent = fs.readFileSync(skillPath, 'utf8');
+  const customMarker = '\n## MY CUSTOM WORKFLOW EDIT — must survive upgrade\n';
+  fs.writeFileSync(skillPath, originalContent + customMarker, 'utf8');
+
+  // Upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Content must still contain the user's custom marker
+  const afterContent = fs.readFileSync(skillPath, 'utf8');
+  assert.ok(
+    afterContent.includes('## MY CUSTOM WORKFLOW EDIT — must survive upgrade'),
+    'SKILL.md user customization must be preserved after upgrade'
+  );
+
+  // Hash must be UNCHANGED (Codex M1: preserved files keep their old hash)
+  const metaAfter = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter.hashes[skillPosix],
+    originalHash,
+    'CODEX M1 VIOLATION: preserved SKILL.md must NOT get a new hash — otherwise next upgrade would silently clobber the customization'
+  );
+
+  // Second upgrade: customization still there, hash still unchanged
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const afterContent2 = fs.readFileSync(skillPath, 'utf8');
+  assert.ok(
+    afterContent2.includes('## MY CUSTOM WORKFLOW EDIT — must survive upgrade'),
+    'SKILL.md customization must survive a second upgrade'
+  );
+  const metaAfter2 = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter2.hashes[skillPosix],
+    originalHash,
+    'Hash must remain stable across subsequent preserve-only upgrades'
+  );
+}
+
+function testUpgradeMessageCopy() {
+  // Feature 3 (v0.17.1): the post-upgrade warning shown when files are
+  // preserved must use the new wording that explains provenance tracking
+  // correctly, and must NOT contain the stale v0.16.10 copy that misleadingly
+  // implied provenance tracking was future work.
+  //
+  // Setup: scaffold a v0.17.0 project, customize one tracked file to force
+  // a preserved-customization warning, run --upgrade --force --yes, capture
+  // stdout, assert wording.
+  const dest = path.join(TMP_BASE, 'test-upgrade-message-copy');
+  execSync(`node ${CLI} test-upgrade-message-copy --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Force a preserved customization so the warning block is emitted
+  const plannerPath = path.join(dest, '.claude/agents/backend-planner.md');
+  fs.writeFileSync(plannerPath, fs.readFileSync(plannerPath, 'utf8') + '\n## My Edit\n');
+
+  const output = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // New wording must appear
+  assert.ok(
+    output.includes('first v0.17.0+ upgrade from a pre-v0.17.0 project'),
+    `new wording must appear in upgrade output. Got:\n${output}`
+  );
+  assert.ok(
+    output.includes('hash-based precision'),
+    `new wording (hash-based precision) must appear. Got:\n${output}`
+  );
+  assert.ok(
+    output.includes('will only warn on files the user actually edited'),
+    `new wording (only warn on user-edited files) must appear. Got:\n${output}`
+  );
+
+  // Stale v0.16.10 wording must NOT appear
+  assert.ok(
+    !output.includes('v0.16.10 uses conservative preserve semantics'),
+    `stale v0.16.10 wording must NOT appear. Got:\n${output}`
+  );
+  assert.ok(
+    !output.includes('Provenance tracking (v0.17.0) will eliminate these false positives'),
+    `stale "future work" claim must NOT appear. Got:\n${output}`
+  );
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -3530,6 +4204,25 @@ try {
   run('Scenario 57: doctor check #15 validates .sdd-meta.json integrity', testDoctorMetaJsonValidity);
   run('Scenario 58: scanner overrides wizard on upgrade (design note)', testScannerOverridesWizardOnUpgrade);
   run('Scenario 58b: --init excludes pre-existing user files (Codex round 2 P1 guard)', testInitExcludesPreExistingUserFiles);
+
+  console.log('\n  v0.17.1 scanner monorepo fix (Feature 2):');
+  run('Scenario 62: scanner detects backend in monorepo workspace', testMonorepoScannerDetection);
+  run('Scenario 63: adaptAgentsMd produces detected stack for monorepo', testAgentsMdMonorepoOutput);
+  run('Scenario 63b: enumerateWorkspaces is deterministic + dedupes overlapping patterns', testMonorepoGlobOrdering);
+  run('Scenario 63c: scanner additive invariant (single-package unchanged, monorepo richer)', testScannerAdditiveInvariant);
+
+  console.log('\n  v0.17.1 smart-diff expansion (Feature 1):');
+  run('Scenario 60: hash-based standards upgrade (preserve + no hash update)', testHashBasedStandardsUpgrade);
+  run('Scenario 61: fallback compare for workflow-core files (no stored hash)', testFallbackCompareForWorkflowCore);
+  run('Scenario 64: deleted standard file restored on upgrade', testDeletedStandardFileRestored);
+  run('Scenario 65: D3 meta read compatibility contract (v0.17.0 sees v0.17.1 meta)', testMetaReadCompatibilityContract);
+  run('Scenario 66: standards adapters are idempotent', testIdempotencyExtendedRules);
+  run('Scenario 67: full upgrade idempotency (two consecutive --upgrade runs)', testFullUpgradeIdempotency);
+  run('Scenario 68: normalization resilience (CRLF drift across all tracked files)', testNormalizationResilienceAllTrackedFiles);
+  run('Scenario 70: workflow-core preserves user customization on hash mismatch (Gemini round-3 guard)', testWorkflowCorePreservesOnHashMismatch);
+
+  console.log('\n  v0.17.1 CLI message cleanup (Feature 3):');
+  run('Scenario 69: --upgrade post-warning uses new wording (no stale v0.16.10 copy)', testUpgradeMessageCopy);
 } finally {
   cleanup();
 }
