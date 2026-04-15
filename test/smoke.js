@@ -4012,6 +4012,66 @@ function testNormalizationResilienceAllTrackedFiles() {
   }
 }
 
+function testWorkflowCorePreservesOnHashMismatch() {
+  // Gemini round-3 finding 1 regression guard: customize a workflow-core
+  // file (SKILL.md), run upgrade, and verify both that the customization
+  // survives AND that the stored hash does NOT change. Prior to the
+  // v0.17.1 round-3 fix, legacy unconditional `filesToAdapt.add(...)`
+  // calls at the end of runUpgrade would re-apply stack adaptations to
+  // the restored user content, mangle it, and overwrite the preserved
+  // hash — violating Codex M1 for this file class.
+  //
+  // This scenario specifically exercises the PRESERVE path of the c2
+  // workflow-core block (scenarios 60-68 only exercised pristine paths).
+  const dest = path.join(TMP_BASE, 'test-workflow-core-preserve');
+  execSync(`node ${CLI} test-workflow-core-preserve --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const skillPath = path.join(dest, '.claude/skills/development-workflow/SKILL.md');
+  const skillPosix = '.claude/skills/development-workflow/SKILL.md';
+
+  // Capture original hash (from the freshly scaffolded v0.17.1 project)
+  const metaBefore = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const originalHash = metaBefore.hashes[skillPosix];
+  assert.ok(originalHash, 'SKILL.md must have an initial hash after scaffold');
+
+  // Customize SKILL.md with a clear marker line
+  const originalContent = fs.readFileSync(skillPath, 'utf8');
+  const customMarker = '\n## MY CUSTOM WORKFLOW EDIT — must survive upgrade\n';
+  fs.writeFileSync(skillPath, originalContent + customMarker, 'utf8');
+
+  // Upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Content must still contain the user's custom marker
+  const afterContent = fs.readFileSync(skillPath, 'utf8');
+  assert.ok(
+    afterContent.includes('## MY CUSTOM WORKFLOW EDIT — must survive upgrade'),
+    'SKILL.md user customization must be preserved after upgrade'
+  );
+
+  // Hash must be UNCHANGED (Codex M1: preserved files keep their old hash)
+  const metaAfter = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter.hashes[skillPosix],
+    originalHash,
+    'CODEX M1 VIOLATION: preserved SKILL.md must NOT get a new hash — otherwise next upgrade would silently clobber the customization'
+  );
+
+  // Second upgrade: customization still there, hash still unchanged
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const afterContent2 = fs.readFileSync(skillPath, 'utf8');
+  assert.ok(
+    afterContent2.includes('## MY CUSTOM WORKFLOW EDIT — must survive upgrade'),
+    'SKILL.md customization must survive a second upgrade'
+  );
+  const metaAfter2 = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter2.hashes[skillPosix],
+    originalHash,
+    'Hash must remain stable across subsequent preserve-only upgrades'
+  );
+}
+
 function testUpgradeMessageCopy() {
   // Feature 3 (v0.17.1): the post-upgrade warning shown when files are
   // preserved must use the new wording that explains provenance tracking
@@ -4159,6 +4219,7 @@ try {
   run('Scenario 66: standards adapters are idempotent', testIdempotencyExtendedRules);
   run('Scenario 67: full upgrade idempotency (two consecutive --upgrade runs)', testFullUpgradeIdempotency);
   run('Scenario 68: normalization resilience (CRLF drift across all tracked files)', testNormalizationResilienceAllTrackedFiles);
+  run('Scenario 70: workflow-core preserves user customization on hash mismatch (Gemini round-3 guard)', testWorkflowCorePreservesOnHashMismatch);
 
   console.log('\n  v0.17.1 CLI message cleanup (Feature 3):');
   run('Scenario 69: --upgrade post-warning uses new wording (no stale v0.16.10 copy)', testUpgradeMessageCopy);
