@@ -3638,6 +3638,380 @@ function testScannerAdditiveInvariant() {
   );
 }
 
+// --- v0.17.1 Scenarios 60-69: Smart-diff expansion (Feature 1) ---
+
+function testHashBasedStandardsUpgrade() {
+  // Scaffold v0.17.1 project → 4 standards + 6 workflow-core files are hashed
+  // (31 total entries). Customize backend-standards.mdc. Run upgrade.
+  // Assert: customized file preserved with .new backup, hash NOT updated.
+  // Assert: other standards replaced, hashes present.
+  const dest = path.join(TMP_BASE, 'test-hash-standards-upgrade');
+  execSync(`node ${CLI} test-hash-standards-upgrade --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const beforeMeta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const standardsKey = 'ai-specs/specs/backend-standards.mdc';
+  assert.ok(beforeMeta.hashes[standardsKey], 'backend-standards.mdc must be hashed after fresh install');
+  const preCustomizationHash = beforeMeta.hashes[standardsKey];
+
+  // Customize the backend-standards file
+  const backendStdPath = path.join(dest, 'ai-specs', 'specs', 'backend-standards.mdc');
+  const originalContent = fs.readFileSync(backendStdPath, 'utf8');
+  fs.writeFileSync(backendStdPath, originalContent + '\n\n## Custom user section\n\nThis is my custom addition.\n', 'utf8');
+
+  // Upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Customized file preserved on disk (still has the custom section)
+  const postUpgradeContent = fs.readFileSync(backendStdPath, 'utf8');
+  assert.ok(
+    postUpgradeContent.includes('Custom user section'),
+    'Customized backend-standards.mdc must be preserved on upgrade'
+  );
+
+  // Hash NOT updated (Codex M1 invariant)
+  const afterMeta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    afterMeta.hashes[standardsKey],
+    preCustomizationHash,
+    'Preserved file must keep its pre-customization hash (Codex M1 invariant)'
+  );
+
+  // .new backup exists
+  const backupDirs = fs.readdirSync(path.join(dest, '.sdd-backup'));
+  assert.ok(backupDirs.length > 0, 'at least one .sdd-backup timestamp dir must exist');
+  const latest = backupDirs.sort().pop();
+  const newBackupPath = path.join(dest, '.sdd-backup', latest, 'ai-specs', 'specs', 'backend-standards.mdc.new');
+  assert.ok(fs.existsSync(newBackupPath), '.new backup of adapted target must exist for preserved standard');
+
+  // Other standards were still replaced (their hashes should be present, same or new)
+  assert.ok(afterMeta.hashes['ai-specs/specs/base-standards.mdc'], 'base-standards.mdc hash must still be present');
+  assert.ok(afterMeta.hashes['ai-specs/specs/frontend-standards.mdc'], 'frontend-standards.mdc hash must still be present');
+  assert.ok(afterMeta.hashes['ai-specs/specs/documentation-standards.mdc'], 'documentation-standards.mdc hash must still be present');
+}
+
+function testFallbackCompareForWorkflowCore() {
+  // Simulate a pre-v0.17.1 project (fresh v0.17.1 scaffold then delete the
+  // v0.17.1 hashes from .sdd-meta.json to emulate the no-hash fallback path).
+  // Pristine workflow-core files should be replaced via fallback content-compare.
+  const dest = path.join(TMP_BASE, 'test-fallback-workflow-core');
+  execSync(`node ${CLI} test-fallback-workflow-core --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Emulate pre-v0.17.1 meta: drop the 10 new hashes, keep only the v0.17.0 set
+  const metaPath = path.join(dest, '.sdd-meta.json');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const v0170Paths = new Set([
+    'AGENTS.md',
+    '.claude/agents/backend-developer.md',
+    '.claude/agents/backend-planner.md',
+    '.claude/agents/code-review-specialist.md',
+    '.claude/agents/database-architect.md',
+    '.claude/agents/frontend-developer.md',
+    '.claude/agents/frontend-planner.md',
+    '.claude/agents/production-code-validator.md',
+    '.claude/agents/qa-engineer.md',
+    '.claude/agents/spec-creator.md',
+    '.claude/agents/ui-ux-designer.md',
+    '.gemini/agents/backend-developer.md',
+    '.gemini/agents/backend-planner.md',
+    '.gemini/agents/code-review-specialist.md',
+    '.gemini/agents/database-architect.md',
+    '.gemini/agents/frontend-developer.md',
+    '.gemini/agents/frontend-planner.md',
+    '.gemini/agents/production-code-validator.md',
+    '.gemini/agents/qa-engineer.md',
+    '.gemini/agents/spec-creator.md',
+    '.gemini/agents/ui-ux-designer.md',
+  ]);
+  const filtered = {};
+  for (const [k, v] of Object.entries(meta.hashes)) {
+    if (v0170Paths.has(k)) filtered[k] = v;
+  }
+  meta.hashes = filtered;
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+
+  // Leave all workflow-core files pristine and run upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // Post-upgrade: the v0.17.1 new paths must now be in the meta (fallback path
+  // identified them as pristine via normalizedContentEquals and replaced them)
+  const afterMeta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/SKILL.md'],
+    'SKILL.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/references/ticket-template.md'],
+    'ticket-template.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['.claude/skills/development-workflow/references/merge-checklist.md'],
+    'merge-checklist.md hash must be present after fallback replace'
+  );
+  assert.ok(
+    afterMeta.hashes['ai-specs/specs/backend-standards.mdc'],
+    'backend-standards.mdc hash must be present after fallback replace'
+  );
+}
+
+function testDeletedStandardFileRestored() {
+  // Delete a tracked standard, run upgrade, assert it's restored and hashed.
+  const dest = path.join(TMP_BASE, 'test-deleted-standard-restored');
+  execSync(`node ${CLI} test-deleted-standard-restored --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const frontendStdPath = path.join(dest, 'ai-specs', 'specs', 'frontend-standards.mdc');
+  assert.ok(fs.existsSync(frontendStdPath), 'frontend-standards.mdc must exist after scaffold');
+  fs.unlinkSync(frontendStdPath);
+
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  assert.ok(fs.existsSync(frontendStdPath), 'frontend-standards.mdc must be restored after upgrade of deleted file');
+  const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.ok(
+    meta.hashes['ai-specs/specs/frontend-standards.mdc'],
+    'restored file must have a hash entry in .sdd-meta.json'
+  );
+}
+
+function testMetaReadCompatibilityContract() {
+  // Contract test for D3 invariant: v0.17.1's readMeta + pruneExpectedAbsent
+  // composition must drop v0.17.1-specific keys when pruned with v0.17.0's
+  // expected-path set. This does NOT simulate the v0.17.0 binary — it tests
+  // v0.17.1's own behavior under the D3 invariant.
+  delete require.cache[require.resolve('../lib/meta')];
+  const meta = require('../lib/meta');
+
+  // Frozen v0.17.0 expected-path snapshot (20 agents × 2 tools + AGENTS.md filtered by aiTools)
+  // For aiTools='both', projectType='fullstack': 10 agents per tool × 2 tools + AGENTS.md = 21 paths
+  const v0170ExpectedSet = new Set([
+    'AGENTS.md',
+    '.claude/agents/backend-developer.md', '.claude/agents/backend-planner.md',
+    '.claude/agents/code-review-specialist.md', '.claude/agents/database-architect.md',
+    '.claude/agents/frontend-developer.md', '.claude/agents/frontend-planner.md',
+    '.claude/agents/production-code-validator.md', '.claude/agents/qa-engineer.md',
+    '.claude/agents/spec-creator.md', '.claude/agents/ui-ux-designer.md',
+    '.gemini/agents/backend-developer.md', '.gemini/agents/backend-planner.md',
+    '.gemini/agents/code-review-specialist.md', '.gemini/agents/database-architect.md',
+    '.gemini/agents/frontend-developer.md', '.gemini/agents/frontend-planner.md',
+    '.gemini/agents/production-code-validator.md', '.gemini/agents/qa-engineer.md',
+    '.gemini/agents/spec-creator.md', '.gemini/agents/ui-ux-designer.md',
+  ]);
+
+  // Build a v0.17.1-shaped meta (has v0.17.0 paths + v0.17.1 extras)
+  const sampleHash = 'sha256:' + '0'.repeat(64);
+  const v0171Hashes = {};
+  for (const p of v0170ExpectedSet) v0171Hashes[p] = sampleHash;
+  v0171Hashes['ai-specs/specs/base-standards.mdc'] = sampleHash;
+  v0171Hashes['ai-specs/specs/backend-standards.mdc'] = sampleHash;
+  v0171Hashes['.claude/skills/development-workflow/SKILL.md'] = sampleHash;
+  v0171Hashes['.claude/skills/development-workflow/references/merge-checklist.md'] = sampleHash;
+
+  // Use v0.17.1 library code but with a frozen v0.17.0 expected-path set
+  // (simulating v0.17.0's pruneExpectedAbsent behavior).
+  const pruned = {};
+  for (const [k, v] of Object.entries(v0171Hashes)) {
+    if (v0170ExpectedSet.has(k)) pruned[k] = v;
+  }
+
+  // Assert: v0.17.0 paths survive
+  assert.strictEqual(Object.keys(pruned).length, 21, 'v0.17.0 should see 21 paths after pruning');
+  assert.ok(pruned['AGENTS.md'], 'AGENTS.md must survive pruning');
+  assert.ok(pruned['.claude/agents/backend-planner.md'], 'backend-planner.md must survive pruning');
+
+  // Assert: v0.17.1 extras are dropped
+  assert.strictEqual(
+    pruned['ai-specs/specs/base-standards.mdc'],
+    undefined,
+    'v0.17.1 standards must be pruned by v0.17.0 expected-path set'
+  );
+  assert.strictEqual(
+    pruned['.claude/skills/development-workflow/SKILL.md'],
+    undefined,
+    'v0.17.1 workflow-core must be pruned by v0.17.0 expected-path set'
+  );
+
+  // Additionally: v0.17.1's readMeta (our own) must successfully parse a meta
+  // file with the extra keys — no crash, no rejection.
+  const testMetaPath = path.join(TMP_BASE, 'test-meta-read-compat.json');
+  fs.mkdirSync(TMP_BASE, { recursive: true });
+  fs.writeFileSync(
+    testMetaPath,
+    JSON.stringify({ schemaVersion: 1, hashes: v0171Hashes }, null, 2),
+    'utf8'
+  );
+  // readMeta expects a directory, not a file, and looks for .sdd-meta.json inside.
+  // Use a temp dir.
+  const tmpDir = path.join(TMP_BASE, 'test-meta-read-compat');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(tmpDir, '.sdd-meta.json'),
+    JSON.stringify({ schemaVersion: 1, hashes: v0171Hashes }, null, 2),
+    'utf8'
+  );
+  const read = meta.readMeta(tmpDir);
+  assert.ok(read, 'readMeta must return a valid object for v0.17.1-shaped input');
+  assert.strictEqual(read.schemaVersion, 1);
+  assert.ok(Object.keys(read.hashes).length >= Object.keys(v0171Hashes).length,
+    'readMeta must retain all valid hash entries (permissive on keys)');
+}
+
+function testIdempotencyExtendedRules() {
+  // v0.17.1: assert that applying standards adapters twice produces the same
+  // output. This is a stronger invariant than scenario 56 (which covers
+  // applyStackAdaptationsToContent rules); standards use dedicated functions.
+  //
+  // Uses a real scan() result from a scaffolded project to avoid mock-object
+  // incompleteness (standards adapters access scan.language, scan.tests,
+  // scan.srcStructure, etc.).
+  delete require.cache[require.resolve('../lib/init-generator')];
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { adaptBaseStandards, adaptBackendStandards, adaptFrontendStandards } = require('../lib/init-generator');
+  const { scan: scanFn } = require('../lib/scanner');
+
+  // Scaffold a project to get a realistic scan object
+  const dest = path.join(TMP_BASE, 'test-idempotency-extended');
+  execSync(`node ${CLI} test-idempotency-extended --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+  const scan = scanFn(dest);
+  const config = { projectType: 'fullstack', aiTools: 'both' };
+
+  const baseRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'base-standards.mdc'), 'utf8');
+  const backendRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'backend-standards.mdc'), 'utf8');
+  const frontendRaw = fs.readFileSync(path.join(__dirname, '..', 'template', 'ai-specs', 'specs', 'frontend-standards.mdc'), 'utf8');
+
+  // adaptBaseStandards
+  const base1 = adaptBaseStandards(baseRaw, scan, config);
+  const base2 = adaptBaseStandards(base1, scan, config);
+  assert.strictEqual(base1, base2, 'adaptBaseStandards must be idempotent');
+
+  // adaptBackendStandards
+  const backend1 = adaptBackendStandards(backendRaw, scan);
+  const backend2 = adaptBackendStandards(backend1, scan);
+  assert.strictEqual(backend1, backend2, 'adaptBackendStandards must be idempotent');
+
+  // adaptFrontendStandards
+  const frontend1 = adaptFrontendStandards(frontendRaw, scan);
+  const frontend2 = adaptFrontendStandards(frontend1, scan);
+  assert.strictEqual(frontend1, frontend2, 'adaptFrontendStandards must be idempotent');
+}
+
+function testFullUpgradeIdempotency() {
+  // Full end-to-end idempotency: run upgrade twice in a row, second run must
+  // produce a byte-identical .sdd-meta.json with zero .new files generated
+  // in the second pass. This catches non-idempotent adapters + decision-tree
+  // bugs where pristine files get treated as dirty on re-upgrade.
+  const dest = path.join(TMP_BASE, 'test-full-upgrade-idempotency');
+  execSync(`node ${CLI} test-full-upgrade-idempotency --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // First upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const firstMeta = fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8');
+
+  // Count .new files after first upgrade
+  const firstBackupDirs = fs.existsSync(path.join(dest, '.sdd-backup'))
+    ? fs.readdirSync(path.join(dest, '.sdd-backup'))
+    : [];
+  const countNewFilesRecursive = (dir) => {
+    if (!fs.existsSync(dir)) return 0;
+    let count = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) count += countNewFilesRecursive(p);
+      else if (entry.name.endsWith('.new')) count += 1;
+    }
+    return count;
+  };
+  const firstNewCount = firstBackupDirs.reduce(
+    (sum, d) => sum + countNewFilesRecursive(path.join(dest, '.sdd-backup', d)),
+    0
+  );
+
+  // Second upgrade
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+  const secondMeta = fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8');
+
+  const secondBackupDirs = fs.readdirSync(path.join(dest, '.sdd-backup'));
+  const secondNewCount = secondBackupDirs.reduce(
+    (sum, d) => sum + countNewFilesRecursive(path.join(dest, '.sdd-backup', d)),
+    0
+  );
+
+  // Meta must be byte-identical after second run
+  assert.strictEqual(firstMeta, secondMeta, 'meta.json must be byte-identical after two consecutive upgrades');
+
+  // No NEW .new files produced by second upgrade (delta between first and second)
+  assert.strictEqual(
+    secondNewCount,
+    firstNewCount,
+    `second upgrade must produce zero additional .new files (delta: ${secondNewCount - firstNewCount})`
+  );
+}
+
+function testNormalizationResilienceAllTrackedFiles() {
+  // Parameterized over all smart-diff tracked paths (v0.17.0 + v0.17.1 new).
+  // For each path, write a CRLF variant to disk and run upgrade. The file
+  // must be replaced with the LF canonical version (no false-positive preserve).
+  //
+  // Note: this scenario tests ONLY CRLF drift (the sole transformation that
+  // normalizeForCompare handles, per lib/meta.js:63-65). Trailing whitespace
+  // and leading/trailing blank lines are NOT normalized — the v0.17.0 Gemini
+  // M2 fix deliberately kept normalization conservative to preserve markdown
+  // hard-breaks. Plan v1.2's "composite drift" wording was overbroad — scenario
+  // scope is adjusted inline to match actual function behavior.
+  delete require.cache[require.resolve('../lib/meta')];
+  const { expectedSmartDiffTrackedPaths } = require('../lib/meta');
+
+  const dest = path.join(TMP_BASE, 'test-normalization-resilience');
+  execSync(`node ${CLI} test-normalization-resilience --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const trackedPaths = [...expectedSmartDiffTrackedPaths('both', 'fullstack')];
+
+  let injected = 0;
+  for (const posix of trackedPaths) {
+    const abs = path.join(dest, ...posix.split('/'));
+    if (!fs.existsSync(abs)) continue;
+    const content = fs.readFileSync(abs, 'utf8');
+    // Convert LF to CRLF
+    const crlfContent = content.replace(/\n/g, '\r\n');
+    fs.writeFileSync(abs, crlfContent, 'utf8');
+    injected++;
+  }
+  assert.ok(injected > 20, `at least 20 tracked files must be written with CRLF drift (got ${injected})`);
+
+  // Upgrade — all files should be treated as pristine (hash mismatch would be
+  // caught by the hash decision tree; CRLF vs LF normalize to equal hashes
+  // since computeHash internally calls normalizeForCompare).
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  // After upgrade, no files should have a .new backup (all treated as pristine)
+  const backupBase = path.join(dest, '.sdd-backup');
+  const countNewFiles = (dir) => {
+    if (!fs.existsSync(dir)) return [];
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...countNewFiles(p));
+      else if (entry.name.endsWith('.new')) out.push(path.relative(backupBase, p));
+    }
+    return out;
+  };
+  const newFiles = countNewFiles(backupBase);
+  assert.strictEqual(
+    newFiles.length,
+    0,
+    `CRLF-drifted tracked files must NOT produce .new backups (found: ${newFiles.join(', ')})`
+  );
+
+  // Also: post-upgrade files must now have LF (canonical) line endings
+  for (const posix of trackedPaths) {
+    const abs = path.join(dest, ...posix.split('/'));
+    if (!fs.existsSync(abs)) continue;
+    const content = fs.readFileSync(abs, 'utf8');
+    assert.ok(
+      !content.includes('\r'),
+      `${posix} must have LF line endings after upgrade (found CR)`
+    );
+  }
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -3730,6 +4104,15 @@ try {
   run('Scenario 63: adaptAgentsMd produces detected stack for monorepo', testAgentsMdMonorepoOutput);
   run('Scenario 63b: enumerateWorkspaces is deterministic + dedupes overlapping patterns', testMonorepoGlobOrdering);
   run('Scenario 63c: scanner additive invariant (single-package unchanged, monorepo richer)', testScannerAdditiveInvariant);
+
+  console.log('\n  v0.17.1 smart-diff expansion (Feature 1):');
+  run('Scenario 60: hash-based standards upgrade (preserve + no hash update)', testHashBasedStandardsUpgrade);
+  run('Scenario 61: fallback compare for workflow-core files (no stored hash)', testFallbackCompareForWorkflowCore);
+  run('Scenario 64: deleted standard file restored on upgrade', testDeletedStandardFileRestored);
+  run('Scenario 65: D3 meta read compatibility contract (v0.17.0 sees v0.17.1 meta)', testMetaReadCompatibilityContract);
+  run('Scenario 66: standards adapters are idempotent', testIdempotencyExtendedRules);
+  run('Scenario 67: full upgrade idempotency (two consecutive --upgrade runs)', testFullUpgradeIdempotency);
+  run('Scenario 68: normalization resilience (CRLF drift across all tracked files)', testNormalizationResilienceAllTrackedFiles);
 } finally {
   cleanup();
 }
