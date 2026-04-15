@@ -2,7 +2,30 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.17.1
+## Current Version: 0.17.2
+
+### v0.17.2 (2026-04-15) — Scanner monorepo partial-detection hotfix
+
+Closes a defect in v0.17.1's scanner monorepo fix discovered via empirical validation against foodXPlorer on 2026-04-15 (less than 2h after v0.17.1 publish).
+
+**The bug**: v0.17.1's `scan()` guarded workspace enumeration on `!backend.detected || !frontend.detected`. But `detectBackend` has a partial-detection fallback at scanner.js:258-261 that sets `result.detected = true` when only `db` or `orm` is found, even if `framework` is null. A root `.env.example` with `DATABASE_URL=postgresql://...` + `PORT=3001` (common pattern in monorepos where the real backend stack lives in `packages/api/`) was enough to trigger it. Under the v0.17.1 guard, fx's root detectBackend returned `{detected: true, framework: null, orm: null, db: "PostgreSQL", port: 3001}` → enumeration skipped for backend → scan.backend.framework stayed null → adaptBackendStandards produced generic placeholders → adaptAgentsMd fell back to the `(DDD, Express, Prisma)` template literal in `.new` backups.
+
+**User-facing impact on fx**: `AGENTS.md` was preserved byte-identical (user had manually restored the Fastify/Prisma/Kysely line during an earlier incident), but `backend-standards.mdc` was replaced via the v0.17.1 fallback compare path with degraded content — generic `Node.js + JavaScript + PostgreSQL + Custom architecture` instead of proper Fastify/Prisma stack-aware content.
+
+**The fix** (`lib/scanner.js` `scan()`):
+1. Outer guard: `!backend.framework || !frontend.framework` instead of `!detected`. Strictly looser than v0.17.1, so enumeration runs in a strict superset of cases.
+2. Inner per-slot guards: same change — promote to workspace when root lacks a framework.
+3. Merge strategy: replaced `Object.assign(backend, wsBackend, ...)` with a field-by-field loop that only overwrites when the workspace value is non-null. Preserves root-level env-derived fields (`db`, `port`) when the workspace didn't detect them.
+4. Field iteration via `Object.keys(wsBackend)` / `Object.keys(wsFrontend)` (Gemini round-4 finding) — automatically forwards future additions to detectBackend/detectFrontend without requiring dual-updates here.
+
+**Cross-model review trail**:
+- **Round 4 (post-implementation diff)** — Codex APPROVE (no findings); Gemini APPROVE WITH CHANGES (1 HIGH: hardcoded field list would drop future additions, valid — applied `Object.keys` fix).
+
+**Smoke tests**: 72 → **73** (+1). Scenario 71 (`testMonorepoScannerWithRootEnvFallback`) directly reproduces fx's shape.
+
+**Empirical validation**: post-publish, re-upgraded fx against v0.17.2 and verified AGENTS.md.new produces the correct `Backend patterns (Fastify, Prisma, ...)` stack line.
+
+**Meta-lesson**: empirical validation against a real monorepo caught a bug that the smoke test fixtures didn't. The fixtures didn't include a root `.env.example`, which was the specific trigger for the partial-detection fallback. v0.17.2's scenario 71 now covers that exact shape.
 
 ### v0.17.1 (2026-04-15) — Smart-diff expansion + scanner monorepo fix + CLI message cleanup
 

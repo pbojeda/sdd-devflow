@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-04-15
+
+### Fixed
+
+- **Scanner monorepo fix now fires when root `.env.example` triggers partial detection** — v0.17.1's scanner monorepo fix gated workspace enumeration on `!backend.detected || !frontend.detected`. Empirical validation against foodXPlorer on 2026-04-15 revealed this guard was too tight: `detectBackend` has a partial-detection fallback (`lib/scanner.js:258-261`) that sets `result.detected = true` when only `db` or `orm` was found, even if `framework` is still null. A root `.env.example` declaring `DATABASE_URL=postgresql://...` + `PORT=3001` is enough to trigger it. Under the v0.17.1 guard, fx's root `detectBackend` returned `{detected: true, framework: null, orm: null, db: "PostgreSQL", port: 3001}` → enumeration was skipped → `scan.backend.framework` stayed null → `adaptBackendStandards` produced generic placeholders → `adaptAgentsMd` fell back to the `(DDD, Express, Prisma)` template literal in the `.new` backup. Fix: gate the enumeration on `!framework` instead of `!detected`. The guard is strictly looser than v0.17.1's, so the enumeration runs in a strict superset of cases.
+- **Workspace merge preserves root-level env-derived fields** — v0.17.1's workspace merge used `Object.assign(backend, wsBackend, ...)`, which overwrote root-level fields with workspace nulls. A root `.env` with `DATABASE_URL` would set `root.db = "PostgreSQL"`, but if `packages/api` didn't have its own `.env`, `wsBackend.db = null` → `Object.assign` wiped the root value. Fix: field-by-field merge using `Object.keys(wsBackend)` with a null-guard, so the workspace only overrides fields it actually detected while preserving root-level env-derived info (`db`, `port`). The `Object.keys` form (vs a hardcoded field list) forwards any future additions to `detectBackend` / `detectFrontend` automatically (Gemini round-4 finding 1).
+
+### Added
+
+- **Scenario 71 `testMonorepoScannerWithRootEnvFallback`** — direct reproduction of the foodXPlorer shape: declaration-order workspaces (`packages/shared`, `packages/api`, `packages/web`), root `.env.example` with `DATABASE_URL` + `PORT`, Fastify + Prisma in `packages/api`, Next.js in `packages/web`. Asserts both framework promotion from the middle workspace AND preservation of root-level `db`/`port` through the merge. Brings total 72 → **73** smoke scenarios.
+
+### Cross-model reviewed
+
+**Round 4 — post-implementation diff review** (2026-04-15):
+- **Codex**: APPROVE — no findings.
+- **Gemini**: APPROVE WITH CHANGES — 1 HIGH finding: the initial fix used a hardcoded field list in the merge loop (`['framework', 'orm', 'db', 'port', 'validation']`), which would silently drop any future field added to `detectBackend`/`detectFrontend`. Finding verified correct: current `detectBackend` returns 6 fields but the hardcoded list had only 5 (missing `detected`, set explicitly after the loop). Fixed by iterating `Object.keys(wsBackend)` / `Object.keys(wsFrontend)` dynamically, removing the now-redundant explicit `.detected = true` assignment (`detected` is always `true` when `framework` is truthy in detectBackend's framework-detection loop).
+
 ## [0.17.1] - 2026-04-15
 
 ### Fixed
