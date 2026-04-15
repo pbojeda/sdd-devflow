@@ -3454,12 +3454,16 @@ function setupFakeMonorepo(destName, opts = {}) {
     { relPath: 'packages/api', name: '@test/api', deps: { fastify: '^5.0.0', '@prisma/client': '^6.0.0' } },
   ];
   const rootDeps = opts.rootDeps || {};
+  const rootEnvContent = opts.rootEnvContent || null;
 
   fs.mkdirSync(dest, { recursive: true });
   fs.writeFileSync(
     path.join(dest, 'package.json'),
     JSON.stringify({ name: destName, workspaces, dependencies: rootDeps }, null, 2)
   );
+  if (rootEnvContent) {
+    fs.writeFileSync(path.join(dest, '.env.example'), rootEnvContent);
+  }
   for (const ws of wsPackages) {
     const wsDir = path.join(dest, ...ws.relPath.split('/'));
     fs.mkdirSync(wsDir, { recursive: true });
@@ -4072,6 +4076,91 @@ function testWorkflowCorePreservesOnHashMismatch() {
   );
 }
 
+function testMonorepoScannerWithRootEnvFallback() {
+  // v0.17.2 regression guard — empirical validation against foodXPlorer
+  // on 2026-04-15 revealed that v0.17.1's scanner monorepo fix did NOT
+  // fire for fx because `detectBackend` at the root level hit a "partial
+  // detection" fallback (scanner.js ~lines 259-261): when a root
+  // `.env.example` declares `DATABASE_URL` + `PORT`, detectBackend sets
+  // `result.db` + `result.port` and then triggers:
+  //     if (!result.detected && (result.orm || result.db)) {
+  //       result.detected = true;
+  //     }
+  // This set `backend.detected: true` with `framework: null`. The
+  // v0.17.1 scan() guard `!backend.detected` was then false, skipping
+  // the workspace enumeration entirely. `adaptBackendStandards` ran with
+  // null framework/orm → generic placeholders. `adaptAgentsMd` fell back
+  // to the `(DDD, Express, Prisma)` template literal.
+  //
+  // v0.17.2 fix: the scan() guard uses `!framework` instead of `!detected`,
+  // and the inner promotion logic is field-merge-based (preserve root-level
+  // env-derived `db`/`port`, promote workspace-level `framework`/`orm`).
+  //
+  // This scenario reproduces fx's exact shape: declaration-order workspaces,
+  // root `.env.example` triggering partial backend detection, real backend
+  // stack in a later-declared workspace.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+
+  const dest = setupFakeMonorepo('test-monorepo-root-env-fallback', {
+    workspaces: ['packages/shared', 'packages/api', 'packages/web'],
+    rootEnvContent: 'DATABASE_URL=postgresql://localhost:5432/foo\nPORT=3001\n',
+    wsPackages: [
+      { relPath: 'packages/shared', name: '@test/shared', deps: {} },
+      {
+        relPath: 'packages/api',
+        name: '@test/api',
+        deps: { fastify: '^5.0.0', '@prisma/client': '^6.0.0' },
+      },
+      { relPath: 'packages/web', name: '@test/web', deps: { next: '^14.0.0', react: '^18.0.0' } },
+    ],
+  });
+
+  const result = scan(dest);
+
+  // Enumeration must have fired DESPITE root-level partial detection.
+  assert.strictEqual(result.isMonorepo, true, 'isMonorepo must be true');
+  assert.strictEqual(
+    result.backend.framework,
+    'Fastify',
+    'backend framework must come from packages/api workspace, not null (v0.17.2 fix: gate on framework, not detected)'
+  );
+  assert.strictEqual(
+    result.backend.orm,
+    'Prisma',
+    'backend orm must come from packages/api workspace'
+  );
+  assert.strictEqual(
+    result.backend.workspaceSource,
+    'packages/api',
+    'workspaceSource must record the promoting workspace'
+  );
+
+  // Root-level env-derived fields must be PRESERVED — the workspace
+  // merge must not clobber them with its own nulls. This is the
+  // field-merge behavior (v0.17.2).
+  assert.strictEqual(
+    result.backend.db,
+    'PostgreSQL',
+    'backend.db must survive the workspace merge (came from root .env.example DATABASE_URL)'
+  );
+  assert.strictEqual(
+    result.backend.port,
+    3001,
+    'backend.port must survive the workspace merge (came from root .env.example PORT)'
+  );
+
+  // Frontend enumeration still works (unchanged semantics vs v0.17.1 for
+  // frontend — the bug only affected backend because only backend has the
+  // partial-detection fallback).
+  assert.strictEqual(result.frontend.framework, 'Next.js', 'frontend framework from packages/web');
+  assert.strictEqual(
+    result.frontend.workspaceSource,
+    'packages/web',
+    'frontend workspaceSource must record the promoting workspace'
+  );
+}
+
 function testUpgradeMessageCopy() {
   // Feature 3 (v0.17.1): the post-upgrade warning shown when files are
   // preserved must use the new wording that explains provenance tracking
@@ -4220,6 +4309,9 @@ try {
   run('Scenario 67: full upgrade idempotency (two consecutive --upgrade runs)', testFullUpgradeIdempotency);
   run('Scenario 68: normalization resilience (CRLF drift across all tracked files)', testNormalizationResilienceAllTrackedFiles);
   run('Scenario 70: workflow-core preserves user customization on hash mismatch (Gemini round-3 guard)', testWorkflowCorePreservesOnHashMismatch);
+
+  console.log('\n  v0.17.2 scanner monorepo partial-detection fix:');
+  run('Scenario 71: monorepo scanner with root .env.example fallback (fx empirical guard)', testMonorepoScannerWithRootEnvFallback);
 
   console.log('\n  v0.17.1 CLI message cleanup (Feature 3):');
   run('Scenario 69: --upgrade post-warning uses new wording (no stale v0.16.10 copy)', testUpgradeMessageCopy);
