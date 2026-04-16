@@ -19,6 +19,29 @@
 
    **Discovery**: fx v0.17.2 upgrade produced `backend-standards.mdc` with `Runtime: Node.js with JavaScript` (should be TypeScript) and `Testing: Not configured` (fx has Jest). AGENTS.md post-upgrade Frontend patterns line is `(Next.js)` single-entry → doctor sparse-patterns check WARN.
 
+**2. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in the v0.17.2 scanner hotfix). Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
+
+   - **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
+   - **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+   - **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
+
+**3. Scanner extensions** (deferred from v0.17.1).
+
+   - `pnpm-workspace.yaml` parsing support
+   - `**` recursive glob patterns in `workspaces` declarations
+   - `!exclude` negation
+
+**4. Test hardening** (Codex round-3 findings 2 + 3, deferred from v0.17.1).
+
+   - Scenario 61 dedicated raw-template branch assertion
+   - Scenario 63c frozen snapshot for byte-exact single-package invariant check
+
+**5. Template drift gaps** (canonical source: `dev/testing-notes.md` "Known gaps" section — consolidated here for visibility).
+
+   - No functional smoke test for `template/.claude/settings.json` hooks (JSON parses, but hook execution untested)
+   - No version staleness check for `template/.github/workflows/ci.yml` pinned action majors
+   - No YAML schema validation for Claude `SKILL.md` frontmatter (required fields `name`, `description`)
+
 ### v0.17.2 (2026-04-15) — Scanner monorepo partial-detection hotfix
 
 Closes a defect in v0.17.1's scanner monorepo fix discovered via empirical validation against foodXPlorer on 2026-04-15 (less than 2h after v0.17.1 publish).
@@ -57,7 +80,7 @@ Closes three gaps from v0.17.0: (1) smart-diff only covered template agents + `A
 - `scan()` runs workspace enumeration as FALLBACK when `isMonorepo && (!backend.detected || !frontend.detected)`. First workspace with `detected: true` wins per backend + frontend slot.
 - Adds `scan.backend.workspaceSource` / `scan.frontend.workspaceSource` fields for observability.
 - **Scanner additive invariant**: single-package projects produce byte-identical output to v0.17.0. Enforced by scenario 63c.
-- **Scope limitations**: no pnpm-workspace.yaml, no `**` recursive patterns, no `!exclude` negation — deferred to v0.17.2.
+- **Scope limitations**: no pnpm-workspace.yaml, no `**` recursive patterns, no `!exclude` negation — deferred (now tracked under Known follow-ups item 3; did not land in the v0.17.2 scanner hotfix).
 
 **CLI message cleanup** (`lib/upgrade-generator.js` runUpgrade preserved-customizations warning):
 - Removed the stale v0.16.10-era claim that "Provenance tracking (v0.17.0) will eliminate these false positives" (misleading in v0.17.0, wrong in v0.17.1).
@@ -81,17 +104,6 @@ Closes three gaps from v0.17.0: (1) smart-diff only covered template agents + `A
 - **Round 3 (post-implementation diff)** — Gemini APPROVE WITH CHANGES (1 HIGH, 2 false positives verified against code); Codex REJECT (1 HIGH, 2 MEDIUM test-hardening deferred). Both HIGH findings fixed; scenario 70 added as explicit regression guard.
 
 **Smoke tests**: 59 → **72** (+13). New scenarios 60–70 + sub-scenarios 63b, 63c. Primary regression guards: scenario 63c (scanner additive), scenario 67 (full upgrade idempotency), scenario 70 (Gemini round-3 workflow-core preserve invariant).
-
-### v0.17.2 (next) — Full smart-diff coverage for remaining template files
-
-Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
-
-- **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
-- **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
-- **Scanner extensions**: pnpm-workspace.yaml support, `**` recursive patterns, `!exclude` negation
-- **Test hardening** (Codex round-3 findings 2 + 3): scenario 61 dedicated raw-template branch assertion; scenario 63c frozen snapshot for byte-exact single-package invariant check
-- **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
-- **Dependency**: empirical validation of v0.17.1 against foodXPlorer (in progress, post-publish)
 
 ### v0.17.0 (2026-04-13) — Provenance tracking + unified stack adaptations
 
