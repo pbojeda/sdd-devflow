@@ -3467,10 +3467,21 @@ function setupFakeMonorepo(destName, opts = {}) {
   for (const ws of wsPackages) {
     const wsDir = path.join(dest, ...ws.relPath.split('/'));
     fs.mkdirSync(wsDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(wsDir, 'package.json'),
-      JSON.stringify({ name: ws.name, dependencies: ws.deps || {} }, null, 2)
-    );
+    const wsPkg = { name: ws.name, dependencies: ws.deps || {} };
+    if (ws.devDeps) wsPkg.devDependencies = ws.devDeps;
+    fs.writeFileSync(path.join(wsDir, 'package.json'), JSON.stringify(wsPkg, null, 2));
+    // v0.17.3: optional source dir scaffolding for architecture detection
+    for (const dir of ws.srcDirs || []) {
+      fs.mkdirSync(path.join(wsDir, ...dir.split('/')), { recursive: true });
+    }
+    // v0.17.3: optional tsconfig for language detection
+    if (ws.hasTsconfig) {
+      fs.writeFileSync(path.join(wsDir, 'tsconfig.json'), '{}');
+    }
+    // v0.17.3: optional config files (e.g., vitest.config.ts) for hasConfig assertion
+    for (const cf of ws.configFiles || []) {
+      fs.writeFileSync(path.join(wsDir, cf), '');
+    }
   }
   return dest;
 }
@@ -4207,6 +4218,226 @@ function testUpgradeMessageCopy() {
   );
 }
 
+// --- v0.17.3: workspace-aware auxiliary detection ---
+
+function testMonorepoLanguageDetection() {
+  // v0.17.3 #72: language is promoted from primary backend workspace.
+  // Root has no tsconfig.json and no src/. packages/api has tsconfig.json
+  // and a backend framework dep so it's identified as the primary backend
+  // workspace. detectLanguage(root) returns 'javascript' but post-promotion
+  // scan.language must be 'typescript'.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-language-promotion', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' }, hasTsconfig: true },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.language, 'typescript',
+    'language must be promoted to typescript from primary backend workspace');
+  assert.strictEqual(result.backend.primaryWorkspace, 'packages/api',
+    'scan.backend.primaryWorkspace must be exported (D5 observability)');
+}
+
+function testMonorepoBackendTestsDetection() {
+  // v0.17.3 #73: backend tests detected from primary workspace.
+  // Per Codex round-1 finding #4: detectTests sets framework FROM DEPS
+  // (jest/vitest/mocha), not from config-file presence. Fixture must
+  // include vitest in devDependencies. Config file is optional and
+  // exercises hasConfig.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-backend-tests', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        devDeps: { vitest: '^1.0.0' },
+        configFiles: ['vitest.config.ts'] },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.backendTests.framework, 'vitest',
+    'scan.backendTests.framework must be promoted to vitest from packages/api devDeps');
+  assert.strictEqual(result.backendTests.hasConfig, true,
+    'scan.backendTests.hasConfig must be true given vitest.config.ts in workspace');
+  assert.strictEqual(result.tests.framework, 'none',
+    'root scan.tests.framework stays at default since root has no test deps');
+}
+
+function testMonorepoArchitectureDetection() {
+  // v0.17.3 #74: architecture promoted from primary backend workspace.
+  // Root has no src/. packages/api has src/{domain,application,infrastructure}
+  // → DDD pattern.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-architecture', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        srcDirs: ['src/domain', 'src/application', 'src/infrastructure'] },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.srcStructure.pattern, 'ddd',
+    'srcStructure.pattern must be ddd (workspace has domain+application+infrastructure)');
+  assert.strictEqual(result.srcStructure.hasDomain, true,
+    'hasDomain must be true (workspace src/domain exists)');
+}
+
+function testMonorepoFrontendAuxiliaryDetection() {
+  // v0.17.3 #75: frontend auxiliary fields (styling/components/state) promoted
+  // from primary frontend workspace.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-frontend-aux', {
+    workspaces: ['packages/web'],
+    wsPackages: [
+      { relPath: 'packages/web', name: '@test/web',
+        deps: { next: '^14.0.0', react: '^18.0.0', tailwindcss: '^3.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.frontend.framework, 'Next.js',
+    'frontend.framework promoted from packages/web');
+  assert.strictEqual(result.frontend.styling, 'Tailwind CSS',
+    'frontend.styling promoted from packages/web tailwindcss dep');
+  assert.strictEqual(result.frontend.components, null,
+    'frontend.components stays null (no component lib in workspace deps)');
+  assert.strictEqual(result.frontend.state, null,
+    'frontend.state stays null (no state mgmt lib in workspace deps)');
+  assert.strictEqual(result.frontend.primaryWorkspace, 'packages/web',
+    'scan.frontend.primaryWorkspace exported');
+}
+
+function testMonorepoMixedFrameworkTests() {
+  // v0.17.3 #76: fx shape — backend has vitest, frontend has jest. Per
+  // Gemini round-1 clarification: both workspaces MUST declare framework
+  // deps so primary discovery succeeds.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-mixed-tests', {
+    workspaces: ['packages/api', 'packages/web'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' }, devDeps: { vitest: '^1.0.0' } },
+      { relPath: 'packages/web', name: '@test/web',
+        deps: { next: '^14.0.0', react: '^18.0.0' }, devDeps: { jest: '^29.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.backend.primaryWorkspace, 'packages/api',
+    'primaryBackendWs must be packages/api (first detection)');
+  assert.strictEqual(result.frontend.primaryWorkspace, 'packages/web',
+    'primaryFrontendWs must be packages/web');
+  assert.strictEqual(result.backendTests.framework, 'vitest',
+    'backendTests promoted from api workspace');
+  assert.strictEqual(result.frontendTests.framework, 'jest',
+    'frontendTests promoted from web workspace');
+}
+
+function testMonorepoRootHoistedFrameworkStillPromotes() {
+  // v0.17.3 #76b: the fx empirical CRITICAL case. Root has `next` hoisted
+  // in dependencies → detectFrontend(root) succeeds → v0.17.2 enumeration
+  // is skipped (workspaceSource stays unset). The v0.17.3 single-pass loop
+  // must still establish primaryFrontendWs and promote aux fields. This
+  // scenario directly validates the round-1 CRITICAL fix.
+  // Per Codex round-2 fixture clarification: packages/web MUST declare
+  // its own framework dep (next or react) so detectFrontend(packages/web)
+  // returns a non-null framework and primary discovery succeeds.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-hoisted-framework', {
+    workspaces: ['packages/web'],
+    rootDeps: { next: '^14.0.0' },
+    wsPackages: [
+      { relPath: 'packages/web', name: '@test/web',
+        deps: { next: '^14.0.0', react: '^18.0.0', tailwindcss: '^3.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.frontend.framework, 'Next.js',
+    'frontend.framework detected at root from hoisted next dep');
+  assert.strictEqual(result.frontend.workspaceSource, undefined,
+    'workspaceSource MUST stay unset since root had framework (v0.17.2 semantics preserved)');
+  assert.strictEqual(result.frontend.primaryWorkspace, 'packages/web',
+    'primaryWorkspace MUST be set via v0.17.3 single-pass enumeration');
+  assert.strictEqual(result.frontend.styling, 'Tailwind CSS',
+    'styling MUST be promoted from packages/web aux detection — this is the fx fix');
+}
+
+function testMonorepoArchitectureBooleanGuard() {
+  // v0.17.3 #77: architecture boolean OR-merge — root has hasServices: true
+  // (root src/services/ exists, simulating false positive at root scan),
+  // workspace lacks services/ entirely. Expect hasServices stays true.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-arch-bool-guard', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        srcDirs: ['src/domain'] }, // workspace has domain but NOT services
+    ],
+  });
+  // Add root src/services/ to trigger hasServices: true at root
+  fs.mkdirSync(path.join(dest, 'src', 'services'), { recursive: true });
+  const result = scan(dest);
+  assert.strictEqual(result.srcStructure.hasServices, true,
+    'root hasServices must be preserved despite workspace not having services (OR-merge invariant)');
+  assert.strictEqual(result.srcStructure.hasDomain, true,
+    'workspace hasDomain promoted (still part of OR-merge)');
+}
+
+function testMonorepoTestsPreservesRootE2E() {
+  // v0.17.3 #78: per-field merge preserves root-level e2eFramework when
+  // workspace promotes unit framework. Validates the Gemini round-1 CRITICAL
+  // fix: object-replacement would erase root @playwright/test signal.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-e2e-preserve', {
+    workspaces: ['packages/api'],
+    rootDeps: { '@playwright/test': '^1.0.0' },
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' }, devDeps: { vitest: '^1.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.backendTests.framework, 'vitest',
+    'workspace unit framework wins (vitest)');
+  assert.strictEqual(result.backendTests.e2eFramework, 'playwright',
+    'root E2E framework MUST be preserved via per-field merge (Gemini round-1 CRITICAL fix)');
+}
+
+function testSinglePackageTestsReferenceEqual() {
+  // v0.17.3 #79: single-package invariant — backendTests / frontendTests
+  // are reference-equal to scan.tests when isMonorepo is false.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = path.join(TMP_BASE, 'test-single-package-tests-refeq');
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({
+      name: 'single-package-fixture',
+      dependencies: { fastify: '^5.0.0' },
+      devDependencies: { vitest: '^1.0.0' },
+    }, null, 2)
+  );
+  const result = scan(dest);
+  assert.strictEqual(result.isMonorepo, false,
+    'single-package fixture has no workspaces field — isMonorepo must be false');
+  assert.strictEqual(result.backendTests, result.tests,
+    'single-package: scan.backendTests must be === scan.tests (reference equality)');
+  assert.strictEqual(result.frontendTests, result.tests,
+    'single-package: scan.frontendTests must be === scan.tests');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -4315,6 +4546,17 @@ try {
 
   console.log('\n  v0.17.1 CLI message cleanup (Feature 3):');
   run('Scenario 69: --upgrade post-warning uses new wording (no stale v0.16.10 copy)', testUpgradeMessageCopy);
+
+  console.log('\n  v0.17.3 workspace-aware auxiliary detection:');
+  run('Scenario 72: monorepo language detection promoted from primary backend workspace', testMonorepoLanguageDetection);
+  run('Scenario 73: monorepo backendTests detection (vitest in deps, hasConfig)', testMonorepoBackendTestsDetection);
+  run('Scenario 74: monorepo architecture (DDD) promoted from primary backend workspace', testMonorepoArchitectureDetection);
+  run('Scenario 75: monorepo frontend auxiliary (styling) promoted from primary frontend workspace', testMonorepoFrontendAuxiliaryDetection);
+  run('Scenario 76: monorepo mixed-framework tests (vitest in api + jest in web) — fx shape', testMonorepoMixedFrameworkTests);
+  run('Scenario 76b: hoisted-root-framework still promotes aux from workspace (round-1 CRITICAL fix guard)', testMonorepoRootHoistedFrameworkStillPromotes);
+  run('Scenario 77: architecture boolean OR-merge (root hasServices preserved)', testMonorepoArchitectureBooleanGuard);
+  run('Scenario 78: tests per-field merge preserves root e2eFramework (round-1 CRITICAL fix guard)', testMonorepoTestsPreservesRootE2E);
+  run('Scenario 79: single-package backendTests/frontendTests reference-equal to tests', testSinglePackageTestsReferenceEqual);
 } finally {
   cleanup();
 }
