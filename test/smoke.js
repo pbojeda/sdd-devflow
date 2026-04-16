@@ -4414,6 +4414,75 @@ function testMonorepoTestsPreservesRootE2E() {
     'root E2E framework MUST be preserved via per-field merge (Gemini round-1 CRITICAL fix)');
 }
 
+function testMonorepoTestsPromotesWorkspaceE2E() {
+  // v0.17.3 #80 (Codex round-3 Medium): root has NO e2e framework, workspace
+  // declares Playwright. Per-field merge must promote the workspace e2eFramework.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-e2e-promote', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        devDeps: { vitest: '^1.0.0', '@playwright/test': '^1.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.tests.e2eFramework, null,
+    'root has no e2e dep — root scan.tests.e2eFramework must be null');
+  assert.strictEqual(result.backendTests.e2eFramework, 'playwright',
+    'workspace e2eFramework must be promoted into backendTests');
+}
+
+function testMonorepoTestsWorkspaceE2EOverridesRoot() {
+  // v0.17.3 #81 (Codex round-3 Medium): root has Cypress, workspace has Playwright.
+  // Per the merge spec ("E2E: prefer workspace if it set one"), workspace wins.
+  // Locks in the precedence so a future change can't silently flip it.
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-e2e-override', {
+    workspaces: ['packages/api'],
+    rootDeps: { cypress: '^13.0.0' },
+    wsPackages: [
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        devDeps: { vitest: '^1.0.0', '@playwright/test': '^1.0.0' } },
+    ],
+  });
+  const result = scan(dest);
+  assert.strictEqual(result.tests.e2eFramework, 'cypress',
+    'root scan.tests.e2eFramework reflects root cypress dep');
+  assert.strictEqual(result.backendTests.e2eFramework, 'playwright',
+    'workspace e2eFramework MUST override root in backendTests (per-field merge precedence)');
+}
+
+function testMonorepoArchitecturePatternNonDemotion() {
+  // v0.17.3 #82 (Codex round-3 Low): root has known DDD pattern (root src/
+  // contains domain/ + application/ + infrastructure/). Primary backend
+  // workspace has many src/ subdirs that don't match any pattern → workspace
+  // pattern resolves to 'unknown'. srcStructure.pattern MUST remain 'ddd'.
+  // Per D2 spec: "workspace 'unknown' never demotes a known root pattern".
+  delete require.cache[require.resolve('../lib/scanner')];
+  const { scan } = require('../lib/scanner');
+  const dest = setupFakeMonorepo('test-monorepo-pattern-nondemote', {
+    workspaces: ['packages/api'],
+    wsPackages: [
+      // Workspace src has 4+ unrelated dirs → detectArchitecture returns 'unknown'
+      // (>3 dirs, no pattern match). 'flat' fires only with <=3 dirs.
+      { relPath: 'packages/api', name: '@test/api',
+        deps: { fastify: '^5.0.0' },
+        srcDirs: ['src/foo', 'src/bar', 'src/baz', 'src/qux', 'src/quux'] },
+    ],
+  });
+  // Root src/{domain,application,infrastructure} → DDD detected at root
+  fs.mkdirSync(path.join(dest, 'src', 'domain'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'application'), { recursive: true });
+  fs.mkdirSync(path.join(dest, 'src', 'infrastructure'), { recursive: true });
+  const result = scan(dest);
+  assert.strictEqual(result.srcStructure.pattern, 'ddd',
+    'root pattern (ddd) must not be demoted to unknown by workspace promotion');
+}
+
 function testSinglePackageTestsReferenceEqual() {
   // v0.17.3 #79: single-package invariant — backendTests / frontendTests
   // are reference-equal to scan.tests when isMonorepo is false.
@@ -4557,6 +4626,9 @@ try {
   run('Scenario 77: architecture boolean OR-merge (root hasServices preserved)', testMonorepoArchitectureBooleanGuard);
   run('Scenario 78: tests per-field merge preserves root e2eFramework (round-1 CRITICAL fix guard)', testMonorepoTestsPreservesRootE2E);
   run('Scenario 79: single-package backendTests/frontendTests reference-equal to tests', testSinglePackageTestsReferenceEqual);
+  run('Scenario 80: workspace e2eFramework promoted when root has none (round-3 Medium guard)', testMonorepoTestsPromotesWorkspaceE2E);
+  run('Scenario 81: workspace e2eFramework overrides different root e2eFramework (round-3 Medium guard)', testMonorepoTestsWorkspaceE2EOverridesRoot);
+  run('Scenario 82: architecture pattern non-demotion (round-3 Low guard)', testMonorepoArchitecturePatternNonDemotion);
 } finally {
   cleanup();
 }
