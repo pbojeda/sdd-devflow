@@ -2,45 +2,67 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.17.2
+## Current Version: 0.17.3
 
-### Known follow-ups (v0.17.3 or v0.18.x candidates)
+### Known follow-ups (v0.18.x candidates)
 
-**1. Scanner detection for language / tests / architecture is NOT workspace-aware** (discovered during fx v0.17.2 empirical validation, 2026-04-15). v0.17.1 and v0.17.2 made `detectBackend` / `detectFrontend` workspace-aware via `enumerateWorkspaces`, but these other detection functions still run only against the project root:
-
-   - `detectLanguage(projectDir)` — checks root `tsconfig.json` + root `src/*.ts`. For fx (monorepo with TS code in `packages/*/src/`), the root has no tsconfig.json and no `src/*.ts`, so it returns `'javascript'`. `adaptBackendStandards` then writes `Runtime: Node.js with JavaScript` even though the actual backend is TypeScript.
-   - `detectTests(projectDir, pkg)` — similarly looks at root for jest/vitest config + root test dirs. fx's tests live in `packages/api/__tests__/` etc., so the root scan misses them → `Testing: Not configured`.
-   - `detectArchitecture(projectDir, pkg)` — inspects root `src/` for domain/application/infrastructure/layered patterns. fx has no root `src/`, so returns `pattern: 'unknown'` → `Architecture — Custom` with generic placeholder.
-   - `detectFrontend` sparse result for fx: detects `Next.js` from `packages/web/package.json` via the v0.17.2 workspace fallback, but `styling`, `components`, `state` all stay null → doctor check #14 fires the WARN `"Frontend patterns has only 1 entry (Next.js) — scanner detection may be incomplete"`. Cosmetic WARN (exit 0) but a UX signal that the frontend detection needs the same workspace-aware treatment.
-
-   **Action**: extend `detectLanguage`, `detectTests`, `detectArchitecture`, and `detectFrontend`'s auxiliary detection (styling/components/state) to use the same workspace-enumeration path added in v0.17.1/v0.17.2 for framework detection. Likely pattern: when `isMonorepo && !<field>.framework_detected_at_root`, run the auxiliary detector against the same workspace that provided the framework (via `backend.workspaceSource` / `frontend.workspaceSource`), falling back to root if absent.
-
-   **Severity**: Medium. Not a correctness bug — the library still ships correct code and preserves user customizations. But `adaptBackendStandards` / `adaptFrontendStandards` produce lower-quality output for monorepos than for single-package projects. Cosmetic impact on standards file content + doctor WARN noise.
-
-   **Discovery**: fx v0.17.2 upgrade produced `backend-standards.mdc` with `Runtime: Node.js with JavaScript` (should be TypeScript) and `Testing: Not configured` (fx has Jest). AGENTS.md post-upgrade Frontend patterns line is `(Next.js)` single-entry → doctor sparse-patterns check WARN.
-
-**2. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in the v0.17.2 scanner hotfix). Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
+**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in the v0.17.2 scanner hotfix or v0.17.3). Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
 
    - **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
    - **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
    - **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
 
-**3. Scanner extensions** (deferred from v0.17.1).
+**2. Scanner extensions** (deferred from v0.17.1).
 
    - `pnpm-workspace.yaml` parsing support
    - `**` recursive glob patterns in `workspaces` declarations
    - `!exclude` negation
 
-**4. Test hardening** (Codex round-3 findings 2 + 3, deferred from v0.17.1).
+**3. Test hardening** (Codex v0.17.1 round-3 findings 2 + 3).
 
    - Scenario 61 dedicated raw-template branch assertion
    - Scenario 63c frozen snapshot for byte-exact single-package invariant check
 
-**5. Template drift gaps** (canonical source: `dev/testing-notes.md` "Known gaps" section — consolidated here for visibility).
+**4. Template drift gaps** (canonical source: `dev/testing-notes.md` "Known gaps" section — consolidated here for visibility).
 
    - No functional smoke test for `template/.claude/settings.json` hooks (JSON parses, but hook execution untested)
    - No version staleness check for `template/.github/workflows/ci.yml` pinned action majors
    - No YAML schema validation for Claude `SKILL.md` frontmatter (required fields `name`, `description`)
+
+**5. Mixed-language monorepos** (deferred from v0.17.3 design).
+
+   - `scan.language` is a single field promoted from primary backend workspace. In rare TS-backend + JS-frontend (or inverse) monorepos, `adaptFrontendStandards` may show the wrong Language line. Concrete failure cases unobserved; flagged for awareness. See `dev/v0.17.3-plan.md` Open Questions.
+
+**6. Doctor check #14 tightening** (flagged in v0.17.3 round-2 review).
+
+   - Currently WARNs only when `Frontend patterns` has exactly 1 entry. Could tighten to WARN when fewer than 3 entries (still likely incomplete detection). v0.17.3 closes the fx 1-entry case (now `(Next.js, Tailwind CSS)`); future projects with components/state libs may still fall short of 3 entries.
+
+### v0.17.3 (2026-04-16) — Workspace-aware auxiliary detection
+
+Closes the v0.17.3 candidate work flagged during v0.17.2 empirical validation. Delivers workspace-awareness to the four detection paths that v0.17.1/v0.17.2 left root-only.
+
+**The bug**: v0.17.1/v0.17.2 made `detectBackend` / `detectFrontend` framework detection workspace-aware via `enumerateWorkspaces`, but four auxiliary detection functions still ran only against the project root: `detectLanguage`, `detectArchitecture`, `detectTests`, and `detectFrontend`'s auxiliary fields (styling/components/state). For monorepos with hoisted root deps (e.g., fx root has `"next": "^14.2.29"` so `detectFrontend(root)` succeeds → v0.17.2's `!framework` enumeration gate never fired → `frontend.workspaceSource` stayed null → standards files showed degraded content).
+
+**The fix** (`lib/scanner.js`): single-pass enumeration that always runs in monorepos and establishes `primaryBackendWs` / `primaryFrontendWs` independently of v0.17.2's framework promotion. Aux detection runs against those primaries with per-field merge semantics (D2 architecture truthiness OR-merge for booleans, D3 per-field test merge preserving root E2E config when promoting workspace unit framework, D5 single-pass loop preserving v0.17.2 promotion semantics byte-equivalent).
+
+**API additions**:
+- `scan.backendTests` / `scan.frontendTests` — per-side test detection (single-package: reference-equal to `scan.tests`).
+- `scan.backend.primaryWorkspace` / `scan.frontend.primaryWorkspace` — diagnostic fields, set whenever a workspace was used for aux detection (different semantics from `workspaceSource` which only fires when v0.17.2 promoted framework from workspace).
+
+**Cross-model review trail**: 3 rounds (Codex + Gemini in parallel each time):
+- Round 1 (plan v1.0): Codex REJECT 1C+4I, Gemini REJECT 2C+4I. Both convergent on CRITICAL: `workspaceSource` gate too narrow. Plan v1.1 introduces D5.
+- Round 2 (plan v1.1): Codex REJECT 3I (all round-1 RESOLVED), Gemini REJECT 1C+1I (all round-1 RESOLVED). Plan v1.2: dead-code count fix, F001 broaden, primaryWorkspace exported.
+- Round 3 (impl diff): Codex APPROVE WITH CHANGES 1M+1L, Gemini REJECT 1C+1I+2L. CRITICAL: F001 tracker insertion not migrated to broadened gate. All addressed inline.
+
+**Smoke tests**: 73 → **85** (+12). Notable guards:
+- 76b — fx empirical fix (hoisted-framework root, primary frontend ws still discovered)
+- 78 — per-field merge preserves root @playwright/test e2eFramework when workspace promotes vitest
+- 80, 81 — workspace e2e promotion + override semantics
+- 82 — pattern non-demotion (workspace 'unknown' never demotes known root pattern)
+
+**Empirical fx validation** (post-publish target):
+- ✅ `Runtime: TypeScript`, `Testing: Vitest`, `Styling: Tailwind CSS`, `Frontend patterns (Next.js, Tailwind CSS)`
+- ⚠️ `Architecture: Custom` unchanged (fx genuinely doesn't match a known pattern — the original ROADMAP claim of "DDD layered" was empirically incorrect)
 
 ### v0.17.2 (2026-04-15) — Scanner monorepo partial-detection hotfix
 

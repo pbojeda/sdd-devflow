@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-04-16
+
+### Fixed
+
+- **Scanner: workspace-aware auxiliary detection** for monorepos with hoisted root deps. v0.17.1 and v0.17.2 made `detectBackend` / `detectFrontend` framework detection workspace-aware, but `detectLanguage`, `detectArchitecture`, `detectTests`, and `detectFrontend`'s auxiliary fields (styling/components/state) still ran only against the project root. For real-world monorepos like foodXPlorer where root `package.json` declares `"next": "^14.2.29"` (hoisted), v0.17.2's `!framework` enumeration gate never fired → `frontend.workspaceSource` stayed null → standards files showed `Runtime: Node.js with JavaScript` (despite TS in `packages/api`), `Testing: Not configured` (despite vitest+jest configs in workspaces), `Architecture: Custom` placeholder, and AGENTS.md's `Frontend patterns (Next.js)` triggered doctor check #14 sparse-patterns WARN. v0.17.3 introduces a single-pass enumeration that always runs in monorepos and establishes a "primary backend/frontend workspace" independently of v0.17.2's framework promotion. Aux detection runs against those primaries.
+
+### Added
+
+- **`scan.backendTests` and `scan.frontendTests`** — new top-level fields populated via per-field merge from the primary backend/frontend workspace. `adaptBackendStandards` consumes `backendTests`, `adaptFrontendStandards` consumes `frontendTests`. Mixed-framework monorepos (e.g., vitest in API, jest in web) now produce accurate Testing lines for each side. `scan.tests` is preserved unchanged for backward compat (tracker F001 logic, init-wizard summary, AGENTS.md adapter — all untouched semantics).
+- **`scan.backend.primaryWorkspace` and `scan.frontend.primaryWorkspace`** — new diagnostic fields on the existing backend/frontend objects, set whenever a workspace was used for aux detection in a monorepo. Distinct from `workspaceSource` (which only fires when v0.17.2 promoted framework from workspace because root lacked it). Useful for `--doctor` and smoke-test assertions.
+- **`mergeWorkspaceTests(rootTests, wsTests)`** — internal helper in `lib/scanner.js` that performs per-field merge instead of object replacement. Workspace wins for unit framework if non-default; root-level E2E config (Playwright/Cypress typically installed once at root) is preserved when workspace promotes its unit framework. Counts use workspace-authoritative semantics (workspace.testFiles > 0 wins; the naive `> rootTests.testFiles` comparison is dead code because `countFilesRecursive` traverses `packages/*` from root and root counts already aggregate workspace counts — Gemini round-2 CRITICAL).
+- **init-wizard summary array-collect** — `Tests:` line now collects all distinct non-`'none'` frameworks across root/backend/frontend and joins them (e.g., `Tests: vitest + jest (NN test files)` for fx-shaped monorepos). Replaces the v1.1 OR-precedence design that would shadow workspace frameworks behind hoisted-root frameworks (Gemini round-2 IMPORTANT).
+- **Scenarios 72-82 (+11 total)** — extends `test/smoke.js` from 73 to **85 scenarios**. Coverage:
+  - 72 `testMonorepoLanguageDetection`
+  - 73 `testMonorepoBackendTestsDetection`
+  - 74 `testMonorepoArchitectureDetection`
+  - 75 `testMonorepoFrontendAuxiliaryDetection`
+  - 76 `testMonorepoMixedFrameworkTests`
+  - 76b `testMonorepoRootHoistedFrameworkStillPromotes` — **fx empirical fix guard** (round-1 CRITICAL)
+  - 77 `testMonorepoArchitectureBooleanGuard`
+  - 78 `testMonorepoTestsPreservesRootE2E` — **per-field merge fix guard** (round-1 CRITICAL)
+  - 79 `testSinglePackageTestsReferenceEqual`
+  - 80 `testMonorepoTestsPromotesWorkspaceE2E` (round-3 Medium guard)
+  - 81 `testMonorepoTestsWorkspaceE2EOverridesRoot` (round-3 Medium guard)
+  - 82 `testMonorepoArchitecturePatternNonDemotion` (round-3 Low guard)
+
+### Cross-model reviewed
+
+Three cross-model rounds completed (Codex GPT-5.4 + Gemini 2.5 in parallel). Plan v1.0 → v1.2 → implementation.
+
+- **Round 1 (plan v1.0)** — Codex REJECT (1 CRITICAL + 4 IMPORTANT), Gemini REJECT (2 CRITICAL + 4 IMPORTANT). Both convergent on the CRITICAL: `workspaceSource` gate too narrow for hoisted-deps monorepos. Plan v1.1 introduces D5 single-pass enumeration with primary-workspace concept. Per-field test merge (D3) preserves root E2E.
+- **Round 2 (plan v1.1)** — Codex REJECT (3 IMPORTANT, all round-1 RESOLVED), Gemini REJECT (1 CRITICAL + 1 IMPORTANT, all round-1 RESOLVED). Plan v1.2: dead-code count condition fixed (`wsTests.testFiles > 0`), F001 gate broadened, primaryWorkspace exported, init-wizard array-collect.
+- **Round 3 (implementation diff)** — Codex APPROVE WITH CHANGES (1 Medium + 1 Low test coverage), Gemini REJECT (1 CRITICAL: F001 tracker insertion not migrated to broadened gate; 1 IMPORTANT: scenario 76b assertion drift). Both addressed inline in commit `23281dc`. Scenarios 80, 81, 82 added.
+
+### Empirical validation
+
+Verified against foodXPlorer (canonical real-world monorepo, npm workspaces with 6 packages, mixed framework setup):
+- `Runtime: Node.js with TypeScript` (was: JavaScript)
+- `backend-standards Testing: Vitest` (was: Not configured) — with `e2eFramework: playwright` preserved from root @playwright/test dep
+- `frontend-standards Testing: Jest` (was: Not configured)
+- `frontend-standards Styling: Tailwind CSS` (was: missing line entirely)
+- `AGENTS.md Frontend patterns: (Next.js, Tailwind CSS)` (was: 1 entry → doctor check #14 sparse WARN, now: 2 entries → no WARN)
+- `Architecture: Custom` (unchanged — fx genuinely doesn't match a known pattern; v0.17.3 detects this honestly. Original ROADMAP claim of "DDD layered" was incorrect.)
+
+### Known limitation
+
+- **Mixed-language monorepos (TS backend + JS frontend, or vice versa)**: `scan.language` is a single field promoted from primary backend workspace. `adaptFrontendStandards` reads `scan.language` and may show the wrong language for a JS frontend in such projects. Concrete failure cases are rare (most greenfield is TS-everywhere). Deferred — see Open Questions in `dev/v0.17.3-plan.md`.
+
 ## [0.17.2] - 2026-04-15
 
 ### Fixed
