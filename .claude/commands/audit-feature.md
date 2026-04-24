@@ -64,6 +64,76 @@ For **(c) Self-testing PRs**, some checks will be FAIL-by-design:
     - Test files that assert on hardcoded UUIDs without safety markers
 13. **Working tree** — `git status` should be clean (only expected untracked files like `.claude/scheduled_tasks.lock`)
 
+### Phase 3b — Drift detection (added v0.18.0)
+
+Eleven empirically-validated drift patterns that the structural checks of Phase 2 do NOT catch. Each fires independently; results feed into "Drift findings" subsection of the report. Severity per pattern — drift findings do NOT block merge but should be fixed before user authorization.
+
+Run all 11 against the ticket, PR body, tracker, and remote state:
+
+**P1 — PR body test count stale** (IMPORTANT). Bind the ratio to a test-count context (same line as `npm test`/`tests?`/`pass`/`green`) to avoid AC/DoD ratios. Use `[0-9]+/[0-9]+` open-ended.
+```
+PR_TESTS ← from PR body, first ratio on a line with test/pass/green keyword
+TICKET_TESTS ← last matching ratio in the ticket file
+If PR_TESTS ≠ TICKET_TESTS (both non-empty) → flag IMPORTANT
+```
+
+**P2 — Merge Checklist Evidence rows aspirational** (IMPORTANT). Scan `[x]` rows for future-tense phrases.
+```
+In the `## Merge Checklist Evidence` section, grep rows marked [x] containing:
+  /to be |will |pending|TBD|Will be |to be created|next commit|aspirational/
+→ flag IMPORTANT per matching row
+```
+
+**P3 — Post-merge actions not logged in close** (IMPORTANT, post-merge only). Strip `- [ ] ` prefix with `sed` before comparing. Use fixed-string grep against Completion Log.
+```
+If PR state = MERGED AND ticket Status = Done:
+  For each post-merge item (`- [ ] ` AC/DoD/test-plan line with keywords):
+    stripped_item ← sed 's/^- \[ \] //'
+    key ← first 40 chars
+    If `grep -Fq "$key"` fails in Completion Log → flag IMPORTANT
+```
+
+**P4 — Remote branch orphan after "deleted"** (NIT pre-merge · IMPORTANT post-merge). Extract branch via `sed` (no `\K` — BSD grep compat). Check with `git ls-remote --heads`.
+```
+BRANCH ← sed 's/^\*\*[Bb]ranch:\*\*[[:space:]]*([^[:space:]|]+).*/\1/' on ticket header
+If PR state = MERGED AND `git ls-remote --heads origin $BRANCH` non-empty → flag IMPORTANT
+```
+
+**P5 — Frozen ticket Status** (IMPORTANT single · CRITICAL-SYSTEMIC ≥2). Multi-word Status via `sed -E` char class. Merge detection via `git log --all --grep=$ticket_id`.
+```
+For each ticket in docs/tickets/*.md:
+  status ← multi-word via sed capture `([A-Za-z ]+)` before `|`
+  If status ≠ "Done" AND `git log --all --grep=$ticket_id` non-empty → collect
+FROZEN_COUNT ≥ 2 → CRITICAL-SYSTEMIC (systemic close-pattern gap)
+FROZEN_COUNT = 1 → IMPORTANT
+```
+
+**P6 — Off-by-N AC/checkbox counts** (NIT). Compare Merge Checklist Evidence row 1 claim ("all N marked" / "AC: X/Y") against actual count of `[x]` + `[ ]` in `## Acceptance Criteria`. Divergence ≥2 flags.
+
+**P7 — Test count drift within ticket** (IMPORTANT, final-sections only). Only flag when AC, DoD, or tracker Active-Session numbers differ from Completion Log terminal entry. Intermediate rows (Step 3 Plan Step 8 snapshot) are legitimate and IGNORED.
+```
+TERMINAL ← last ratio in Completion Log matching test/pass/green marker
+FINAL_NUMS ← ratios in AC + DoD sections matching test/pass/green marker
+TRACKER_NUM ← Active Session first ratio (if present)
+For each n in FINAL_NUMS + TRACKER_NUM:
+  If n ≠ TERMINAL → flag IMPORTANT with delta
+```
+
+**P8 — Completion Log gap vs Workflow Checklist** (IMPORTANT). Use `while-read` (not `for-in`) on unique step numbers from CHECKED workflow items only.
+```
+CHECKED_STEPS ← sed 's/^- \[x\] Step ([0-9]+):.*/\1/' on [x] Workflow rows, sort -u
+For each step_num:
+  If Completion Log has no row matching `Step $step_num([^0-9]|$)` → flag IMPORTANT
+```
+
+**P9 — Tracker header "Last Updated" stale vs Active Session detail** (NIT). Compare step-reference in `**Last Updated:**` header vs `**Active Feature:**` line. If they cite different step numbers (e.g., header says 0/6 but detail says 5/6) → flag NIT.
+
+**P10 — Duplicate Completion Log rows** (NIT). Hash `date | action | first-80-chars-of-notes` and flag `uniq -d`.
+
+**P11 — Tracker Features table status vs ticket Status mismatch** (IMPORTANT). Ticket Status=Ready for Merge / Review expects tracker=in-progress. Ticket Status=Done expects tracker=done. Mismatch → flag IMPORTANT.
+
+---
+
 ### Phase 5 — Report
 
 ## Output format
@@ -98,6 +168,26 @@ For each issue:
 Flag both:
 - **foodXPlorer issues** (ticket gaps, tracker desync, code problems)
 - **SDD DevFlow library issues** (template problems, skill gaps, doctor check misses)
+
+### 3b. Drift findings (added v0.18.0)
+
+Report output of Phase 3b pattern detections. Drift findings are advisory (non-blocking merge) but MUST be addressed before user authorization.
+
+| # | Pattern | Severity | Evidence |
+|---|---------|----------|----------|
+| P1 | PR body test count stale | IMPORTANT | e.g. PR body: 3766, ticket terminal: 3788 |
+| P2 | Merge Checklist Evidence aspirational | IMPORTANT | row 5: "will land in next commit" |
+| P3 | Post-merge actions not logged | IMPORTANT | "operator runs reseed --prod" missing from Completion Log |
+| P4 | Remote branch orphan | NIT/IMPORTANT | `feature/X` still on origin |
+| P5 | Frozen ticket Status | IMPORTANT/CRITICAL-SYSTEMIC | 3 tickets still In Progress post-merge |
+| P6 | AC count off-by-N | NIT | "all 24 marked" but actually 26 |
+| P7 | Test count drift within ticket | IMPORTANT | AC13: 3694, DoD: 3788, terminal: 3788 |
+| P8 | Completion Log gap | IMPORTANT | Step 3+4+5 [x] but no log entries |
+| P9 | Tracker header stale | NIT | header says Step 0/6, detail says 5/6 |
+| P10 | Duplicate Completion Log rows | NIT | 2 identical "Plan revised v2" rows |
+| P11 | Tracker Features status mismatch | IMPORTANT | Status=Done but tracker=in-progress |
+
+If no pattern fires: `DRIFT: clean (0/11 patterns)`. If any fires: `DRIFT: N advisories — refresh before user authorization`.
 
 ### 4. Exact message to the other agent
 

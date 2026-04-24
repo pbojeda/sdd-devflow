@@ -4507,6 +4507,177 @@ function testSinglePackageTestsReferenceEqual() {
     'single-package: scan.frontendTests must be === scan.tests');
 }
 
+// ============================================================================
+// v0.18.0 — Drift detection in /audit-merge (scenarios 86-92)
+// ============================================================================
+
+// Shared helpers for drift-detection fixture tests.
+// These tests operate on shipped template files + local fixtures, no project generation.
+
+function testAuditMergeClaudeHasDriftChecks() {
+  const auditMergePath = path.join(__dirname, '..', 'template', '.claude', 'commands', 'audit-merge.md');
+  const content = fs.readFileSync(auditMergePath, 'utf8');
+
+  // All 11 P-pattern labels must appear
+  for (const p of ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
+    assert.ok(content.includes(`**${p} `) || content.includes(`| ${p} `),
+      `Claude audit-merge.md must mention pattern ${p}`);
+  }
+  // Dual verdict markers
+  assert.ok(content.includes('STRUCTURAL: READY FOR MERGE'),
+    'audit-merge.md must contain STRUCTURAL verdict marker');
+  assert.ok(content.includes('DRIFT: CLEAN') || content.includes('DRIFT: N advisories'),
+    'audit-merge.md must contain DRIFT verdict marker');
+  // Drift section header
+  assert.ok(content.includes('Drift Checks (added v0.18.0)'),
+    'audit-merge.md must have "Drift Checks (added v0.18.0)" section heading');
+}
+
+function testAuditMergeGeminiHasDriftChecks() {
+  const geminiPath = path.join(__dirname, '..', 'template', '.gemini', 'commands', 'audit-merge-instructions.md');
+  const content = fs.readFileSync(geminiPath, 'utf8');
+
+  for (const p of ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
+    assert.ok(content.includes(`**${p} `) || content.includes(`| ${p} `),
+      `Gemini audit-merge-instructions.md must mention pattern ${p}`);
+  }
+  assert.ok(content.includes('STRUCTURAL: READY FOR MERGE'),
+    'Gemini audit-merge-instructions.md must contain STRUCTURAL verdict marker');
+  assert.ok(content.includes('Drift Checks (added v0.18.0)'),
+    'Gemini audit-merge-instructions.md must have "Drift Checks (added v0.18.0)" section heading');
+}
+
+// Helper: normalized count of drift-pattern triggers against a fixture.
+// Minimal JS implementation of the detection recipes — parallel to the bash
+// recipes in the skill files, used here only to assert the detection LOGIC
+// is correct end-to-end (LLM-agnostic regression safety net).
+function detectP1(ticketPath, prBodyPath) {
+  const ticket = fs.readFileSync(ticketPath, 'utf8');
+  const prBody = fs.readFileSync(prBodyPath, 'utf8');
+  const testCountRe = /[0-9]+\/[0-9]+/g;
+  const looksTestCount = (line) => /npm test|tests?.*(pass|green)/i.test(line);
+
+  const prTests = prBody.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || [])[0];
+  const ticketMatches = ticket.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || []);
+  const ticketTerminal = ticketMatches[ticketMatches.length - 1];
+  return (prTests && ticketTerminal && prTests !== ticketTerminal);
+}
+
+function detectP3(ticketPath, ticketStatus) {
+  if (ticketStatus !== 'Done') return false;
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  // Unchecked post-merge items
+  const postMergeItems = content.split('\n')
+    .filter(l => /^- \[ \].*(post-merge|operator|prod rollout|pending verification)/i.test(l))
+    .map(l => l.replace(/^- \[ \]\s*/, ''));
+  if (postMergeItems.length === 0) return false;
+  // Completion Log section
+  const logMatch = content.match(/## Completion Log[\s\S]*?(?=## Merge Checklist|$)/);
+  const log = logMatch ? logMatch[0] : '';
+  return postMergeItems.some(item => !log.includes(item.slice(0, 40)));
+}
+
+function detectP5(ticketPath, mergedFlag) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const statusMatch = content.match(/^\*\*Status:\*\*\s*([A-Za-z ]+?)\s*\|/m);
+  const status = statusMatch ? statusMatch[1].trim() : '';
+  return (status !== 'Done' && mergedFlag);
+}
+
+function detectP7(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const testCountRe = /[0-9]+\/[0-9]+/g;
+  const looksTestCount = (line) => /test|pass|green/i.test(line);
+
+  // Completion Log section
+  const logMatch = content.match(/## Completion Log[\s\S]*?(?=## Merge Checklist|$)/);
+  const log = logMatch ? logMatch[0] : '';
+  const logMatches = log.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || []);
+  const terminal = logMatches[logMatches.length - 1];
+  if (!terminal) return false;
+
+  // AC + DoD sections
+  const acMatch = content.match(/## Acceptance Criteria[\s\S]*?(?=## Definition of Done)/);
+  const dodMatch = content.match(/## Definition of Done[\s\S]*?(?=## Workflow Checklist)/);
+  const finalSections = (acMatch ? acMatch[0] : '') + (dodMatch ? dodMatch[0] : '');
+  const finalNums = new Set(finalSections.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || []));
+  for (const n of finalNums) {
+    if (n !== terminal) return true;
+  }
+  return false;
+}
+
+function detectP8(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const wfMatch = content.match(/## Workflow Checklist[\s\S]*?(?=## Completion Log)/);
+  const workflow = wfMatch ? wfMatch[0] : '';
+  const logMatch = content.match(/## Completion Log[\s\S]*?(?=## Merge Checklist|$)/);
+  const log = logMatch ? logMatch[0] : '';
+
+  const checkedSteps = new Set();
+  const stepRe = /^- \[x\] Step ([0-9]+):/gm;
+  let m;
+  while ((m = stepRe.exec(workflow)) !== null) checkedSteps.add(m[1]);
+
+  for (const step of checkedSteps) {
+    const stepPresentInLog = new RegExp(`Step\\s+${step}(?!\\d)`).test(log);
+    if (!stepPresentInLog) return true;
+  }
+  return false;
+}
+
+function testFixtureP1TriggersOnlyP1() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P1-stale-pr-body.md');
+  const prBody = path.join(tickets, 'fixture-P1-pr-body.txt');
+
+  assert.strictEqual(detectP1(fixture, prBody), true, 'P1 fixture must trigger P1');
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'P1 fixture must NOT trigger P3 (not Done)');
+  assert.strictEqual(detectP5(fixture, false), false, 'P1 fixture must NOT trigger P5 (not merged)');
+  assert.strictEqual(detectP7(fixture), false, 'P1 fixture must NOT trigger P7 (final sections match terminal)');
+  assert.strictEqual(detectP8(fixture), false, 'P1 fixture must NOT trigger P8 (all steps logged or not checked)');
+}
+
+function testFixtureP3TriggersOnlyP3() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P3-unlogged-postmerge.md');
+
+  assert.strictEqual(detectP3(fixture, 'Done'), true, 'P3 fixture must trigger P3');
+  assert.strictEqual(detectP5(fixture, true), false, 'P3 fixture must NOT trigger P5 (Status IS Done)');
+  assert.strictEqual(detectP7(fixture), false, 'P3 fixture must NOT trigger P7');
+  assert.strictEqual(detectP8(fixture), false, 'P3 fixture must NOT trigger P8');
+}
+
+function testFixtureP5TriggersOnlyP5() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P5-frozen-status.md');
+
+  assert.strictEqual(detectP5(fixture, true), true, 'P5 fixture must trigger P5 (Status=In Progress + merged)');
+  assert.strictEqual(detectP3(fixture, 'In Progress'), false, 'P5 fixture must NOT trigger P3 (Status is not Done)');
+  assert.strictEqual(detectP7(fixture), false, 'P5 fixture must NOT trigger P7');
+  assert.strictEqual(detectP8(fixture), false, 'P5 fixture must NOT trigger P8');
+}
+
+function testFixtureP7TriggersOnlyP7() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P7-testcount-drift.md');
+
+  assert.strictEqual(detectP7(fixture), true, 'P7 fixture must trigger P7 (AC=3694 vs terminal=3729)');
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'P7 fixture must NOT trigger P3 (not Done)');
+  assert.strictEqual(detectP5(fixture, false), false, 'P7 fixture must NOT trigger P5');
+  assert.strictEqual(detectP8(fixture), false, 'P7 fixture must NOT trigger P8');
+}
+
+function testFixtureP8TriggersOnlyP8() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P8-log-gap.md');
+
+  assert.strictEqual(detectP8(fixture), true, 'P8 fixture must trigger P8 (Step 3/4/5 [x] but no log narrative)');
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'P8 fixture must NOT trigger P3');
+  assert.strictEqual(detectP5(fixture, false), false, 'P8 fixture must NOT trigger P5');
+  assert.strictEqual(detectP7(fixture), false, 'P8 fixture must NOT trigger P7');
+}
+
 // --- Run all ---
 
 console.log('\nSmoke tests\n');
@@ -4629,6 +4800,15 @@ try {
   run('Scenario 80: workspace e2eFramework promoted when root has none (round-3 Medium guard)', testMonorepoTestsPromotesWorkspaceE2E);
   run('Scenario 81: workspace e2eFramework overrides different root e2eFramework (round-3 Medium guard)', testMonorepoTestsWorkspaceE2EOverridesRoot);
   run('Scenario 82: architecture pattern non-demotion (round-3 Low guard)', testMonorepoArchitecturePatternNonDemotion);
+
+  console.log('\n  v0.18.0 /audit-merge drift detection:');
+  run('Scenario 86: Claude audit-merge.md has 11 P-patterns + DRIFT/STRUCTURAL verdicts', testAuditMergeClaudeHasDriftChecks);
+  run('Scenario 87: Gemini audit-merge-instructions.md mirrors drift checks', testAuditMergeGeminiHasDriftChecks);
+  run('Scenario 88: P1 fixture triggers P1 only (PR body test count stale)', testFixtureP1TriggersOnlyP1);
+  run('Scenario 89: P3 fixture triggers P3 only (post-merge action unlogged)', testFixtureP3TriggersOnlyP3);
+  run('Scenario 90: P5 fixture triggers P5 only (frozen ticket Status)', testFixtureP5TriggersOnlyP5);
+  run('Scenario 91: P7 fixture triggers P7 only (intra-ticket test count drift)', testFixtureP7TriggersOnlyP7);
+  run('Scenario 92: P8 fixture triggers P8 only (Completion Log gap)', testFixtureP8TriggersOnlyP8);
 } finally {
   cleanup();
 }

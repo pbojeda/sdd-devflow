@@ -2,14 +2,15 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.17.3
+## Current Version: 0.18.0
 
 ### Known follow-ups (v0.18.x candidates)
 
-**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in the v0.17.2 scanner hotfix or v0.17.3). Extends v0.17.1's smart-diff scope to ~30 additional files currently under wholesale-recopy semantics.
+**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in v0.17.2 hotfix, v0.17.3, or v0.18.0). **Scope broadened in v0.18.0** to also cover `commands/` directory (audit-merge.md added drift checks but remains under wholesale-recopy semantics per v0.18.0 CHANGELOG Known Limitations).
 
    - **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
    - **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+   - **Commands** (added 2026-04-23 post-v0.18.0): `template/.claude/commands/audit-merge.md`, `review-spec.md`, `review-plan.md`, `review-project.md`, `context-prompt.md`; `template/.gemini/commands/*-instructions.md` + `.toml` counterparts. Customization risk: moderate — teams may tune audit-merge checks, adapt review prompts.
    - **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
 
 **2. Scanner extensions** (deferred from v0.17.1).
@@ -36,6 +37,26 @@
 **6. Doctor check #14 tightening** (flagged in v0.17.3 round-2 review).
 
    - Currently WARNs only when `Frontend patterns` has exactly 1 entry. Could tighten to WARN when fewer than 3 entries (still likely incomplete detection). v0.17.3 closes the fx 1-entry case (now `(Next.js, Tailwind CSS)`); future projects with components/state libs may still fall short of 3 entries.
+
+**7. Drift-detection refinements** (flagged in v0.18.0 empirical validation).
+
+   - P5 merge-detection currently uses `git log --all --grep=<ticket_id>` which is heuristic (a ticket could be mentioned in a non-merge commit). Tighten to `git log --merges --first-parent main develop --grep=<ticket_id>` for higher precision. Deferred to v0.18.x.
+   - P8 Step 5 split (code-review + qa-engineer) currently aggregates to a single step number check. Finer check that both sub-entries are individually logged is deferred to v0.18.x.
+   - Drift checks detection recipes assume English keywords (`will`, `to be`, `post-merge`). Spanish-only tickets wouldn't trigger. User base is bilingual (English ticket template, Spanish Active Session) — no known project affected yet. Deferred pending user report.
+
+### v0.18.0 (2026-04-23) — Drift-detection in /audit-merge + /audit-feature
+
+Addresses 10 empirical drift patterns surfaced during 5 consecutive audits of foodXPlorer pm-sprint2 PRs. Adds 11 advisory checks (patterns P1-P11) to the shipped `/audit-merge` skill + the local `/audit-feature` skill.
+
+**The gap**: across pm-sprint2 (PRs #197, #201, #202, #205, #206), drift appeared in ≥2/5 of the following shapes: PR body test count stale (4/5), Merge Checklist Evidence rows in future tense while marked `[x]` (3/5), post-merge actions not logged post-close (2/5), Completion Log gap vs Workflow Checklist (2/5), plus 1/5 occurrences of remote branch orphan, frozen ticket Status, AC off-by-N, intra-ticket test drift, tracker header stale, duplicate log rows, tracker status mismatch. Pre-0.18.0 `/audit-merge` verdict `11/11 PASS` on all five of these PRs — all drift was caught only by external `/audit-feature` audits.
+
+**The fix**: 11 new checks (12-22) in `/audit-merge` with BSD-grep-compatible shell recipes. Dual verdict structure (STRUCTURAL blocking + DRIFT advisory) prevents semantic collision.
+
+**Cross-model review trail**: 1 round (Gemini + Codex in parallel). Gemini: 3 CRITICAL + 2 IMPORTANT + 1 SUGGESTION. Codex: 0 CRITICAL + 6 IMPORTANT + 2 SUGGESTION. All 3 Gemini CRITICALs (PCRE `\K` on BSD, `for-in` whitespace split, line-number prefix impossibility) + all Codex IMPORTANTs addressed in plan v1.1 before implementation. Full trail: `dev/v0.18.0-audit-enhancements-plan.md`.
+
+**Smoke tests**: 85 → 92 (+7): 86-87 static-string assertions for template integrity, 88-92 fixture-based behavioral tests for P1/P3/P5/P7/P8 detection correctness.
+
+**Known limitation**: `audit-merge.md` not in smart-diff provenance — users with customized `audit-merge.md` get overwritten on upgrade. See v0.18.x follow-up #1. Status quo vs pre-0.18.0 (no regression).
 
 ### v0.17.3 (2026-04-16) — Workspace-aware auxiliary detection
 

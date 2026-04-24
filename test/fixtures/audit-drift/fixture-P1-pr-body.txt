@@ -1,0 +1,15 @@
+## Summary
+
+Fixture PR body for F-FIXTURE-P1.
+
+## Quality gates
+
+- npm test --workspace=@project/api → 3766/3766 passing ✓
+- npm run lint → 0 errors ✓
+- npm run build → clean ✓
+
+## AC status
+
+- AC: 2/2 marked
+- DoD: 2/2
+- Workflow: 6/7

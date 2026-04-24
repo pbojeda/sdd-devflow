@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-04-23
+
+### Added
+
+- **`/audit-merge` drift-detection (checks 12-22)** — 11 empirically-validated documental-drift patterns added to the shipped self-audit skill. Catches recurring issues that structural compliance checks miss: PR body test count stale (observed 4× in a single sprint), Merge Checklist Evidence rows in future tense while marked `[x]`, post-merge actions not logged post-close, remote branches not deleted despite "[x] branch deleted", frozen ticket Status, off-by-N AC count claims, test-count drift within ticket (AC vs DoD vs tracker vs Completion Log terminal), Completion Log gaps vs Workflow Checklist `[x]` steps, tracker header "Last Updated" stale vs Active Feature detail, duplicate Completion Log rows, tracker Features table status vs ticket Status mismatch. Each check has a BSD-grep-compatible shell recipe (no `\K`, no naive `for-in` over whitespace-split output). Templates updated in `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`.
+- **Dual verdict in `/audit-merge`** — separate STRUCTURAL (blocking, checks 1-11) and DRIFT (advisory, checks 12-22) verdicts, plus combined summary. Prevents drift advisories from semantically colliding with merge blockers, while ensuring they're caught before user authorization.
+- **Drift detection in local `/audit-feature`** (sdd-devflow-pb only, not shipped) — Phase 3b with the same 11 patterns, and a new output section "3b. Drift findings". Used by external auditor (companion agent pattern).
+- **Test fixtures for drift detection** — `test/fixtures/audit-drift/` directory with 5 ticket fixtures (P1, P3, P5, P7, P8) and 1 PR-body fixture, each designed to trigger exactly one pattern. Smoke scenarios 88-92 run the detection recipes against each fixture and assert exactly 1 flag fires.
+- **Smoke scenarios 86-87** — static-string assertions that `audit-merge.md` (Claude + Gemini variants) contains the DRIFT verdict marker and all 11 P-pattern labels, guarding against accidental template truncation.
+
+### Process
+
+- Plan v1.0→v1.1 via cross-model review (Gemini + Codex): 3 Gemini CRITICAL + 6 Codex IMPORTANT findings addressed inline before implementation. All shell/regex recipes rewritten for BSD-grep compatibility (`\K` → `sed -E`), correct string handling (prefix-stripped before comparison), and noise reduction (test-count regex now binds to test-keyword context instead of matching any X/Y ratio). Details: `dev/v0.18.0-audit-enhancements-plan.md` Appendix B.
+
+### Known Limitations
+
+- **`audit-merge.md` not tracked by smart-diff provenance** — `expectedSmartDiffTrackedPaths` (`lib/meta.js:244`) covers agents + AGENTS.md + standards + 3 development-workflow files but not command skills. Users who upgrade from 0.17.x → 0.18.0 via `npx create-sdd-project --upgrade` will have any local customizations in `audit-merge.md` wholesale-overwritten (existing pre-0.18.0 behavior, not a regression). Adding command files to smart-diff is a v0.18.x follow-up (ROADMAP item). Workaround: back up customized commands before upgrading, re-apply post-upgrade.
+
 ## [0.17.3] - 2026-04-16
 
 ### Fixed
