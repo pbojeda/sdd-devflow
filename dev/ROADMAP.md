@@ -2,7 +2,28 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.18.0
+## Current Version: 0.18.1
+
+### v0.18.1 (2026-04-28) — Drift recipe hardening + smart-diff commands extension
+
+Empirical follow-up to v0.18.0 — re-execution of shipped `/audit-merge` literal bash recipes against fx F-H9 + F-H10 post-merge audits surfaced 5 silent-PASS bugs that caused the agent's `/audit-merge` self-audit to report "drift CLEAN" while real drift existed.
+
+- **5 recipe fixes** (B1–B5): P1 regex broaden for `**Tests**:` form, P2 awk flag-based extraction for MCE-as-last-section, P4 inline branch grep, P8 Action-column anchor, P9 tracker format flexibility.
+- **1 sed harden** (B6): P5/P11 Status extraction handles `**Status:** **Done**` bold-in-bold markup (previously caused 30+ noisy false positives in fx).
+- **1 execution guardrail** (B7): soft directive requiring agents to include literal command output as evidence for any PASS verdict — bare PASS = NOT EXECUTED.
+- **Smart-diff extension to `commands/`**: 5 Claude `.md` + 10 Gemini twins (5 `.toml` + 5 `-instructions.md`) now hash-tracked. Closes v0.18.0 known limitation. Hash count for fullstack-both: 31 → 46.
+- **7 new test fixtures + 7 new smoke scenarios** (#93-99). Each scenario asserts the fix detects the bug case AND the v0.18.0 buggy regex would NOT have detected it. Smoke total: 92 → 99.
+
+#### Mirror parity
+
+Every shell-recipe edit applied byte-equal to both `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`.
+
+#### Validation
+
+- All 99 smoke scenarios green.
+- After upgrading fx from v0.18.0 → v0.18.1 and re-running `/audit-merge` on F-H9: P2 IMPORTANT × 1 (row "(will update to 6/6 post-merge)") and on F-H10: P2 IMPORTANT × 1 (row "Will sync...") + P8 IMPORTANT × 2 (Step 1 + Step 3 missing dedicated Action-column rows) — drift previously silent-PASS now correctly surfaced.
+
+
 
 ### Known follow-ups (v0.18.x candidates)
 

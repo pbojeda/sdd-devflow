@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-04-28
+
+Drift-recipe hardening release. v0.18.0 shipped 11 drift detection patterns (P1–P11) but empirical re-execution of the literal bash recipes against fx F-H9 + F-H10 post-merge audits surfaced **5 silent false-negative bugs** that caused the agent's `/audit-merge` self-audit to report "drift CLEAN" while real drift existed. v0.18.1 fixes the recipes (no new patterns), adds a soft execution-discipline directive, and extends smart-diff coverage to the shipped commands directory so users' customizations of `audit-merge.md` survive subsequent upgrades.
+
+### Fixed
+
+- **B1 P1 — PR body test count regex broadened** (`audit-merge.md:58-59` + Gemini mirror). v0.18.0 regex `(npm test|tests?.*(pass|green))` missed `**Tests**: 4094/4110` style PR bodies (no "pass"/"green"/"npm test" keyword). New regex `(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])` catches both `**Tests**: N/N`, `Tests: N`, and the original forms.
+- **B2 P2 — Aspirational-row awk range collapse** (`audit-merge.md:65-67` + Gemini mirror). When `## Merge Checklist Evidence` is the LAST H2 section of the ticket (true for fx tickets and the SDD ticket-template scaffold), the original awk range `/^## Merge Checklist Evidence/,/^## /` collapsed to 1 line (the heading only) because awk treats start-and-end on the same line as a single-line range. New flag-based extraction `/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag` runs to EOF when no subsequent H2 exists. Empirical drift not flagged in fx F-H9 row 2 `(will update to 6/6 post-merge)` and F-H10 row 2 `Will sync in tracker commit before /audit-merge` is now caught.
+- **B3 P4 — Inline branch-header extraction** (`audit-merge.md:85` + Gemini mirror). v0.18.0 grep `^**[Bb]ranch:**` required line-start, but fx tickets (and the SDD scaffold) use single-line inline header `**Status:** Done | **Branch:** feature/X (deleted post-merge)` where Branch is mid-line. New `grep -oE '\*\*[Bb]ranch:\*\*[[:space:]]*[^[:space:]|()]+'` scans any line and stops at `(` so the trailing `(deleted)` parenthetical doesn't contaminate the extracted branch name.
+- **B4 P8 — Action-column anchor for Step coverage** (`audit-merge.md:129` + Gemini mirror). v0.18.0 grep `Step[[:space:]]+$step_num([^0-9]|$)` matched "Step N" anywhere in any cell — narrative mentions of Step N in another step's notes column falsely satisfied the check. fx F-H9 Step 2 row narrative says "rollback Step 1 dish_id UUID family mismatch", masking the fact that Step 1 has no dedicated row. New regex `^\|[^|]*\|[[:space:]]*Step[[:space:]]+$step_num([^0-9]|$)` anchors to the Action column (cell 2 of the markdown table), so narrative leaks in column 3 are ignored.
+- **B5 P9 — Tracker format flexibility** (`audit-merge.md:136-137` + Gemini mirror). v0.18.0 strict `Step [0-9]+/6` regex missed fx-style tracker entries like `F-H10 DONE 6/6` (no "Step" prefix). Both header and detail extracted empty → conditional skip → silent PASS. New regex `(Step )?[0-9]+/6` + `sed -E 's/^Step //'` accepts optional prefix and normalizes both forms before comparison.
+- **B6 P5 / P11 — Status sed bold-marker robustness** (`audit-merge.md:94 + 154`, both occurrences in Claude + Gemini mirror). v0.18.0 sed capture group `([A-Za-z ]+)` could not match `**Done**` (the next char after `**Status:** ` is `*`, not a letter). Sed regex failed entirely → unsubstituted line returned → bash test `[ "$status" = "Done" ]` failed → ticket falsely counted as frozen. Empirically reported 56 frozen in fx during the v0.18.1 origin audit, ~30+ noise from this single bug. New sed strips optional bold-open / bold-close markers in three passes (prefix + trailing + whitespace-trim), correctly extracting `Done`, `Ready for Merge`, `**In Progress**` to canonical forms.
+
+### Added
+
+- **B7 — Execution discipline directive** (template/.claude/commands/audit-merge.md + Gemini mirror, new `### Execution discipline (added v0.18.1)` section between drift recipes and Output Format). Soft directive requiring agents to include LITERAL command output as evidence for any drift check declared PASS. Bare "PASS" without supporting output is explicitly defined as "NOT EXECUTED" — agent must re-run with output captured. Addresses two empirical failure modes: (a) agent abbreviates execution and reports CLEAN by inference from MEMORY/design knowledge; (b) buggy recipes return empty output silently treated as PASS without verification. No automated enforcement — soft prose directive in v0.18.1 (future v0.19+ may add a hook).
+- **Smart-diff coverage extended to `commands/`** (`lib/meta.js` `expectedSmartDiffTrackedPaths`). 5 Claude `.md` commands + 10 Gemini twins (5 `.toml` wrappers + 5 `-instructions.md` bodies) now hash-tracked. User customizations of `audit-merge.md` (especially valuable since teams may tune drift recipes for their PR/ticket conventions) survive subsequent upgrades via the standard hash decision tree (missing/force → write, hash match → replace, hash mismatch → preserve + `.new` backup, no hash → fallback content compare). Closes the v0.18.0 known limitation. For default fullstack-both projects, hash count rises from 31 → 46.
+- **7 new test fixtures** in `test/fixtures/audit-drift/`:
+  - `fixture-B1-pr-body.txt` + `fixture-B1-ticket.md` — `**Tests**:` PR body format
+  - `fixture-B2-mce-last-section.md` — MCE as last H2, aspirational `[x]` row
+  - `fixture-B3-inline-branch-header.md` — single-line `Status | Branch | (deleted)` header
+  - `fixture-B4-narrative-leak.md` — Step 1 [x] but only narrative mention in Step 2 row
+  - `fixture-B5-tracker-format-mix.md` — header `4/6` vs detail `Step 5/6`
+  - `fixture-B6-bold-status.md` — `**Status:** **Done** | …` form
+- **7 new smoke scenarios (#93-99)** validating each fix detects the bug case AND the v0.18.0 buggy regex would NOT have detected it (regression-style pair). Smoke total: 92 → 99 passing.
+
+### Process
+
+- **Origin**: re-execution of shipped `/audit-merge` literal bash recipes against fx F-H9 + F-H10 post-merge audits revealed the 5 silent-PASS bugs. Plan v0.1 documented in `dev/v0.18.1-drift-hardening-plan.md` with per-bug file:line references, regex/awk before-after diffs, and risk register.
+- **Mirror parity**: every shell-recipe edit applied byte-equal to both `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`. No drift between Claude and Gemini variants.
+- **Forward-only**: no backport to v0.18.0 line — same release model as previous patches.
+
+### Migration
+
+Users on v0.18.0 upgrading to v0.18.1 will see smart-diff prompts for `template/.claude/commands/audit-merge.md` (and the other 4 commands) on first upgrade IF their `.sdd-meta.json` does not already contain hash entries for these paths. This is the expected first-upgrade fallback path (same UX as the v0.17.0 → v0.17.1 standards extension). Choose:
+
+- **Accept .new**: replace your local file with the v0.18.1 fixed recipes (recommended unless you have local customizations).
+- **Keep current**: preserve your local file, drop the v0.18.1 fixes (NOT recommended — drift detection will continue to silent-PASS).
+- **Merge**: apply the v0.18.1 fixes to your customized recipes manually.
+
+The first-upgrade fallback is one-time. Subsequent upgrades use hash-based precision.
+
 ## [0.18.0] - 2026-04-23
 
 ### Added
