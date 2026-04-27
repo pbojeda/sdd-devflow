@@ -166,6 +166,20 @@ esac
   && flag "P11: Status='$TICKET_STATUS' expects tracker='$EXPECTED' but tracker='$TRACKER_STATUS'"
 ```
 
+### Execution discipline (added v0.18.1)
+
+For each of the 11 drift checks (P1–P11), if you declare PASS, **include the literal command output** (or its absence — explicit "no rows matched", "extracted: feature/foo", "FROZEN_COUNT=0") as evidence in your report. A bare "PASS" without supporting output is treated as **NOT EXECUTED** by the auditor — re-run with output captured.
+
+Recommended pattern:
+
+```
+P1 PR body test count stale | PASS | PR_TESTS=4110/4110, TICKET_TESTS=4110/4110 (matched)
+P2 Aspirational rows | PASS | awk … | grep … (no rows matched)
+P5 Frozen ticket Status | PASS | FROZEN_COUNT=0
+```
+
+This prevents two failure modes empirically observed during the v0.18.1 origin audit (fx F-H9 + F-H10): (a) the agent abbreviates execution and reports CLEAN by inference from MEMORY/design knowledge; (b) buggy recipes return empty output silently and the agent treats empty as PASS without verifying the recipe ran. Both are caught when literal output is required.
+
 ### Output Format
 
 Report two tables — one for **structural (blocking)** compliance, one for **drift (advisory)**. Emit two verdicts plus a combined summary line.

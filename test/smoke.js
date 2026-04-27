@@ -4892,6 +4892,29 @@ function testFixtureB5TrackerFormatMix() {
     'B5 fixture: v0.18.1 flexible regex must flag 4/6 (header) vs 5/6 (detail) mismatch');
 }
 
+// v0.18.1 (B7 guardrail): static check that both shipped templates
+// contain the `### Execution discipline` section + literal-output directive.
+function testAuditMergeHasExecutionDisciplineSection() {
+  const claudePath = path.join(__dirname, '..', 'template', '.claude', 'commands', 'audit-merge.md');
+  const geminiPath = path.join(__dirname, '..', 'template', '.gemini', 'commands', 'audit-merge-instructions.md');
+
+  for (const [label, filePath] of [['Claude', claudePath], ['Gemini', geminiPath]]) {
+    const content = fs.readFileSync(filePath, 'utf8');
+    assert.ok(content.includes('### Execution discipline (added v0.18.1)'),
+      `${label} audit-merge template must contain "### Execution discipline (added v0.18.1)" heading`);
+    assert.ok(content.includes('include the literal command output'),
+      `${label} audit-merge template must contain the literal-output directive`);
+    assert.ok(content.includes('NOT EXECUTED'),
+      `${label} audit-merge template must explicitly state bare PASS is treated as NOT EXECUTED`);
+    // Section must come BEFORE Output Format (sequencing matters — guardrail
+    // applies to drift checks, output format formalizes the report).
+    const guardrailIdx = content.indexOf('### Execution discipline');
+    const outputIdx = content.indexOf('### Output Format');
+    assert.ok(guardrailIdx > 0 && guardrailIdx < outputIdx,
+      `${label} audit-merge template: Execution discipline section must precede Output Format`);
+  }
+}
+
 function testFixtureB6BoldStatusExtraction() {
   const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
   const fixture = path.join(tickets, 'fixture-B6-bold-status.md');
@@ -5058,6 +5081,9 @@ try {
   console.log('\n  v0.18.1 drift recipe hardening (Phase 4):');
   run('Scenario 97: B5 fixture — tracker header `4/6` vs detail `Step 5/6` triggers P9 with flexible regex (v0.18.0 strict regex misses)', testFixtureB5TrackerFormatMix);
   run('Scenario 98: B6 fixture — bold-in-bold `**Status:** **Done**` extraction harden (v0.18.0 sed produces false-positive frozen)', testFixtureB6BoldStatusExtraction);
+
+  console.log('\n  v0.18.1 execution guardrail (Phase 5):');
+  run('Scenario 99: B7 — Claude + Gemini templates contain `### Execution discipline` section requiring literal command output', testAuditMergeHasExecutionDisciplineSection);
 } finally {
   cleanup();
 }
