@@ -6,11 +6,11 @@
 
 ### Known follow-ups (v0.18.x candidates)
 
-**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in v0.17.2 hotfix, v0.17.3, or v0.18.0). **Scope broadened in v0.18.0** to also cover `commands/` directory (audit-merge.md added drift checks but remains under wholesale-recopy semantics per v0.18.0 CHANGELOG Known Limitations).
+**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in v0.17.2 hotfix, v0.17.3, or v0.18.0). **Commands sub-bullet RESOLVED in v0.18.1** (5 Claude .md + 10 Gemini .toml/-instructions.md added to `expectedSmartDiffTrackedPaths`, hash count 31 → 46 for fullstack-both projects).
 
-   - **Additional skill files**: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
-   - **development-workflow/references/**: `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
-   - **Commands** (added 2026-04-23 post-v0.18.0): `template/.claude/commands/audit-merge.md`, `review-spec.md`, `review-plan.md`, `review-project.md`, `context-prompt.md`; `template/.gemini/commands/*-instructions.md` + `.toml` counterparts. Customization risk: moderate — teams may tune audit-merge checks, adapt review prompts.
+   - **Additional skill files** (still pending): `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
+   - **development-workflow/references/** (still pending): `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+   - **Commands** ✅ shipped v0.18.1: `template/.claude/commands/{audit-merge,review-spec,review-plan,review-project,context-prompt}.md` + Gemini `*-instructions.md` + `*.toml` counterparts now hash-tracked. User customizations of these files survive future upgrades via the standard smart-diff decision tree.
    - **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
 
 **2. Scanner extensions** (deferred from v0.17.1).
