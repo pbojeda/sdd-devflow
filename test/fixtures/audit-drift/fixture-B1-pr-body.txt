@@ -1,0 +1,16 @@
+## Summary
+
+Fixture PR body for B1 — uses `**Tests**:` format with no "pass"/"green" keywords.
+v0.18.0 P1 regex `(npm test|tests?.*(pass|green))` would silently miss this format.
+
+## Quality gates
+
+**Tests**: 4094/4094 ✓
+**Lint**: 0 errors ✓
+**Build**: clean ✓
+
+## AC status
+
+- AC: 2/2 marked
+- DoD: 1/1
+- Workflow: 2/3

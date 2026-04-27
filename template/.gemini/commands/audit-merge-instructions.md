@@ -55,14 +55,14 @@ Eleven empirically-validated drift patterns. Failures are NOT blockers for the c
 **12. P1 — PR body test count stale.** Ratio must co-occur with test/pass/green marker to avoid AC/DoD ratios (14/14, 7/7).
 ```bash
 PR_BODY=$(gh pr view --json body -q .body)
-PR_TESTS=$(echo "$PR_BODY" | grep -iE "(npm test|tests?.*(pass|green))" | grep -oE "[0-9]+/[0-9]+" | head -1)
-TICKET_TESTS=$(grep -iE "(npm test|tests?.*(pass|green))" "$TICKET" | grep -oE "[0-9]+/[0-9]+" | tail -1)
+PR_TESTS=$(echo "$PR_BODY" | grep -iE "(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])" | grep -oE "[0-9]+/[0-9]+" | head -1)
+TICKET_TESTS=$(grep -iE "(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])" "$TICKET" | grep -oE "[0-9]+/[0-9]+" | tail -1)
 [ -n "$PR_TESTS" ] && [ -n "$TICKET_TESTS" ] && [ "$PR_TESTS" != "$TICKET_TESTS" ] && flag "P1: PR body $PR_TESTS vs ticket $TICKET_TESTS"
 ```
 
 **13. P2 — Merge Checklist Evidence aspirational.** `[x]` rows with future-tense text.
 ```bash
-awk '/^## Merge Checklist Evidence/,/^## /' "$TICKET" \
+awk '/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag' "$TICKET" \
   | grep -E '^\|.*\[x\].*(to be |will |pending|TBD|Will be |to be created|next commit|aspirational)' \
   && flag "P2: aspirational row(s)"
 ```

@@ -4551,16 +4551,51 @@ function testAuditMergeGeminiHasDriftChecks() {
 // Minimal JS implementation of the detection recipes — parallel to the bash
 // recipes in the skill files, used here only to assert the detection LOGIC
 // is correct end-to-end (LLM-agnostic regression safety net).
-function detectP1(ticketPath, prBodyPath) {
+// v0.18.1 (B1 fix): broaden P1 regex to catch `**Tests**: 4094/4094` style PR
+// bodies and ticket lines that omit "pass"/"green"/"npm test" keywords.
+// Parametric helper allows scenario 93 to compare old vs fixed behaviour.
+function detectP1WithRegex(ticketPath, prBodyPath, looksTestCountRegex) {
   const ticket = fs.readFileSync(ticketPath, 'utf8');
   const prBody = fs.readFileSync(prBodyPath, 'utf8');
   const testCountRe = /[0-9]+\/[0-9]+/g;
-  const looksTestCount = (line) => /npm test|tests?.*(pass|green)/i.test(line);
+  const looksTestCount = (line) => looksTestCountRegex.test(line);
 
   const prTests = prBody.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || [])[0];
   const ticketMatches = ticket.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || []);
   const ticketTerminal = ticketMatches[ticketMatches.length - 1];
-  return (prTests && ticketTerminal && prTests !== ticketTerminal);
+  return Boolean(prTests && ticketTerminal && prTests !== ticketTerminal);
+}
+
+const P1_REGEX_FIXED = /npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9]/i;
+const P1_REGEX_OLD_V0_18_0 = /npm test|tests?.*(pass|green)/i;
+
+function detectP1(ticketPath, prBodyPath) {
+  return detectP1WithRegex(ticketPath, prBodyPath, P1_REGEX_FIXED);
+}
+
+// v0.18.1 (B2 fix): MCE-as-last-section detection. Mirrors the new awk recipe
+// `/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag` —
+// runs to EOF when no subsequent H2 heading exists, so the body of MCE is
+// emitted instead of just the heading line.
+function detectP2(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const lines = content.split('\n');
+  let inMce = false;
+  const mceLines = [];
+  for (const line of lines) {
+    if (/^## Merge Checklist Evidence/.test(line)) {
+      inMce = true;
+      continue; // skip heading
+    }
+    if (inMce && /^## [A-Z]/.test(line)) {
+      inMce = false;
+      continue;
+    }
+    if (inMce) mceLines.push(line);
+  }
+  return mceLines.some(l =>
+    /^\|.*\[x\].*(to be |will |pending|TBD|Will be |to be created|next commit|aspirational)/.test(l)
+  );
 }
 
 function detectP3(ticketPath, ticketStatus) {
@@ -4676,6 +4711,52 @@ function testFixtureP8TriggersOnlyP8() {
   assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'P8 fixture must NOT trigger P3');
   assert.strictEqual(detectP5(fixture, false), false, 'P8 fixture must NOT trigger P5');
   assert.strictEqual(detectP7(fixture), false, 'P8 fixture must NOT trigger P7');
+}
+
+// v0.18.1 — Phase 2 (B1 + B2 fixes)
+
+function testFixtureB1TriggersP1WithFixedRegex() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B1-ticket.md');
+  const prBody = path.join(tickets, 'fixture-B1-pr-body.txt');
+
+  // Regression evidence: v0.18.0 regex would miss this case (PR body has no
+  // "pass"/"green"/"npm test" keyword — only `**Tests**: 4094/4094`).
+  const oldResult = detectP1WithRegex(fixture, prBody, P1_REGEX_OLD_V0_18_0);
+  assert.strictEqual(oldResult, false,
+    'B1 fixture: v0.18.0 regex must miss (regression evidence — `**Tests**:` format not caught)');
+
+  // v0.18.1 fixed regex catches the drift.
+  assert.strictEqual(detectP1(fixture, prBody), true,
+    'B1 fixture: v0.18.1 regex must trigger P1 (PR=4094/4094 vs ticket terminal=4133/4133)');
+
+  // Cross-check: B1 fixture must NOT trigger other patterns.
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'B1: not Done → no P3');
+  assert.strictEqual(detectP5(fixture, false), false, 'B1: not merged → no P5');
+  assert.strictEqual(detectP7(fixture), false, 'B1: AC/DoD have no test counts → no P7');
+  assert.strictEqual(detectP8(fixture), false, 'B1: every [x] step has a log row → no P8');
+}
+
+function testFixtureB2TriggersP2WhenMceLastSection() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B2-mce-last-section.md');
+
+  // Sanity: confirm MCE is the last H2 section in the fixture (otherwise the
+  // bug being tested wouldn't apply).
+  const content = fs.readFileSync(fixture, 'utf8');
+  const h2Headings = content.match(/^## [A-Z][^\n]*/gm) || [];
+  assert.ok(h2Headings.length > 0 && h2Headings[h2Headings.length - 1].startsWith('## Merge Checklist Evidence'),
+    'B2 fixture invariant: MCE must be the last H2 section');
+
+  // v0.18.1 awk-based detector finds the aspirational [x] row.
+  assert.strictEqual(detectP2(fixture), true,
+    'B2 fixture: v0.18.1 detector must catch `[x] | will sync` row in MCE-as-last-section');
+
+  // Cross-check: B2 fixture must NOT trigger other patterns.
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'B2: not Done → no P3');
+  assert.strictEqual(detectP5(fixture, false), false, 'B2: not merged → no P5');
+  assert.strictEqual(detectP7(fixture), false, 'B2: DoD count matches terminal → no P7');
+  assert.strictEqual(detectP8(fixture), false, 'B2: every [x] step has a log row → no P8');
 }
 
 // --- Run all ---
@@ -4809,6 +4890,10 @@ try {
   run('Scenario 90: P5 fixture triggers P5 only (frozen ticket Status)', testFixtureP5TriggersOnlyP5);
   run('Scenario 91: P7 fixture triggers P7 only (intra-ticket test count drift)', testFixtureP7TriggersOnlyP7);
   run('Scenario 92: P8 fixture triggers P8 only (Completion Log gap)', testFixtureP8TriggersOnlyP8);
+
+  console.log('\n  v0.18.1 drift recipe hardening (Phase 2):');
+  run('Scenario 93: B1 fixture — `**Tests**:` PR body format triggers P1 with fixed regex (v0.18.0 regex misses)', testFixtureB1TriggersP1WithFixedRegex);
+  run('Scenario 94: B2 fixture — MCE-as-last-section + aspirational row triggers P2 with fixed awk', testFixtureB2TriggersP2WhenMceLastSection);
 } finally {
   cleanup();
 }

@@ -55,14 +55,14 @@ Eleven empirically-validated drift patterns. Failures are NOT blockers for the c
 **12. P1 — PR body test count stale.** The PR body's "npm test" line should match the terminal test count in the ticket (AC / DoD / Completion Log last entry). Agents commonly open the PR at Step 4 and add tests during Step 5 review — the PR body number becomes stale.
 ```bash
 PR_BODY=$(gh pr view --json body -q .body)
-PR_TESTS=$(echo "$PR_BODY" | grep -iE "(npm test|tests?.*(pass|green))" | grep -oE "[0-9]+/[0-9]+" | head -1)
-TICKET_TESTS=$(grep -iE "(npm test|tests?.*(pass|green))" "$TICKET" | grep -oE "[0-9]+/[0-9]+" | tail -1)
+PR_TESTS=$(echo "$PR_BODY" | grep -iE "(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])" | grep -oE "[0-9]+/[0-9]+" | head -1)
+TICKET_TESTS=$(grep -iE "(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])" "$TICKET" | grep -oE "[0-9]+/[0-9]+" | tail -1)
 [ -n "$PR_TESTS" ] && [ -n "$TICKET_TESTS" ] && [ "$PR_TESTS" != "$TICKET_TESTS" ] && flag "P1 drift: PR body $PR_TESTS vs ticket $TICKET_TESTS"
 ```
 
 **13. P2 — Merge Checklist Evidence rows aspirational.** Rows marked `[x]` with future-tense Evidence ("will land", "to be created", "pending", "next commit", "TBD") — the row claims done but the work hasn't happened yet.
 ```bash
-awk '/^## Merge Checklist Evidence/,/^## /' "$TICKET" \
+awk '/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag' "$TICKET" \
   | grep -E '^\|.*\[x\].*(to be |will |pending|TBD|Will be |to be created|next commit|aspirational)' \
   && flag "P2 drift: aspirational row(s) found"
 ```
