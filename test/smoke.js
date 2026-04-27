@@ -4687,6 +4687,59 @@ function extractBranchFixedRegex(ticketPath) {
   return m ? m[1] : '';
 }
 
+// v0.18.1 (B5 fix): tracker P9 format flexibility — accept `5/6` AND
+// `Step 5/6` forms, normalize before comparison. Old regex required
+// strict `Step N/6` and missed fx tracker style (`F-H10 DONE 6/6`).
+function detectP9WithRegex(trackerPath, allowOptionalStepPrefix) {
+  const content = fs.readFileSync(trackerPath, 'utf8');
+  const re = allowOptionalStepPrefix ? /(Step )?[0-9]+\/6/g : /Step [0-9]+\/6/g;
+
+  const headerMatches = content.match(re) || [];
+  const headerStep = headerMatches[0] ? headerMatches[0].replace(/^Step /, '') : '';
+
+  // Detail: line(s) following the **Active Feature:** marker.
+  const afIdx = content.indexOf('**Active Feature:**');
+  if (afIdx === -1) return false;
+  const afRegion = content.slice(afIdx, afIdx + 400);
+  const detailMatches = afRegion.match(re) || [];
+  // Skip the first match if it overlaps with the header capture (when
+  // **Active Feature:** appears immediately after the header).
+  const detailStep = detailMatches.find((s) => s.replace(/^Step /, '') !== headerStep)
+    ? detailMatches.find((s) => s.replace(/^Step /, '') !== headerStep).replace(/^Step /, '')
+    : (detailMatches[0] ? detailMatches[0].replace(/^Step /, '') : '');
+
+  if (!headerStep || !detailStep) return false;
+  return headerStep !== detailStep;
+}
+
+function detectP9(trackerPath) {
+  return detectP9WithRegex(trackerPath, true);
+}
+
+// v0.18.1 (B6 fix): P5/P11 Status extraction — handle bold-in-bold markup
+// like `**Status:** **Done** | ...`. Old sed `([A-Za-z ]+)` capture cannot
+// match `*`, so the regex fails entirely and the literal line is returned,
+// causing false positives (Done tickets counted as frozen).
+function extractStatusOldSed(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  // Mirror v0.18.0 sed: capture letters+spaces between `**Status:**` and `|`.
+  // Returns empty if regex fails to match (parallel to bash returning the
+  // unsubstituted line — both result in `status !== 'Done'` test failing).
+  const m = content.match(/^\*\*Status:\*\*\s*([A-Za-z ]+?)\s*\|/m);
+  return m ? m[1].trim() : '';
+}
+
+function extractStatusFixedSed(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const lineMatch = content.match(/^\*\*Status:\*\*[^\n]*/m);
+  if (!lineMatch) return '';
+  let s = lineMatch[0]
+    .replace(/^\*\*Status:\*\*\s*\*?\*?/, '')
+    .replace(/\s*\*?\*?\s*\|.*$/, '')
+    .replace(/\s+$/, '');
+  return s;
+}
+
 function testFixtureP1TriggersOnlyP1() {
   const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
   const fixture = path.join(tickets, 'fixture-P1-stale-pr-body.md');
@@ -4820,6 +4873,46 @@ function testFixtureB4NarrativeLeakAnchoredP8() {
   assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'B4: not Done → no P3');
   assert.strictEqual(detectP5(fixture, false), false, 'B4: not merged → no P5');
   assert.strictEqual(detectP7(fixture), false, 'B4: AC/DoD have no test counts → no P7');
+}
+
+function testFixtureB5TrackerFormatMix() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B5-tracker-format-mix.md');
+
+  // Regression evidence: v0.18.0 strict `Step [0-9]+/6` regex matches detail
+  // (`Step 5/6`) but misses the header (`4/6` with no Step prefix). HEADER_STEP
+  // empty → conditional skip → silent PASS even though 4 ≠ 5 logically.
+  const oldResult = detectP9WithRegex(fixture, false);
+  assert.strictEqual(oldResult, false,
+    'B5 fixture: v0.18.0 strict regex must miss (header `4/6` not in `Step N/6` form)');
+
+  // v0.18.1 flexible regex normalizes both forms and surfaces the 4 vs 5 drift.
+  const newResult = detectP9WithRegex(fixture, true);
+  assert.strictEqual(newResult, true,
+    'B5 fixture: v0.18.1 flexible regex must flag 4/6 (header) vs 5/6 (detail) mismatch');
+}
+
+function testFixtureB6BoldStatusExtraction() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B6-bold-status.md');
+
+  // Regression evidence: v0.18.0 sed capture group `([A-Za-z ]+)` cannot
+  // match `**Done**` (the next char after `**Status:** ` is `*`, not a
+  // letter). Sed regex fails entirely → unsubstituted line returned (bash)
+  // / null match (JS) → empty status → ticket falsely counted as frozen.
+  assert.strictEqual(extractStatusOldSed(fixture), '',
+    'B6 fixture: v0.18.0 sed must return empty for bold-in-bold Status');
+
+  // v0.18.1 fixed sed strips optional bold-open / bold-close markers in two
+  // passes, returning a clean canonical Status string.
+  assert.strictEqual(extractStatusFixedSed(fixture), 'Done',
+    'B6 fixture: v0.18.1 sed must extract `Done` from `**Status:** **Done** |`');
+
+  // Sanity: also handles the regular non-bold form correctly. Use existing
+  // P1 fixture which has `**Status:** Ready for Merge | …`.
+  const regularFixture = path.join(tickets, 'fixture-P1-stale-pr-body.md');
+  assert.strictEqual(extractStatusFixedSed(regularFixture), 'Ready for Merge',
+    'B6 fix must remain compatible with regular non-bold multi-word Status');
 }
 
 // --- Run all ---
@@ -4961,6 +5054,10 @@ try {
   console.log('\n  v0.18.1 drift recipe hardening (Phase 3):');
   run('Scenario 95: B3 fixture — inline `Status | Branch | …` header extraction (v0.18.0 line-start regex misses)', testFixtureB3InlineBranchExtraction);
   run('Scenario 96: B4 fixture — narrative `Step 1` mention does not satisfy anchored P8 (v0.18.0 unanchored regex falsely passes)', testFixtureB4NarrativeLeakAnchoredP8);
+
+  console.log('\n  v0.18.1 drift recipe hardening (Phase 4):');
+  run('Scenario 97: B5 fixture — tracker header `4/6` vs detail `Step 5/6` triggers P9 with flexible regex (v0.18.0 strict regex misses)', testFixtureB5TrackerFormatMix);
+  run('Scenario 98: B6 fixture — bold-in-bold `**Status:** **Done**` extraction harden (v0.18.0 sed produces false-positive frozen)', testFixtureB6BoldStatusExtraction);
 } finally {
   cleanup();
 }

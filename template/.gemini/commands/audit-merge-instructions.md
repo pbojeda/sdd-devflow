@@ -90,7 +90,10 @@ git ls-remote --heads origin "$BRANCH" 2>/dev/null | grep -q refs/heads && flag 
 ```bash
 FROZEN_COUNT=0
 for t in docs/tickets/*.md; do
-  status=$(grep -E "^\*\*Status:\*\*" "$t" | head -1 | sed -E 's/^\*\*Status:\*\*[[:space:]]*([A-Za-z ]+)[[:space:]]*\|.*/\1/' | sed -E 's/[[:space:]]+$//')
+  status=$(grep -E "^\*\*Status:\*\*" "$t" | head -1 \
+    | sed -E 's/^\*\*Status:\*\*[[:space:]]*\*?\*?//' \
+    | sed -E 's/[[:space:]]*\*?\*?[[:space:]]*\|.*//' \
+    | sed -E 's/[[:space:]]+$//')
   [ "$status" = "Done" ] && continue
   ticket_id=$(basename "$t" .md | sed -E 's/-[a-z].*//')
   git log --all --oneline --grep="$ticket_id" | grep -q . && FROZEN_COUNT=$((FROZEN_COUNT+1))
@@ -131,8 +134,8 @@ done <<< "$CHECKED_STEPS"
 **20. P9 — Tracker header stale.**
 ```bash
 TRACKER=docs/project_notes/product-tracker.md
-HEADER_STEP=$(grep -oE 'Step [0-9]+/6' "$TRACKER" | head -1)
-DETAIL_STEP=$(grep -A 1 '^\*\*Active Feature:\*\*' "$TRACKER" | grep -oE 'Step [0-9]+/6' | head -1)
+HEADER_STEP=$(grep -oE '(Step )?[0-9]+/6' "$TRACKER" | head -1 | sed -E 's/^Step //')
+DETAIL_STEP=$(grep -A 1 '^\*\*Active Feature:\*\*' "$TRACKER" | grep -oE '(Step )?[0-9]+/6' | head -1 | sed -E 's/^Step //')
 [ -n "$HEADER_STEP" ] && [ -n "$DETAIL_STEP" ] && [ "$HEADER_STEP" != "$DETAIL_STEP" ] \
   && flag "P9: header $HEADER_STEP vs detail $DETAIL_STEP"
 ```
@@ -148,7 +151,10 @@ awk -F'|' '/^\| [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
 
 **22. P11 — Tracker Features table status vs ticket Status mismatch.**
 ```bash
-TICKET_STATUS=$(grep -E "^\*\*Status:\*\*" "$TICKET" | head -1 | sed -E 's/^\*\*Status:\*\*[[:space:]]*([A-Za-z ]+)[[:space:]]*\|.*/\1/' | sed -E 's/[[:space:]]+$//')
+TICKET_STATUS=$(grep -E "^\*\*Status:\*\*" "$TICKET" | head -1 \
+    | sed -E 's/^\*\*Status:\*\*[[:space:]]*\*?\*?//' \
+    | sed -E 's/[[:space:]]*\*?\*?[[:space:]]*\|.*//' \
+    | sed -E 's/[[:space:]]+$//')
 FEATURE_ID=$(basename "$TICKET" .md | sed -E 's/-[a-z].*//')
 TRACKER_STATUS=$(grep -F "$FEATURE_ID" docs/project_notes/product-tracker.md | grep -oE "\| (in-progress|done|pending|blocked) \|" | head -1 | sed -E 's/\| ([a-z-]+) \|/\1/')
 case "$TICKET_STATUS" in
