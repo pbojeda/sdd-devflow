@@ -81,7 +81,7 @@ done < /tmp/pm_items.txt
 
 **15. P4 — Remote branch orphan.**
 ```bash
-BRANCH=$(grep -E "^\*\*[Bb]ranch:\*\*" "$TICKET" | head -1 | sed -E 's/^\*\*[Bb]ranch:\*\*[[:space:]]*([^[:space:]|]+).*/\1/')
+BRANCH=$(grep -oE '\*\*[Bb]ranch:\*\*[[:space:]]*[^[:space:]|()]+' "$TICKET" | head -1 | sed -E 's/^\*\*[Bb]ranch:\*\*[[:space:]]*//')
 git fetch origin --prune --quiet
 git ls-remote --heads origin "$BRANCH" 2>/dev/null | grep -q refs/heads && flag "P4: branch $BRANCH still on origin"
 ```
@@ -124,7 +124,7 @@ COMPLETION=$(awk '/^## Completion Log/,/^## Merge Checklist/' "$TICKET")
 CHECKED_STEPS=$(echo "$WORKFLOW" | grep -E "^- \[x\] Step [0-9]+:" | sed -E 's/^- \[x\] Step ([0-9]+):.*/\1/' | sort -u)
 while read -r step_num; do
   [ -z "$step_num" ] && continue
-  echo "$COMPLETION" | grep -qE "Step[[:space:]]+$step_num([^0-9]|$)" || flag "P8: Step $step_num [x] but no log entry"
+  echo "$COMPLETION" | grep -qE "^\|[^|]*\|[[:space:]]*Step[[:space:]]+$step_num([^0-9]|$)" || flag "P8: Step $step_num [x] but no dedicated log entry"
 done <<< "$CHECKED_STEPS"
 ```
 

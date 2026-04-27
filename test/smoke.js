@@ -4642,7 +4642,10 @@ function detectP7(ticketPath) {
   return false;
 }
 
-function detectP8(ticketPath) {
+// v0.18.1 (B4 fix): anchor P8 step-presence regex to the Action column
+// (column 2) of the Completion Log table — narrative mentions of "Step N"
+// in column 3 of OTHER rows must NOT mask a missing dedicated row.
+function detectP8WithRegex(ticketPath, anchored) {
   const content = fs.readFileSync(ticketPath, 'utf8');
   const wfMatch = content.match(/## Workflow Checklist[\s\S]*?(?=## Completion Log)/);
   const workflow = wfMatch ? wfMatch[0] : '';
@@ -4655,10 +4658,33 @@ function detectP8(ticketPath) {
   while ((m = stepRe.exec(workflow)) !== null) checkedSteps.add(m[1]);
 
   for (const step of checkedSteps) {
-    const stepPresentInLog = new RegExp(`Step\\s+${step}(?!\\d)`).test(log);
-    if (!stepPresentInLog) return true;
+    const re = anchored
+      ? new RegExp(`^\\|[^|]*\\|\\s*Step\\s+${step}(?!\\d)`, 'm')
+      : new RegExp(`Step\\s+${step}(?!\\d)`);
+    if (!re.test(log)) return true;
   }
   return false;
+}
+
+function detectP8(ticketPath) {
+  return detectP8WithRegex(ticketPath, true);
+}
+
+// v0.18.1 (B3 fix): inline `**Branch:**` extraction. Returns the branch name
+// or '' if no marker found. Used in scenario 95 to compare old vs new
+// extraction behaviour on tickets with `Status | Branch | …` inline headers.
+function extractBranchOldRegex(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  // Old: requires line-start `**Branch:**`
+  const m = content.match(/^\*\*[Bb]ranch:\*\*\s*([^\s|]+)/m);
+  return m ? m[1] : '';
+}
+
+function extractBranchFixedRegex(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  // New: scan ANY line, stop at whitespace/pipe/open-paren
+  const m = content.match(/\*\*[Bb]ranch:\*\*\s*([^\s|()]+)/);
+  return m ? m[1] : '';
 }
 
 function testFixtureP1TriggersOnlyP1() {
@@ -4757,6 +4783,43 @@ function testFixtureB2TriggersP2WhenMceLastSection() {
   assert.strictEqual(detectP5(fixture, false), false, 'B2: not merged → no P5');
   assert.strictEqual(detectP7(fixture), false, 'B2: DoD count matches terminal → no P7');
   assert.strictEqual(detectP8(fixture), false, 'B2: every [x] step has a log row → no P8');
+}
+
+function testFixtureB3InlineBranchExtraction() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B3-inline-branch-header.md');
+
+  // Regression evidence: v0.18.0 line-start regex misses inline header.
+  const oldExtraction = extractBranchOldRegex(fixture);
+  assert.strictEqual(oldExtraction, '',
+    'B3 fixture: v0.18.0 regex must miss (inline `Status | Branch | ...` not at line-start)');
+
+  // v0.18.1 fixed regex extracts cleanly, stopping at `(deleted post-merge)` paren.
+  const newExtraction = extractBranchFixedRegex(fixture);
+  assert.strictEqual(newExtraction, 'feature/F-FIXTURE-B3',
+    'B3 fixture: v0.18.1 regex must extract `feature/F-FIXTURE-B3` (no parenthetical contamination)');
+}
+
+function testFixtureB4NarrativeLeakAnchoredP8() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B4-narrative-leak.md');
+
+  // Regression evidence: v0.18.0 unanchored regex matches narrative leak in
+  // Step 2's notes column ("rolled back the Step 1 issue …") and falsely
+  // reports Step 1 covered → no P8 flag (false negative).
+  const oldResult = detectP8WithRegex(fixture, false);
+  assert.strictEqual(oldResult, false,
+    'B4 fixture: v0.18.0 unanchored regex must miss (narrative leak masks missing Step 1 row)');
+
+  // v0.18.1 anchored regex correctly catches the missing dedicated Step 1 row.
+  const newResult = detectP8WithRegex(fixture, true);
+  assert.strictEqual(newResult, true,
+    'B4 fixture: v0.18.1 anchored regex must flag Step 1 [x] without dedicated Action-column row');
+
+  // Cross-check: B4 fixture must NOT trigger unrelated patterns.
+  assert.strictEqual(detectP3(fixture, 'Ready for Merge'), false, 'B4: not Done → no P3');
+  assert.strictEqual(detectP5(fixture, false), false, 'B4: not merged → no P5');
+  assert.strictEqual(detectP7(fixture), false, 'B4: AC/DoD have no test counts → no P7');
 }
 
 // --- Run all ---
@@ -4894,6 +4957,10 @@ try {
   console.log('\n  v0.18.1 drift recipe hardening (Phase 2):');
   run('Scenario 93: B1 fixture — `**Tests**:` PR body format triggers P1 with fixed regex (v0.18.0 regex misses)', testFixtureB1TriggersP1WithFixedRegex);
   run('Scenario 94: B2 fixture — MCE-as-last-section + aspirational row triggers P2 with fixed awk', testFixtureB2TriggersP2WhenMceLastSection);
+
+  console.log('\n  v0.18.1 drift recipe hardening (Phase 3):');
+  run('Scenario 95: B3 fixture — inline `Status | Branch | …` header extraction (v0.18.0 line-start regex misses)', testFixtureB3InlineBranchExtraction);
+  run('Scenario 96: B4 fixture — narrative `Step 1` mention does not satisfy anchored P8 (v0.18.0 unanchored regex falsely passes)', testFixtureB4NarrativeLeakAnchoredP8);
 } finally {
   cleanup();
 }
