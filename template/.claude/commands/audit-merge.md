@@ -62,7 +62,7 @@ TICKET_TESTS=$(grep -iE "(npm test|tests?[^|]*[0-9]|[*: ]tests?[*: ]+[0-9])" "$T
 
 **13. P2 — Merge Checklist Evidence rows aspirational.** Rows marked `[x]` with future-tense Evidence ("will land", "to be created", "pending", "next commit", "TBD") — the row claims done but the work hasn't happened yet.
 ```bash
-awk '/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag' "$TICKET" \
+awk '/^## Merge Checklist Evidence/{flag=1; next} /^## /{flag=0} flag' "$TICKET" \
   | grep -E '^\|.*\[x\].*(to be |will |pending|TBD|Will be |to be created|next commit|aspirational)' \
   && flag "P2 drift: aspirational row(s) found"
 ```
@@ -136,7 +136,7 @@ done <<< "$CHECKED_STEPS"
 **20. P9 — Tracker header "Last Updated" stale.** The `**Last Updated:**` header and the `**Active Feature:**` detail should agree on step number (e.g., both say 5/6). Mismatch suggests the header wasn't refreshed after state transitions.
 ```bash
 TRACKER=docs/project_notes/product-tracker.md
-HEADER_STEP=$(grep -oE '(Step )?[0-9]+/6' "$TRACKER" | head -1 | sed -E 's/^Step //')
+HEADER_STEP=$(grep '^\*\*Last Updated:\*\*' "$TRACKER" | grep -oE '(Step )?[0-9]+/6' | head -1 | sed -E 's/^Step //')
 DETAIL_STEP=$(grep -A 1 '^\*\*Active Feature:\*\*' "$TRACKER" | grep -oE '(Step )?[0-9]+/6' | head -1 | sed -E 's/^Step //')
 [ -n "$HEADER_STEP" ] && [ -n "$DETAIL_STEP" ] && [ "$HEADER_STEP" != "$DETAIL_STEP" ] \
   && flag "P9 drift: tracker header says $HEADER_STEP, Active Feature says $DETAIL_STEP"

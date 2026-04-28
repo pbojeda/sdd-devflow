@@ -4575,29 +4575,48 @@ function detectP1(ticketPath, prBodyPath) {
   return detectP1WithRegex(ticketPath, prBodyPath, P1_REGEX_FIXED);
 }
 
-// v0.18.1 (B2 fix): MCE-as-last-section detection. Mirrors the new awk recipe
-// `/^## Merge Checklist Evidence/{flag=1; next} /^## [A-Z]/{flag=0} flag` —
-// runs to EOF when no subsequent H2 heading exists, so the body of MCE is
-// emitted instead of just the heading line.
-function detectP2(ticketPath) {
+// v0.18.1 (B2 fix + Codex C3 + C4): MCE-as-last-section detection.
+// Parametric over old-range vs new-flag-based extraction so scenario 94
+// can compare regression-pair behaviour (Codex R1 C4). Per Codex R1 C3,
+// the new-mode terminator dropped `[A-Z]` to widen to any `^## ` heading
+// (including lowercase `## appendix` or digit-prefix `## 2026 Notes`).
+function detectP2WithMode(ticketPath, mode) {
   const content = fs.readFileSync(ticketPath, 'utf8');
   const lines = content.split('\n');
-  let inMce = false;
-  const mceLines = [];
-  for (const line of lines) {
-    if (/^## Merge Checklist Evidence/.test(line)) {
-      inMce = true;
-      continue; // skip heading
+  let mceBody = [];
+
+  if (mode === 'oldRangeCollapse') {
+    // v0.18.0 awk '/^## Merge Checklist Evidence/,/^## /' — both regexes
+    // match the start line simultaneously (the start heading itself begins
+    // with `^## `), so the inclusive range collapses to a single line: the
+    // heading. Body lines never enter the range. After EOF, no further
+    // matches reopen the range. Net effect: only the heading is emitted.
+    const startIdx = lines.findIndex((l) => /^## Merge Checklist Evidence/.test(l));
+    if (startIdx === -1) return false;
+    mceBody = [lines[startIdx]];
+  } else {
+    // v0.18.1 flag-based: skip heading via `next`, run until next `^## ` or EOF.
+    let inMce = false;
+    for (const line of lines) {
+      if (/^## Merge Checklist Evidence/.test(line)) {
+        inMce = true;
+        continue;
+      }
+      if (inMce && /^## /.test(line)) {
+        inMce = false;
+        continue;
+      }
+      if (inMce) mceBody.push(line);
     }
-    if (inMce && /^## [A-Z]/.test(line)) {
-      inMce = false;
-      continue;
-    }
-    if (inMce) mceLines.push(line);
   }
-  return mceLines.some(l =>
+
+  return mceBody.some((l) =>
     /^\|.*\[x\].*(to be |will |pending|TBD|Will be |to be created|next commit|aspirational)/.test(l)
   );
+}
+
+function detectP2(ticketPath) {
+  return detectP2WithMode(ticketPath, 'newFlagBased');
 }
 
 function detectP3(ticketPath, ticketStatus) {
@@ -4696,7 +4715,13 @@ function detectP9WithRegex(trackerPath, allowOptionalStepPrefix) {
   const content = fs.readFileSync(trackerPath, 'utf8');
   const re = allowOptionalStepPrefix ? /(Step )?[0-9]+\/6/g : /Step [0-9]+\/6/g;
 
-  const headerMatches = content.match(re) || [];
+  // v0.18.1 (Codex R1 C2): scope HEADER extraction to the `**Last Updated:**`
+  // line itself, not the whole file. A file-wide `head -1` would match the
+  // first `N/6` token anywhere in the tracker (e.g., a stale Status table
+  // earlier in the file) and false-flag against the actual detail.
+  const headerLineMatch = content.match(/^\*\*Last Updated:\*\*[^\n]*/m);
+  const headerLine = headerLineMatch ? headerLineMatch[0] : '';
+  const headerMatches = headerLine.match(re) || [];
   const headerStep = headerMatches[0] ? headerMatches[0].replace(/^Step /, '') : '';
 
   // Detail: line(s) following the **Active Feature:** marker.
@@ -4704,11 +4729,7 @@ function detectP9WithRegex(trackerPath, allowOptionalStepPrefix) {
   if (afIdx === -1) return false;
   const afRegion = content.slice(afIdx, afIdx + 400);
   const detailMatches = afRegion.match(re) || [];
-  // Skip the first match if it overlaps with the header capture (when
-  // **Active Feature:** appears immediately after the header).
-  const detailStep = detailMatches.find((s) => s.replace(/^Step /, '') !== headerStep)
-    ? detailMatches.find((s) => s.replace(/^Step /, '') !== headerStep).replace(/^Step /, '')
-    : (detailMatches[0] ? detailMatches[0].replace(/^Step /, '') : '');
+  const detailStep = detailMatches[0] ? detailMatches[0].replace(/^Step /, '') : '';
 
   if (!headerStep || !detailStep) return false;
   return headerStep !== detailStep;
@@ -4829,7 +4850,14 @@ function testFixtureB2TriggersP2WhenMceLastSection() {
   assert.ok(h2Headings.length > 0 && h2Headings[h2Headings.length - 1].startsWith('## Merge Checklist Evidence'),
     'B2 fixture invariant: MCE must be the last H2 section');
 
-  // v0.18.1 awk-based detector finds the aspirational [x] row.
+  // Regression evidence (Codex R1 C4): v0.18.0 awk range `/start/,/^## /`
+  // collapses to single-line range when MCE is the last H2 section, because
+  // the start heading itself satisfies the end pattern. Body never emitted →
+  // grep finds no aspirational rows → silent PASS.
+  assert.strictEqual(detectP2WithMode(fixture, 'oldRangeCollapse'), false,
+    'B2 fixture: v0.18.0 awk range collapses to heading-only when MCE is last → no flag');
+
+  // v0.18.1 flag-based detector finds the aspirational [x] row.
   assert.strictEqual(detectP2(fixture), true,
     'B2 fixture: v0.18.1 detector must catch `[x] | will sync` row in MCE-as-last-section');
 
