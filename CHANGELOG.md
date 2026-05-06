@@ -6,6 +6,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-05-06
+
+Smart-diff coverage closure release. Closes the long-deferred ROADMAP "Known follow-ups" item 1 (since v0.17.1) AND fixes a critical v0.18.1 plumbing gap discovered during planning: the `.{claude,gemini}/commands/*` paths added to `expectedSmartDiffTrackedPaths` in v0.18.1 were tracked in `.sdd-meta.json` but the upgrade logic still wholesale-overwrote them, silently destroying user customizations. Empirically reproduced 2026-05-06: a marker line appended to `.claude/commands/audit-merge.md` was lost on `--upgrade --force --yes`. v0.18.2 wires the plumbing AND extends coverage to the previously-unprotected SKILL.md entry points + 11 reference files. Bonus: P12 advisory drift check for stale `HEAD: <sha>` references in the product tracker.
+
+### Fixed
+
+- **v0.18.1 commands plumbing gap (G1)** (`lib/upgrade-generator.js:374-378` removed, `:525-535` rewritten). Pre-v0.18.2 the `.claude/commands/` branch unconditionally `cpSync`'d every template file regardless of `expectedSmartDiffTrackedPaths`, and `.gemini/commands/` was wholesale `rmSync`'d before the recursive copy. Hash recording at line 1115 only iterated `filesToAdapt`, which the wholesale-overwrite branch never populated for commands → stored hashes went stale (matched the v0.18.1 install template content) while file content matched the new template. v0.18.2 replaces both branches with a smart-diff loop mirroring the agents pattern (`:397-522`): tracked paths get the standard decision tree (missing/force → write; hash match → replace; hash mismatch → preserve + `.new` backup; fallback → content compare); SDD-owned wrapper files (e.g. `add-feature.toml`, `fix-bug.toml`) keep the unconditional overwrite. Custom commands (files NOT in template) are left in place, mirroring the v0.16.10 agent strategy.
+- **`pr-template.md` project-type adapter migration (Codex R1 finding C4)** (`lib/adapt-agents.js:83-105` extended, `:247-263` removed). Pre-v0.18.2, `pr-template.md` had inline `replaceInFileFn` calls in `adaptAgentContentForProjectType` (backend strips ` / ui-components.md`; frontend strips `api-spec.yaml / `). These ran at install time but had no pure in-memory equivalent, so the new smart-diff fallback compare in v0.18.2 would have produced a mismatch on pristine single-stack projects (false-preserve regression). Rules moved to `WORKFLOW_CORE_PROJECT_TYPE_RULES` table; `adaptWorkflowCoreContentForProjectType` (the existing pure helper) now also covers `pr-template.md`. Inline calls removed; the `wfRules` loop applies them at install time via the same path.
+
+### Added
+
+- **Smart-diff coverage closure** (`lib/meta.js:283-309`). 15 new tracked paths × 2 tool dirs added to `expectedSmartDiffTrackedPaths`:
+  - 4 SKILL.md entry points: `bug-workflow`, `health-check`, `pm-orchestrator`, `project-memory`
+  - 7 development-workflow references: `pr-template.md`, `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+  - 1 pm-orchestrator reference: `pm-session-template.md`
+  - 3 project-memory references: `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`
+
+  Hash count for fullstack-both rises 46 → 76. Per-config matrix:
+
+  | projectType | aiTools | v0.18.1 | v0.18.2 |
+  |---|---|---|---|
+  | fullstack | both | 46 | 76 |
+  | fullstack | claude | 23 | 38 |
+  | fullstack | gemini | 28 | 43 |
+  | backend | both | 39 | 69 |
+  | backend | claude | 19 | 34 |
+  | backend | gemini | 24 | 39 |
+  | frontend | both | 39 | 69 |
+  | frontend | claude | 19 | 34 |
+  | frontend | gemini | 24 | 39 |
+
+- **Smart-diff plumbing for skills + references** (`lib/upgrade-generator.js:312-358`). Generalized `workflowCoreBackup` Map population from 6 paths (v0.17.1) to 21 paths × tool dirs. Existing post-copy restore loop at `:608-714` (gold-standard pattern) iterates the union via `WORKFLOW_CORE_RELATIVE_PATHS` const. Hash decision tree unchanged — Codex M1 invariant (preserved files do NOT update `newHashes`) preserved.
+
+- **P12 — Tracker HEAD references stale** (`template/.claude/commands/audit-merge.md` + Gemini mirror). 12th drift advisory check. Recipe scans `**Last Updated:**` and `**Active Feature:**` lines of `docs/project_notes/product-tracker.md` for embedded `HEAD <sha>` / `HEAD: <sha>` tokens; flags any SHA that doesn't prefix-match `git rev-parse HEAD` (bidirectional 7↔40-char tolerance). Empirically motivated by fx F-WEB-MENU-VISION-001 audit cycle 2026-05-06 where the agent's own self-edit commit left tracker HEAD references stale (`HEAD: fd752e4` while actual was `6fa801e`). Strict header-line scoping prevents false-positive fires on narrative SHAs in "Last Completed" prose. BSD-grep compatible; `|| true` guards `set -e` shell users.
+
+- **Dynamic hash count assertions** (Gemini R1 finding + Codex Open Q #6). `test/smoke.js` scenarios #50, #52 now derive expected count from `expectedSmartDiffTrackedPaths('both', 'fullstack').size` instead of hardcoded literals. Sanity guard asserts the literal v0.18.2 target (76) so future scope drift is loud. Removes the maintenance burden of updating literals on every coverage extension.
+
+- **13 new smoke scenarios (#100-#109 + #102b/#103b/#104b)** in `test/smoke.js`:
+  - #100 + #101: Claude + Gemini commands smart-diff preservation (closes the v0.18.1 plumbing gap empirically reproduced 2026-05-06)
+  - #102 + #102b: SKILL.md preserve (bug-workflow Claude + Gemini)
+  - #103 + #103b: dev-workflow ref preserve (pr-template.md Claude + Gemini, exercises the new project-type adapter)
+  - #104 + #104b: project-memory ref preserve (bugs_template.md Claude + Gemini)
+  - #105: pm-orchestrator ref preserve (pm-session-template.md Claude)
+  - #107: P12 fixture detection (`fixture-P12-stale-head.md` triggers P12, NOT P9)
+  - #107b: P12 clean case (synthetic tracker, all tracker SHAs prefix-match actualHead)
+  - #108: full mirror parity — ALL `^```bash` blocks byte-equal across Claude + Gemini audit-merge templates (generalized from v0.18.1 single-block check)
+  - #109: pristine backend `pr-template.md` does NOT false-preserve (regression guard for Codex R1 C4 fix)
+
+  Smoke total: 99 → 112 passing.
+
+- **1 new test fixture**: `test/fixtures/audit-drift/fixture-P12-stale-head.md` (tracker fragment with stale HEAD references in headers + narrative prose SHAs that must NOT trigger).
+
+### Changed
+
+- **Scenario 16 expectations updated** (`test/smoke.js:1283-1339`). Previously asserted "template command overwritten with latest version" — that was the v0.18.1 plumbing-gap behavior. Post-fix asserts: TRACKED template command customization (simulated by writing "Outdated content" to `review-plan.md`) is PRESERVED on upgrade + a `.new` backup is written under `.sdd-backup/<ts>/.claude/commands/review-plan.md.new` containing the template content for manual diff/merge.
+
+### Process
+
+- **Plan**: `dev/v0.18.2-smart-diff-closure-plan.md` (v0.2 post cross-model R1).
+- **Cross-model review R1**: 2 reviewers in parallel.
+  - Gemini (gemini-2.5-pro): APPROVED WITH MINOR. 1 finding: hash count assertions should be derived dynamically (resolved in this release).
+  - Codex (codex-cli 0.115): REVISE. 5 IMPORTANT findings — all addressed: (C1) migration story rewritten correctly per code reading; (C2) hash count matrix recomputed for all 9 project-type/aiTools combinations; (C3) Phase 3+4 merged so meta.json writes complete on the same commit; (C4) `pr-template.md` project-type adapter moved to `WORKFLOW_CORE_PROJECT_TYPE_RULES`; (C5) added Gemini-side preserve scenarios (#102b/#103b/#104b).
+- **Empirical reproduction**: v0.18.1 plumbing gap reproduced 2026-05-06 via scratch project `(scaffold v0.18.1) → (customize audit-merge.md) → (--upgrade --force --yes) → marker LOST`. Post-v0.18.2-fix: same flow → marker SURVIVED + `.new` backup written.
+- **Mirror parity**: every shell-recipe edit applied byte-equal to both `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`. Scenario #108 enforces this invariant programmatically across ALL bash blocks (generalization of v0.18.1's single-block check).
+- **fx upgrade impact (verified by code analysis)**: fx is on v0.18.1 with stock templates (no command customizations reported). On v0.18.2 upgrade, the 15 v0.18.1-tracked command paths have stored hashes matching the v0.18.1 install content. v0.18.2 templates differ by the P12 addition. Stored hash matches on-disk content (both = v0.18.1 template) → smart-diff REPLACE → fx receives v0.18.2 changes (including P12) cleanly. No data loss. The 30 newly-tracked paths have no stored hash → fallback compare against fully-adapted target → typically pristine match → silent replace + record hash.
+
+### Migration / Recovery
+
+For users who customized `.{claude,gemini}/commands/<file>` POST-v0.18.1 install AND have NOT run an upgrade since: the v0.18.1 stored hash will mismatch the customized file → smart-diff PRESERVE → customization survives v0.18.2 upgrade. No action needed.
+
+For users who customized AND ran a v0.18.1.x upgrade in between: the wholesale `cpSync` at v0.18.1 line 525-531 (Claude) and the wholesale `rmSync` at line 374-378 (Gemini) overwrote/deleted the customization in that earlier upgrade **without calling `backupBeforeReplace`** (correction per Codex R1 implementation review 2026-05-06: the old wholesale paths did NOT route through the backup machinery). The customized content is therefore NOT in `.sdd-backup/`. Recovery options: (a) `git log` / `git show` the file at HEAD before the upgrade commit if the user committed prior to upgrading; (b) manual recreation if not in git. v0.18.2 onwards routes all command writes through `backupBeforeReplace`, so future overwrites are recoverable. **Apologies if you've lost work here — this is a real consequence of the v0.18.1 plumbing gap.**
+
 ## [0.18.1] - 2026-04-28
 
 Drift-recipe hardening release. v0.18.0 shipped 11 drift detection patterns (P1–P11) but empirical re-execution of the literal bash recipes against fx F-H9 + F-H10 post-merge audits surfaced **5 silent false-negative bugs** that caused the agent's `/audit-merge` self-audit to report "drift CLEAN" while real drift existed. v0.18.1 fixes the recipes (no new patterns), adds a soft execution-discipline directive, and extends smart-diff coverage to the shipped commands directory so users' customizations of `audit-merge.md` survive subsequent upgrades.

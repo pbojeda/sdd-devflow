@@ -2,7 +2,34 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.18.1
+## Current Version: 0.18.2
+
+### v0.18.2 (2026-05-06) — Smart-diff coverage closure + P12 tracker HEAD drift
+
+Closes the long-deferred ROADMAP "Known follow-ups" item 1 (since v0.17.1) AND fixes a critical v0.18.1 commands plumbing gap discovered during planning. The 5 Claude + 10 Gemini command paths added to `expectedSmartDiffTrackedPaths` in v0.18.1 were tracked in `.sdd-meta.json` but the upgrade logic still wholesale-overwrote them, silently destroying user customizations. Reproduced empirically 2026-05-06: a marker line appended to `.claude/commands/audit-merge.md` was lost on `--upgrade --force --yes`. v0.18.2 wires the plumbing AND extends coverage to the previously-unprotected SKILL.md entry points + 11 reference files. Bonus: P12 advisory drift check for stale `HEAD: <sha>` references in the product tracker.
+
+- **G1 commands plumbing fix** (`lib/upgrade-generator.js:374-378` removed, `:525-535` rewritten as smart-diff loop). v0.18.1 commands smart-diff was a paper feature — paths tracked, hashes recorded, but upgrade wholesale-`cpSync`'d every file. v0.18.2 mirrors the agents pattern: tracked paths get the standard hash decision tree; SDD-owned wrappers (e.g. `add-feature.toml`) keep unconditional overwrite.
+- **Smart-diff coverage closure** (15 new tracked paths × 2 tool dirs added to `lib/meta.js`). 4 SKILL.md entry points (bug-workflow, health-check, pm-orchestrator, project-memory) + 7 development-workflow references (pr-template, branching-strategy, failure-handling, workflow-example, complexity-guide, add-feature-template, cross-model-review) + 1 pm-orchestrator reference (pm-session-template) + 3 project-memory references (bugs_template, decisions_template, key_facts_template). Hash count for fullstack-both rises 46 → 76.
+- **Smart-diff plumbing for skills + references** (`lib/upgrade-generator.js:312-358`). Generalized `workflowCoreBackup` Map population from 6 paths (v0.17.1) to 21 paths × tool dirs. Existing post-copy restore loop iterates the union via `WORKFLOW_CORE_RELATIVE_PATHS` const.
+- **`pr-template.md` project-type adapter migration** (Codex R1 finding C4). Inline `replaceInFileFn` calls in `adapt-agents.js:247-263` moved to `WORKFLOW_CORE_PROJECT_TYPE_RULES` table; `adaptWorkflowCoreContentForProjectType` (existing pure helper) now also covers `pr-template.md`. Required so smart-diff fallback compare on pristine single-stack projects produces a matching adapted target (no false-preserve regression).
+- **P12 — Tracker HEAD references stale** (`template/.claude/commands/audit-merge.md` + Gemini mirror). 12th drift advisory check. Recipe scans `**Last Updated:**` and `**Active Feature:**` lines for stale `HEAD <sha>` / `HEAD: <sha>` tokens vs `git rev-parse HEAD`. Bidirectional 7↔40-char prefix tolerance. Strict header-line scoping prevents false positives on narrative SHAs.
+- **Dynamic hash count assertions** (Gemini R1 finding + Codex Open Q #6). `test/smoke.js` scenarios #50, #52 derive expected count from `expectedSmartDiffTrackedPaths().size` + sanity-guard literal.
+- **13 new smoke scenarios (#100-#109 + #102b/#103b/#104b)** + 1 new fixture (`fixture-P12-stale-head.md`). Smoke total: 99 → 112 passing.
+
+#### Cross-model review R1
+
+- Gemini (gemini-2.5-pro): APPROVED WITH MINOR. 1 finding (dynamic hash count) resolved.
+- Codex (codex-cli 0.115): REVISE. 5 IMPORTANT findings — all addressed: (C1) migration story rewritten correctly; (C2) hash count matrix recomputed for all 9 project-type/aiTools combinations; (C3) Phase 3+4 merged so meta writes complete on the same commit; (C4) `pr-template.md` adapter moved to `WORKFLOW_CORE_PROJECT_TYPE_RULES`; (C5) added Gemini-side preserve scenarios.
+
+#### Mirror parity
+
+Every shell-recipe edit applied byte-equal to both `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`. Scenario #108 enforces this invariant programmatically across ALL bash blocks.
+
+#### Validation
+
+- All 112 smoke scenarios green.
+- v0.18.1 → v0.18.1 self-upgrade pre-fix: marker line on `.claude/commands/audit-merge.md` LOST. Post-fix: marker SURVIVED + `.new` backup written. Same for `.gemini/commands/audit-merge.toml`.
+- Plan: `dev/v0.18.2-smart-diff-closure-plan.md` (v0.2 post cross-model R1).
 
 ### v0.18.1 (2026-04-28) — Drift recipe hardening + smart-diff commands extension
 
@@ -27,12 +54,11 @@ Every shell-recipe edit applied byte-equal to both `template/.claude/commands/au
 
 ### Known follow-ups (v0.18.x candidates)
 
-**1. Full smart-diff coverage for remaining template files** (deferred from v0.17.1; did not land in v0.17.2 hotfix, v0.17.3, or v0.18.0). **Commands sub-bullet RESOLVED in v0.18.1** (5 Claude .md + 10 Gemini .toml/-instructions.md added to `expectedSmartDiffTrackedPaths`, hash count 31 → 46 for fullstack-both projects).
+**1. Full smart-diff coverage for remaining template files** ✅ **RESOLVED in v0.18.2** (commands shipped in v0.18.1; SKILL.md + 11 references shipped in v0.18.2; v0.18.2 also fixed the v0.18.1 commands plumbing gap that was silently overwriting customizations despite hash tracking).
 
-   - **Additional skill files** (still pending): `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + their template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
-   - **development-workflow/references/** (still pending): `pr-template.md` (highest-risk customization — teams have company-specific PR templates), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
-   - **Commands** ✅ shipped v0.18.1: `template/.claude/commands/{audit-merge,review-spec,review-plan,review-project,context-prompt}.md` + Gemini `*-instructions.md` + `*.toml` counterparts now hash-tracked. User customizations of these files survive future upgrades via the standard smart-diff decision tree.
-   - **Design refinement**: data-driven enumeration — `expectedSmartDiffTrackedPaths` returns ALL template-provided files. No per-file adaptation logic for the new batch (they're static templates). Fallback compare uses `normalizeForCompare` directly.
+   - **Additional skill files** ✅ shipped v0.18.2: `bug-workflow/SKILL.md`, `health-check/SKILL.md`, `pm-orchestrator/SKILL.md`, `project-memory/SKILL.md` + template references (`pm-session-template.md`, `bugs_template.md`, `decisions_template.md`, `key_facts_template.md`)
+   - **development-workflow/references/** ✅ shipped v0.18.2: `pr-template.md` (project-type adapter migrated to `WORKFLOW_CORE_PROJECT_TYPE_RULES`), `branching-strategy.md`, `failure-handling.md`, `workflow-example.md`, `complexity-guide.md`, `add-feature-template.md`, `cross-model-review.md`
+   - **Commands** ✅ shipped v0.18.1, plumbing fixed v0.18.2: hash decision tree now actually consulted (was paper-only in v0.18.1).
 
 **2. Scanner extensions** (deferred from v0.17.1).
 
@@ -65,10 +91,20 @@ Every shell-recipe edit applied byte-equal to both `template/.claude/commands/au
    - P8 Step 5 split (code-review + qa-engineer) currently aggregates to a single step number check. Finer check that both sub-entries are individually logged is deferred to v0.18.x.
    - Drift checks detection recipes assume English keywords (`will`, `to be`, `post-merge`). Spanish-only tickets wouldn't trigger. User base is bilingual (English ticket template, Spanish Active Session) — no known project affected yet. Deferred pending user report.
 
-**8. Drift recipe edge cases (B8 + B9)** — surfaced during 2026-04-28 external audit of fx F-H10-FU. Both pre-existing in v0.18.0, NOT introduced by v0.18.1. Defer to v0.18.2 if/when ≥1 additional finding accumulates from real fx usage; otherwise leave as-is.
+**8. Drift recipe edge cases (B8 + B9)** — surfaced during 2026-04-28 external audit of fx F-H10-FU. Both pre-existing in v0.18.0, NOT introduced by v0.18.1. Re-confirmed during fx F-WEB-MENU-VISION-001 audit 2026-05-06 (FROZEN_COUNT=52 reported, 3+ false positives identified: BUG-PROD-009, F-UX-B, F114). **Now triggered for v0.18.3** per accumulated evidence.
 
    - **B8 — P6 false positive on tickets with deferred ACs**. Recipe `grep -oE 'all [0-9]+ marked|AC: [0-9]+/[0-9]+' | head -1 | grep -oE "[0-9]+" | head -1` extracts the FIRST number from `AC: X/Y` form (the marked count X), then compares against `ACTUAL` = total checkbox count. For tickets with intentionally-deferred ACs (e.g. F-H10-FU: 11 [x] + 2 [ ] = 13 total, MCE row 1 claims "AC: 11/13 done"), CLAIMED=11 vs ACTUAL=13 produces a spurious divergence flag. Real claim is accurate (11 done out of 13). Fix: when "AC: X/Y" form matches, compare X against marked count AND Y against total. Or extract the larger of the two numbers (Y is always ≥ X by definition). Also requires audit-merge.md template line 107-108 fix + JS detector mirror in test/smoke.js.
-   - **B9 — P5 sed doesn't handle parenthetical post-Done in Status field**. Tickets with Status like `**Status:** Done (code merged YYYY-MM-DD; prod DB migration executed YYYY-MM-DD)` produce `status="Done (code merged..."` after the v0.18.1 B6 sed harden. Subsequent test `[ "$status" = "Done" ]` fails → ticket counted as frozen. fx empirical: BUG-PROD-009 + F114 + F-UX-B + BUG-PROD-008-FU1 (~10 tickets) hit this case, contributing noise to the SYSTEMIC frozen count (52 in F-H10-FU audit). Fix: tighten the second sed to also strip the parenthetical: `sed -E 's/[[:space:]]+\(.*\)//'` before the `|.*` strip. Or use `awk` to take only the first whitespace-separated token of the status field. Pre-existing in v0.18.0; v0.18.1 B6 fix only addressed bold-in-bold, not parenthetical-after.
+   - **B9 — P5 sed doesn't handle parenthetical/dash post-Done in Status field**. Tickets with Status like `**Status:** Done (code merged YYYY-MM-DD; prod DB migration executed YYYY-MM-DD)` or `**Status:** Done — squash-merged 2026-04-13 (PR #113, commit \`d8167d0\`)` produce `status="Done (code merged..."` or `status="Done — squash-merged..."` after the v0.18.1 B6 sed harden. Subsequent test `[ "$status" = "Done" ]` fails → ticket counted as frozen. fx empirical (2026-05-06 re-audit): BUG-PROD-009 + F114 + F-UX-B + BUG-PROD-008-FU1 hit this case (~10 tickets contribute to FROZEN_COUNT=52 noise). Fix options: (a) `[ "${status%% *}" = "Done" ]` (POSIX prefix-word match), (b) `[[ "$status" =~ ^Done([[:space:]]|$) ]]` (bash-only), (c) extra sed pass `sed -E 's/[[:space:]]+(\(.*\)|—.*).*//'` before the existing `|.*` strip.
+
+**9b. Orphan SDD-owned commands sweep** (Codex R1 implementation review 2026-05-06, deferred to v0.18.3 — no concrete bug today since no commands have been retired yet).
+
+   - v0.18.2 stops wholesale-deleting `.gemini/commands/`, which is the right thing for preserving custom commands but means SDD-owned commands removed in a FUTURE release will be left behind as orphans on the user's disk. On Claude this is partially mitigated by `collectCustomCommands()` surfacing destination-only files in `customCommands` (lib/upgrade-generator.js:214-227). On Gemini, `collectCustomCommands()` does NOT scan `.gemini/commands/` at all, so destination-only Gemini commands are completely invisible to the upgrade flow.
+   - Mitigation: after the Phase 2 commands smart-diff loop completes, scan `destSub` for destination-only files; if such a file is in the v0.18.x trackedSet (i.e. was once SDD-owned but is no longer in the current template), backup-and-quarantine it. If it's NOT in any historical trackedSet, treat it as user-custom and leave alone. Requires a "retired commands" registry that grows monotonically across versions. Not urgent: today no commands have been retired.
+
+**9. Additional drift recipe candidates surfaced 2026-05-06** (deferred to v0.18.3).
+
+   - **C1 — P1 multi-workspace test-count grab**. In monorepos (e.g. fx with api 4272, web 487, bot 738/3, shared 598, scraper 1221, landing 232), the recipe grabs the FIRST `[0-9]+/[0-9]+` ratio on a line with test/pass/green keyword. fx empirical: `738/3` (bot) was extracted, while the most relevant counts (api 4272, web 487) were ignored. Coincidentally matched the ticket's own first ratio so PASSED, but the signal is shallow. Candidate: prefer ratios after `npm test` / `pnpm test` / global test markers; or extract ALL ratios and verify each appears in the ticket terminal.
+   - **C2 — P11 missing-from-Features-table check**. Currently P11 only catches mismatches between Features-table rows and ticket Status. It doesn't catch features that aren't in any Features table at all (fx F-WEB-MENU-VISION-001 had no row in any `## Features — *` section, agent claimed "by design standalone"). Candidate: NIT-severity flag when ticket Status=Ready for Merge but no `## Features — *` table row exists. Could surface as P14.
 
 ### v0.18.0 (2026-04-23) — Drift-detection in /audit-merge + /audit-feature
 

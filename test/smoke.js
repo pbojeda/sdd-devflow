@@ -1280,7 +1280,9 @@ function testUpgradePreservesCustomizations() {
   stdContent += '\n## My Custom Section\n\nCustom patterns here.\n';
   fs.writeFileSync(backendStdPath, stdContent, 'utf8');
 
-  // Step 5b: Modify template command to simulate outdated version
+  // Step 5b: v0.18.2 — Modify a TRACKED template command to simulate user
+  // customization. With v0.18.2 plumbing fix, this customization MUST be
+  // preserved on upgrade (was silently overwritten in v0.18.1 and earlier).
   const reviewPlanPath = path.join(dest, '.claude', 'commands', 'review-plan.md');
   if (fs.existsSync(reviewPlanPath)) {
     fs.writeFileSync(reviewPlanPath, '# Old review-plan\n\nOutdated content.\n', 'utf8');
@@ -1309,12 +1311,37 @@ function testUpgradePreservesCustomizations() {
   assertExists(dest, '.claude/commands/my-lint.sh');
   assertFileContains(dest, '.claude/commands/my-lint.sh', 'npm run lint');
 
-  // Verify: Template command overwritten with latest version (not stuck on old content)
+  // v0.18.2: Verify TRACKED template command CUSTOMIZATION is preserved on upgrade
+  // (closes v0.18.1 plumbing gap where these files were silently overwritten).
+  // Pre-v0.18.2 expectation was "overwritten with latest version" — that was the
+  // bug. Post-fix expectation: user's "Outdated content" survives + .new backup
+  // is written with the template content for manual diff/merge.
   assertExists(dest, '.claude/commands/review-plan.md');
-  assertFileContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
-  assertFileNotContains(dest, '.claude/commands/review-plan.md', 'Outdated content');
-  assertFileContains(dest, '.claude/commands/review-plan.md', 'command -v');
-  assertFileContains(dest, '.claude/commands/review-plan.md', 'REVIEW_DIR');
+  assertFileContains(dest, '.claude/commands/review-plan.md', 'Outdated content');
+  assertFileNotContains(dest, '.claude/commands/review-plan.md', 'Implementation Plan');
+  // Verify .new backup written with template content (per v0.17.1 .new backup convention)
+  const backupRoot = path.join(dest, '.sdd-backup');
+  if (fs.existsSync(backupRoot)) {
+    const backupTimestamps = fs.readdirSync(backupRoot).filter((d) =>
+      fs.statSync(path.join(backupRoot, d)).isDirectory()
+    );
+    assert(
+      backupTimestamps.length > 0,
+      'Expected at least one .sdd-backup/<ts>/ directory after upgrade'
+    );
+    const newBackupCandidates = backupTimestamps
+      .map((ts) => path.join(backupRoot, ts, '.claude', 'commands', 'review-plan.md.new'))
+      .filter((p) => fs.existsSync(p));
+    assert(
+      newBackupCandidates.length > 0,
+      `Expected .new backup at .sdd-backup/<ts>/.claude/commands/review-plan.md.new (looked in ${backupTimestamps.join(', ')})`
+    );
+    const newBackupContent = fs.readFileSync(newBackupCandidates[0], 'utf8');
+    assert(
+      newBackupContent.includes('Implementation Plan'),
+      'Expected .new backup to contain template content (Implementation Plan)'
+    );
+  }
 
   // Verify: context-prompt.md created during upgrade (new template command)
   assertExists(dest, '.claude/commands/context-prompt.md');
@@ -3049,12 +3076,25 @@ function testCreateWritesMetaJson() {
   assert.strictEqual(meta.schemaVersion, 1, 'schemaVersion must be 1');
   assert.ok(typeof meta.hashes === 'object' && meta.hashes !== null, 'hashes must be an object');
 
-  // Default scaffold is fullstack + both → 10 unique template agents × 2 tool dirs + AGENTS.md = 21
+  // Default scaffold is fullstack + both. v0.18.2 derives the expected count
+  // dynamically from expectedSmartDiffTrackedPaths to avoid brittle literals
+  // (per Gemini R1 + Codex Open Q #6 cross-model recommendation).
+  // Lineage:
+  //   v0.17.0 = 21 (10 agents × 2 tools + AGENTS.md).
+  //   v0.17.1 = +4 standards + 6 workflow-core files × 2 tools = 31.
+  //   v0.18.1 = +5 Claude commands + 10 Gemini commands = 46.
+  //   v0.18.2 = +4 SKILL.md + 11 references × 2 tools = 76.
   const hashCount = Object.keys(meta.hashes).length;
-  // v0.17.0 = 21 (10 agents × 2 tools + AGENTS.md).
-  // v0.17.1 = +4 standards + 6 workflow-core files × 2 tools = 31.
-  // v0.18.1 = +5 Claude commands + 10 Gemini commands (5 .toml + 5 -instructions.md) = 46.
-  assert.strictEqual(hashCount, 46, `Expected 46 hash entries (v0.18.1), got ${hashCount}`);
+  const { expectedSmartDiffTrackedPaths } = require('../lib/meta');
+  const expectedCount = expectedSmartDiffTrackedPaths('both', 'fullstack').size;
+  assert.strictEqual(
+    hashCount,
+    expectedCount,
+    `Expected ${expectedCount} hash entries (derived from expectedSmartDiffTrackedPaths), got ${hashCount}`
+  );
+  // Sanity guard: confirm v0.18.2 target literal — fails loudly if expected
+  // count drifts from documented release math (76 = 20+1+4+6+15+30).
+  assert.strictEqual(expectedCount, 76, 'v0.18.2 fullstack-both expected count must equal 76');
 
   // Spot check: backend-planner + AGENTS.md present, valid shape
   const HASH_RE = /^sha256:[0-9a-f]{64}$/;
@@ -3115,7 +3155,11 @@ function testUpgradeUpdatesMetaJson() {
   assertExists(dest, '.sdd-meta.json');
   const meta = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
   assert.strictEqual(meta.schemaVersion, 1);
-  assert.strictEqual(Object.keys(meta.hashes).length, 46);
+  // v0.18.2: derive from expectedSmartDiffTrackedPaths (Gemini R1 + Codex Open Q #6).
+  // Default scaffold is fullstack-both → 76 paths.
+  const { expectedSmartDiffTrackedPaths } = require('../lib/meta');
+  const expectedCount = expectedSmartDiffTrackedPaths('both', 'fullstack').size;
+  assert.strictEqual(Object.keys(meta.hashes).length, expectedCount);
 }
 
 // --- Scenario 53: hash path produces no preserve warnings on clean upgrade ---
@@ -4089,6 +4133,203 @@ function testWorkflowCorePreservesOnHashMismatch() {
   );
 }
 
+// === v0.18.2 smart-diff coverage closure scenarios (#100-#109) ===
+
+/**
+ * v0.18.2 helper — parameterized preserve test for any tracked path.
+ *
+ * Pattern: scaffold fullstack-both project → customize the tracked file with a
+ * marker line → run --upgrade --force --yes → verify (a) marker survived in
+ * place, (b) the stored hash did NOT change (Codex M1 invariant), (c) a
+ * `<file>.new` backup was written under .sdd-backup/<ts>/.
+ *
+ * This is the gold-standard test pattern from v0.17.1 scenario 70, generalized
+ * for the v0.18.2 expansion (4 SKILL.md + 11 references + 5 + 10 commands).
+ */
+function _testTrackedPathPreservesOnUpgrade(testName, posixPath) {
+  const dest = path.join(TMP_BASE, `test-preserve-${testName}`);
+  execSync(`node ${CLI} test-preserve-${testName} --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  const filePath = path.join(dest, ...posixPath.split('/'));
+  assert.ok(
+    fs.existsSync(filePath),
+    `Pre-condition: ${posixPath} must exist after fresh scaffold`
+  );
+
+  const metaBefore = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  const originalHash = metaBefore.hashes[posixPath];
+  assert.ok(
+    originalHash,
+    `Pre-condition: ${posixPath} must have a hash entry in .sdd-meta.json (smart-diff tracking)`
+  );
+
+  const customMarker = `\n\n## V0_18_2 USER MARKER ${testName} — must survive upgrade\n`;
+  const originalContent = fs.readFileSync(filePath, 'utf8');
+  fs.writeFileSync(filePath, originalContent + customMarker, 'utf8');
+
+  execSync(`node ${CLI} --upgrade --force --yes`, { cwd: dest, stdio: 'pipe' });
+
+  const afterContent = fs.readFileSync(filePath, 'utf8');
+  assert.ok(
+    afterContent.includes(`V0_18_2 USER MARKER ${testName}`),
+    `${posixPath} customization must be preserved after v0.18.2 upgrade`
+  );
+
+  const metaAfter = JSON.parse(fs.readFileSync(path.join(dest, '.sdd-meta.json'), 'utf8'));
+  assert.strictEqual(
+    metaAfter.hashes[posixPath],
+    originalHash,
+    `CODEX M1: preserved ${posixPath} must NOT get a new hash`
+  );
+
+  // Verify .new backup written
+  const backupRoot = path.join(dest, '.sdd-backup');
+  const backupTimestamps = fs.existsSync(backupRoot)
+    ? fs.readdirSync(backupRoot).filter((d) =>
+        fs.statSync(path.join(backupRoot, d)).isDirectory()
+      )
+    : [];
+  const newBackupCandidates = backupTimestamps
+    .map((ts) => path.join(backupRoot, ts, ...`${posixPath}.new`.split('/')))
+    .filter((p) => fs.existsSync(p));
+  assert.ok(
+    newBackupCandidates.length > 0,
+    `Expected .new backup at .sdd-backup/<ts>/${posixPath}.new`
+  );
+}
+
+// Scenario 100: Claude commands smart-diff (closes v0.18.1 plumbing gap — empirical repro 2026-05-06)
+function testCommandsSmartDiffPreservesAuditMergeClaude() {
+  _testTrackedPathPreservesOnUpgrade('cmd-claude-am', '.claude/commands/audit-merge.md');
+}
+
+// Scenario 101: Gemini commands smart-diff (parity)
+function testCommandsSmartDiffPreservesAuditMergeGemini() {
+  _testTrackedPathPreservesOnUpgrade('cmd-gemini-am', '.gemini/commands/audit-merge-instructions.md');
+}
+
+// Scenario 102: SKILL.md preserve (Claude — bug-workflow as canonical case)
+function testSkillSmartDiffPreservesBugWorkflowClaude() {
+  _testTrackedPathPreservesOnUpgrade('skill-claude-bw', '.claude/skills/bug-workflow/SKILL.md');
+}
+
+// Scenario 102b: SKILL.md preserve (Gemini twin) — Codex R1 C5 fix
+function testSkillSmartDiffPreservesBugWorkflowGemini() {
+  _testTrackedPathPreservesOnUpgrade('skill-gemini-bw', '.gemini/skills/bug-workflow/SKILL.md');
+}
+
+// Scenario 103: dev-workflow ref preserve (pr-template.md is the highest-risk
+// customization case for teams adopting the library — exercises the new
+// project-type adapter via WORKFLOW_CORE_PROJECT_TYPE_RULES per Codex C4 fix)
+function testDevWorkflowReferencesSmartDiffPreservesPrTemplateClaude() {
+  _testTrackedPathPreservesOnUpgrade(
+    'ref-claude-pr',
+    '.claude/skills/development-workflow/references/pr-template.md'
+  );
+}
+
+// Scenario 103b: dev-workflow ref preserve (Gemini twin)
+function testDevWorkflowReferencesSmartDiffPreservesPrTemplateGemini() {
+  _testTrackedPathPreservesOnUpgrade(
+    'ref-gemini-pr',
+    '.gemini/skills/development-workflow/references/pr-template.md'
+  );
+}
+
+// Scenario 104: project-memory ref preserve (Claude)
+function testProjectMemoryReferencesSmartDiffPreservesBugsTemplateClaude() {
+  _testTrackedPathPreservesOnUpgrade(
+    'ref-claude-bugs',
+    '.claude/skills/project-memory/references/bugs_template.md'
+  );
+}
+
+// Scenario 104b: project-memory ref preserve (Gemini twin)
+function testProjectMemoryReferencesSmartDiffPreservesBugsTemplateGemini() {
+  _testTrackedPathPreservesOnUpgrade(
+    'ref-gemini-bugs',
+    '.gemini/skills/project-memory/references/bugs_template.md'
+  );
+}
+
+// Scenario 105: pm-orchestrator ref preserve (pm-session-template.md, Claude only —
+// Gemini twin structurally covered by 102b/104b parity).
+function testPmOrchestratorReferenceSmartDiffPreservesSessionTemplate() {
+  _testTrackedPathPreservesOnUpgrade(
+    'ref-claude-pm-session',
+    '.claude/skills/pm-orchestrator/references/pm-session-template.md'
+  );
+}
+
+// Scenario 109: pristine single-stack pr-template.md does NOT false-preserve
+// (Codex R1 finding C4 regression guard — the project-type adapter was moved
+// from inline replaceInFileFn to WORKFLOW_CORE_PROJECT_TYPE_RULES so the
+// fallback compare can produce a pristine adapted target).
+function testPrTemplatePristineSingleStackNoFalsePreserve() {
+  const dest = path.join(TMP_BASE, 'test-pr-template-backend');
+  fs.mkdirSync(dest, { recursive: true });
+  // Minimal backend-only fixture — scanner detects backend, projectType='backend'.
+  fs.writeFileSync(
+    path.join(dest, 'package.json'),
+    JSON.stringify({
+      name: 'test-pr-template-backend',
+      dependencies: { express: '^4.18.0' },
+    })
+  );
+  fs.mkdirSync(path.join(dest, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dest, 'src', 'index.ts'), 'import express from "express";');
+
+  execSync(`node ${CLI} --init --yes`, { cwd: dest, stdio: 'pipe' });
+
+  const prTemplatePath = path.join(
+    dest,
+    '.claude/skills/development-workflow/references/pr-template.md'
+  );
+  assert.ok(fs.existsSync(prTemplatePath), 'pr-template.md must exist post --init');
+  // Backend-only adaptation must have stripped ` / ui-components.md`.
+  const initialContent = fs.readFileSync(prTemplatePath, 'utf8');
+  assert.ok(
+    !initialContent.includes(' / ui-components.md'),
+    'Backend --init must strip ` / ui-components.md` from pr-template.md'
+  );
+
+  // Run upgrade WITHOUT customizing the file. It must NOT be preserved as
+  // customized — pristine state must be detected via fallback compare.
+  const upgradeOutput = execSync(`node ${CLI} --upgrade --force --yes`, {
+    cwd: dest,
+    encoding: 'utf8',
+  });
+
+  // After upgrade, content must still be the backend-adapted form (no
+  // ui-components ref) — file overwritten cleanly with adapted target.
+  const afterContent = fs.readFileSync(prTemplatePath, 'utf8');
+  assert.ok(
+    !afterContent.includes(' / ui-components.md'),
+    'Post-upgrade pr-template.md must remain backend-adapted (no ui-components ref)'
+  );
+
+  // Verify NO .new backup was written for pr-template.md (pristine path)
+  const backupRoot = path.join(dest, '.sdd-backup');
+  if (fs.existsSync(backupRoot)) {
+    const backupDirs = fs.readdirSync(backupRoot);
+    for (const ts of backupDirs) {
+      const newBackup = path.join(
+        backupRoot,
+        ts,
+        '.claude/skills/development-workflow/references/pr-template.md.new'
+      );
+      assert.ok(
+        !fs.existsSync(newBackup),
+        `False-preserve regression: pristine backend pr-template.md should NOT have a .new backup at ${newBackup}`
+      );
+    }
+  }
+  // Tolerate the upgrade output mentioning ANY preserved file in general,
+  // but the regression guard above (no .new backup for pr-template.md) is
+  // the precise check.
+  void upgradeOutput;
+}
+
 function testMonorepoScannerWithRootEnvFallback() {
   // v0.17.2 regression guard — empirical validation against foodXPlorer
   // on 2026-04-15 revealed that v0.17.1's scanner monorepo fix did NOT
@@ -4945,6 +5186,149 @@ function testAuditMergeHasExecutionDisciplineSection() {
   }
 }
 
+// === v0.18.2 (P12) detector + mirror parity ===
+
+/**
+ * v0.18.2 P12 detector — JS port of the bash recipe in audit-merge.md.
+ *
+ * Mirrors the recipe behavior:
+ *   1. Read tracker.
+ *   2. Filter lines starting with `**Last Updated:**` or `**Active Feature:**`.
+ *   3. Extract `HEAD[: ]+<sha>` tokens (sha is 7-40 hex chars, optional backtick wrap).
+ *   4. Bidirectional prefix tolerance: actualHead.startsWith(sha) OR sha.startsWith(actualHead.slice(0,7)).
+ *   5. Return true if ANY extracted SHA fails the prefix tolerance check.
+ */
+function detectP12(trackerPath, actualHead) {
+  const content = fs.readFileSync(trackerPath, 'utf8');
+  const lines = content.split(/\r?\n/);
+  const headerLines = lines.filter((l) =>
+    /^\*\*(Last Updated|Active Feature):\*\*/.test(l)
+  );
+  const shaSet = new Set();
+  for (const line of headerLines) {
+    const tokenRe = /HEAD[\s:]+`?([a-f0-9]{7,40})`?/g;
+    let m;
+    while ((m = tokenRe.exec(line)) !== null) {
+      shaSet.add(m[1]);
+    }
+  }
+  if (shaSet.size === 0) return false;
+  const actualShort = actualHead.slice(0, 7);
+  for (const sha of shaSet) {
+    if (actualHead.startsWith(sha)) continue;
+    if (sha.startsWith(actualShort)) continue;
+    return true; // at least one SHA fails tolerance → P12 fires
+  }
+  return false;
+}
+
+function testFixtureP12TriggersOnlyP12() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P12-stale-head.md');
+
+  // Stale HEAD case: actualHead = 6fa801e, tracker has HEAD aaaaaaa + bbbbbbb.
+  // Both fail prefix tolerance → P12 must flag.
+  const actualHead = '6fa801e0123456789abcdef0123456789abcdef0';
+  assert.strictEqual(
+    detectP12(fixture, actualHead),
+    true,
+    'P12 fixture: stale tracker HEAD refs (aaaaaaa, bbbbbbb) vs actual 6fa801e — flag expected'
+  );
+
+  // Cross-check vs P9 header/detail (the most likely false-fire candidate
+  // since both inspect tracker headers). The fixture has no `Step N/6` mismatch
+  // that would actually trigger P9.
+  // (P1-P8, P10-P11 operate on tickets, not trackers — out of scope here.)
+  const p9 = detectP9(fixture);
+  assert.strictEqual(
+    p9,
+    false,
+    'P12 fixture must NOT trigger P9 (header step matches detail: 5/6 = 5/6)'
+  );
+}
+
+// Scenario #107 final clean case: tracker SHAs all match → no P12 flag.
+function testFixtureP12CleanCase() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-P12-stale-head.md');
+  // Construct an artificial actualHead that matches BOTH tracker shas via prefix.
+  // Since tracker has aaaaaaa AND bbbbbbb (which can't both be prefixes of a single
+  // SHA), we instead construct a fixture-free synthetic test by writing a temp
+  // tracker where both SHAs match.
+  const tmpFile = path.join(TMP_BASE, 'tracker-p12-clean.md');
+  fs.writeFileSync(
+    tmpFile,
+    `**Last Updated:** 2026-05-06 — feature X. HEAD 6fa801e\n\n**Active Feature:** F-X. HEAD: 6fa801e\n\nNarrative: \`abcdef0\` was the prior commit but is NOT a HEAD reference.\n`
+  );
+  const actualHead = '6fa801e0123456789abcdef0123456789abcdef0';
+  assert.strictEqual(
+    detectP12(tmpFile, actualHead),
+    false,
+    'P12 clean: when all extracted SHAs prefix-match actualHead, no flag'
+  );
+  void fixture;
+}
+
+// Scenario #108 — generalized mirror parity: ALL `^```bash` blocks in
+// audit-merge.md and audit-merge-instructions.md must be byte-equal.
+function testAuditMergeFullMirrorParity() {
+  const claudePath = path.join(
+    __dirname,
+    '..',
+    'template',
+    '.claude',
+    'commands',
+    'audit-merge.md'
+  );
+  const geminiPath = path.join(
+    __dirname,
+    '..',
+    'template',
+    '.gemini',
+    'commands',
+    'audit-merge-instructions.md'
+  );
+
+  function extractBashBlocks(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const blocks = [];
+    const lines = content.split(/\r?\n/);
+    let inBlock = false;
+    let cur = [];
+    for (const line of lines) {
+      if (line === '```bash') {
+        inBlock = true;
+        cur = [];
+        continue;
+      }
+      if (inBlock && line === '```') {
+        blocks.push(cur.join('\n'));
+        inBlock = false;
+        continue;
+      }
+      if (inBlock) cur.push(line);
+    }
+    return blocks;
+  }
+
+  const claudeBlocks = extractBashBlocks(claudePath);
+  const geminiBlocks = extractBashBlocks(geminiPath);
+
+  assert.strictEqual(
+    claudeBlocks.length,
+    geminiBlocks.length,
+    `Claude has ${claudeBlocks.length} bash blocks, Gemini has ${geminiBlocks.length} — mismatch`
+  );
+
+  for (let i = 0; i < claudeBlocks.length; i++) {
+    assert.strictEqual(
+      claudeBlocks[i],
+      geminiBlocks[i],
+      `Bash block #${i + 1} diverges between Claude and Gemini audit-merge templates (mirror parity invariant violated)`
+    );
+  }
+}
+
 function testFixtureB6BoldStatusExtraction() {
   const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
   const fixture = path.join(tickets, 'fixture-B6-bold-status.md');
@@ -5114,6 +5498,27 @@ try {
 
   console.log('\n  v0.18.1 execution guardrail (Phase 5):');
   run('Scenario 99: B7 — Claude + Gemini templates contain `### Execution discipline` section requiring literal command output', testAuditMergeHasExecutionDisciplineSection);
+
+  console.log('\n  v0.18.2 smart-diff coverage closure (Phase 2 — commands plumbing fix):');
+  run('Scenario 100: Claude commands smart-diff preserves audit-merge.md customization (closes v0.18.1 plumbing gap, empirical repro 2026-05-06)', testCommandsSmartDiffPreservesAuditMergeClaude);
+  run('Scenario 101: Gemini commands smart-diff preserves audit-merge-instructions.md customization', testCommandsSmartDiffPreservesAuditMergeGemini);
+
+  console.log('\n  v0.18.2 smart-diff coverage closure (Phase 3 — pr-template.md project-type adapter migration):');
+  run('Scenario 109: pristine backend pr-template.md does NOT false-preserve on upgrade (Codex R1 C4 regression guard)', testPrTemplatePristineSingleStackNoFalsePreserve);
+
+  console.log('\n  v0.18.2 smart-diff coverage closure (Phase 4 — SKILL.md + 11 references):');
+  run('Scenario 102: SKILL.md preserve — bug-workflow Claude', testSkillSmartDiffPreservesBugWorkflowClaude);
+  run('Scenario 102b: SKILL.md preserve — bug-workflow Gemini (Codex R1 C5: Gemini coverage parity)', testSkillSmartDiffPreservesBugWorkflowGemini);
+  run('Scenario 103: dev-workflow ref preserve — pr-template.md Claude (highest-risk customization case)', testDevWorkflowReferencesSmartDiffPreservesPrTemplateClaude);
+  run('Scenario 103b: dev-workflow ref preserve — pr-template.md Gemini', testDevWorkflowReferencesSmartDiffPreservesPrTemplateGemini);
+  run('Scenario 104: project-memory ref preserve — bugs_template.md Claude', testProjectMemoryReferencesSmartDiffPreservesBugsTemplateClaude);
+  run('Scenario 104b: project-memory ref preserve — bugs_template.md Gemini', testProjectMemoryReferencesSmartDiffPreservesBugsTemplateGemini);
+  run('Scenario 105: pm-orchestrator ref preserve — pm-session-template.md Claude', testPmOrchestratorReferenceSmartDiffPreservesSessionTemplate);
+
+  console.log('\n  v0.18.2 P12 tracker HEAD drift advisory + mirror parity (Phase 5):');
+  run('Scenario 107: P12 fixture — tracker HEAD references stale (must flag)', testFixtureP12TriggersOnlyP12);
+  run('Scenario 107b: P12 clean case — actual HEAD matches all tracker SHAs (must NOT flag)', testFixtureP12CleanCase);
+  run('Scenario 108: full mirror parity — ALL `^```bash` blocks byte-equal across Claude/Gemini audit-merge templates', testAuditMergeFullMirrorParity);
 } finally {
   cleanup();
 }
