@@ -2,7 +2,37 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.18.2
+## Current Version: 0.18.3
+
+### v0.18.3 (2026-05-11) — Drift recipe hardening R2 + new advisory drift patterns + P1 multi-workspace extension
+
+Patch in the v0.18.x drift-detection theme. Two recipe fixes (B8 + B9) close silent-PASS bugs surfaced empirically across 2026-04-28 + 2026-05-06 + 2026-05-08 audits. Four new advisory drift patterns (P13/P14/P15/P16) extend coverage to ticket↔key_facts.md delta agreement, MCE row 1 post-merge hygiene, post-deploy AC evidence requirements, and tracker Features-table membership. C1 enhancement walks ALL PR-body test-count ratios instead of comparing only the first.
+
+- **B8 — P6 deferred-AC false positive** (`template/.claude/commands/audit-merge.md:106-128` + Gemini twin). Form `AC: X/Y` now parsed as `X = marked` / `Y = total`; Y compared to actual total, X compared to actual marked count. Closes 2026-04-28 ROADMAP follow-up.
+- **B9 — P5 sed `Done (...)` / `Done — ...` / `Done – ...` / `Done - ...` strip** (`audit-merge.md` line 97 + Gemini twin). Resolves ~10 false-positive frozen tickets in fx (~50% of FROZEN_COUNT noise). Critical negative tests verify `In Progress` does NOT collapse to `In`.
+- **P13 — key_facts delta mismatch** (advisory, IMPORTANT, ~14 lines bash). FEATURE_ID-anchored block scan + whitespace-safe iteration. English keyword set.
+- **P14 — MCE Action 1 stale post-merge** (advisory, NIT, ~6 lines bash). Strict section-scoping prevents narrative false positives.
+- **P15 — Post-deploy AC without evidence** (advisory, IMPORTANT, ~12 lines bash). Six keyword variants surfaced via fx F-CATALOG-COV-001 empirical case.
+- **P16 — Feature missing from tracker** (advisory, NIT, ~10 lines bash). Status-gated to Ready-for-Merge / Done.
+- **C1 — P1 multi-workspace extension** (~12 lines bash). Walks all PR ratios; PR ⊆ ticket; explicit `P1 N/A` emission when either side has no ratios.
+- **Canonical-form note in `merge-checklist.md`** (Claude + Gemini twin). B8 mitigation.
+
+#### Cross-model review
+
+- R1 (plan v0.1): Gemini APPROVE WITH MINOR (2) + Codex REVISE (5 — 2 M1 whitespace bugs in recipe sketches, 2 M2 inconsistencies, 1 M3 site enumeration). All addressed in v0.2.
+- R2 (plan v0.2): Gemini APPROVE WITH MINOR (1) + Codex APPROVE WITH MINOR (1). Both addressed in v0.3.
+- R3 (against actual code post-implementation): Gemini APPROVE WITH MINOR (2 low) + Codex REVISE (3 real bugs, all addressed): bold-in-bold without pipe-suffix produced `Done**`; P16 narrative mentions silenced drift; P14 absorbed sibling `## M*` sections + standalone `(this merge)` false-fired. Each Codex finding has a dedicated regression guard in smoke (#127-#129).
+- Plan v0.3 APPROVED for implementation. Plan: `dev/v0.18.3-plan.md`.
+
+#### Mirror parity
+
+Every shell-recipe edit applied byte-equal between Claude + Gemini twins. Scenario #108 enforces this across ALL fenced bash blocks (generalization of v0.18.1 single-block check).
+
+#### Validation
+
+- All 130 smoke scenarios green (112 → 130, +18: 4 B8/B9 + 8 P13-P16 + 2 C1 + 1 P15 mixed-case + 3 R3 regression guards).
+- Empirical regression-pair coverage: every new pattern has positive + negative test variants. B8/B9/P14/P15 also tested against pre-v0.18.3 behaviour to confirm the fix is a real change, not paper-only.
+- R3 regression guards (#127-#129) lock in fixes for the bold-in-bold without-pipe extraction, P14 M* section absorption, and P16 narrative-mention false negative.
 
 ### v0.18.2 (2026-05-06) — Smart-diff coverage closure + P12 tracker HEAD drift
 
@@ -91,20 +121,20 @@ Every shell-recipe edit applied byte-equal to both `template/.claude/commands/au
    - P8 Step 5 split (code-review + qa-engineer) currently aggregates to a single step number check. Finer check that both sub-entries are individually logged is deferred to v0.18.x.
    - Drift checks detection recipes assume English keywords (`will`, `to be`, `post-merge`). Spanish-only tickets wouldn't trigger. User base is bilingual (English ticket template, Spanish Active Session) — no known project affected yet. Deferred pending user report.
 
-**8. Drift recipe edge cases (B8 + B9)** — surfaced during 2026-04-28 external audit of fx F-H10-FU. Both pre-existing in v0.18.0, NOT introduced by v0.18.1. Re-confirmed during fx F-WEB-MENU-VISION-001 audit 2026-05-06 (FROZEN_COUNT=52 reported, 3+ false positives identified: BUG-PROD-009, F-UX-B, F114). **Now triggered for v0.18.3** per accumulated evidence.
+**8. Drift recipe edge cases (B8 + B9)** ✅ **RESOLVED in v0.18.3**.
 
-   - **B8 — P6 false positive on tickets with deferred ACs**. Recipe `grep -oE 'all [0-9]+ marked|AC: [0-9]+/[0-9]+' | head -1 | grep -oE "[0-9]+" | head -1` extracts the FIRST number from `AC: X/Y` form (the marked count X), then compares against `ACTUAL` = total checkbox count. For tickets with intentionally-deferred ACs (e.g. F-H10-FU: 11 [x] + 2 [ ] = 13 total, MCE row 1 claims "AC: 11/13 done"), CLAIMED=11 vs ACTUAL=13 produces a spurious divergence flag. Real claim is accurate (11 done out of 13). Fix: when "AC: X/Y" form matches, compare X against marked count AND Y against total. Or extract the larger of the two numbers (Y is always ≥ X by definition). Also requires audit-merge.md template line 107-108 fix + JS detector mirror in test/smoke.js.
-   - **B9 — P5 sed doesn't handle parenthetical/dash post-Done in Status field**. Tickets with Status like `**Status:** Done (code merged YYYY-MM-DD; prod DB migration executed YYYY-MM-DD)` or `**Status:** Done — squash-merged 2026-04-13 (PR #113, commit \`d8167d0\`)` produce `status="Done (code merged..."` or `status="Done — squash-merged..."` after the v0.18.1 B6 sed harden. Subsequent test `[ "$status" = "Done" ]` fails → ticket counted as frozen. fx empirical (2026-05-06 re-audit): BUG-PROD-009 + F114 + F-UX-B + BUG-PROD-008-FU1 hit this case (~10 tickets contribute to FROZEN_COUNT=52 noise). Fix options: (a) `[ "${status%% *}" = "Done" ]` (POSIX prefix-word match), (b) `[[ "$status" =~ ^Done([[:space:]]|$) ]]` (bash-only), (c) extra sed pass `sed -E 's/[[:space:]]+(\(.*\)|—.*).*//'` before the existing `|.*` strip.
+   - **B8** ✅ shipped v0.18.3: P6 recipe now distinguishes `X = marked` vs `Y = total` from `AC: X/Y` form; compares Y to actual total (structural axis) AND X to actual marked count (progress axis). Canonical-form note added to `merge-checklist.md` (Claude + Gemini twin) clarifying `AC: <marked>/<total>` semantics. Smoke fixtures #113 (PASS form `AC: 11/13` with 2 deferred) + #114 (FAIL form `AC: 12/17` vs actual total 14).
+   - **B9** ✅ shipped v0.18.3: P5 sed extended with one extra strip pass `sed -E 's/[[:space:]]+(\(.*\)|—.*|–.*|-.*)$//'` covering parentheses, em-dash, en-dash, hyphen suffixes. Critical negative tests verify `In Progress` does NOT collapse to `In`, `Ready for Merge` stays intact, pipe-suffix + bold-in-bold (B6) remain compatible. Smoke fixtures #115 + #116.
 
 **9b. Orphan SDD-owned commands sweep** (Codex R1 implementation review 2026-05-06, deferred to v0.18.3 — no concrete bug today since no commands have been retired yet).
 
    - v0.18.2 stops wholesale-deleting `.gemini/commands/`, which is the right thing for preserving custom commands but means SDD-owned commands removed in a FUTURE release will be left behind as orphans on the user's disk. On Claude this is partially mitigated by `collectCustomCommands()` surfacing destination-only files in `customCommands` (lib/upgrade-generator.js:214-227). On Gemini, `collectCustomCommands()` does NOT scan `.gemini/commands/` at all, so destination-only Gemini commands are completely invisible to the upgrade flow.
    - Mitigation: after the Phase 2 commands smart-diff loop completes, scan `destSub` for destination-only files; if such a file is in the v0.18.x trackedSet (i.e. was once SDD-owned but is no longer in the current template), backup-and-quarantine it. If it's NOT in any historical trackedSet, treat it as user-custom and leave alone. Requires a "retired commands" registry that grows monotonically across versions. Not urgent: today no commands have been retired.
 
-**9. Additional drift recipe candidates surfaced 2026-05-06** (deferred to v0.18.3).
+**9. Additional drift recipe candidates surfaced 2026-05-06** ✅ **RESOLVED in v0.18.3**.
 
-   - **C1 — P1 multi-workspace test-count grab**. In monorepos (e.g. fx with api 4272, web 487, bot 738/3, shared 598, scraper 1221, landing 232), the recipe grabs the FIRST `[0-9]+/[0-9]+` ratio on a line with test/pass/green keyword. fx empirical: `738/3` (bot) was extracted, while the most relevant counts (api 4272, web 487) were ignored. Coincidentally matched the ticket's own first ratio so PASSED, but the signal is shallow. Candidate: prefer ratios after `npm test` / `pnpm test` / global test markers; or extract ALL ratios and verify each appears in the ticket terminal.
-   - **C2 — P11 missing-from-Features-table check**. Currently P11 only catches mismatches between Features-table rows and ticket Status. It doesn't catch features that aren't in any Features table at all (fx F-WEB-MENU-VISION-001 had no row in any `## Features — *` section, agent claimed "by design standalone"). Candidate: NIT-severity flag when ticket Status=Ready for Merge but no `## Features — *` table row exists. Could surface as P14.
+   - **C1** ✅ shipped v0.18.3 as P1 multi-workspace extension. Recipe now walks ALL PR-body ratios and verifies each appears in ticket evidence (PR ⊆ ticket). Three fallback cases (ratios on both sides → walk; missing on either side → explicit `P1 N/A` emission, not a drift flag). Smoke fixtures #125 + #126 (clean monorepo case + orphan-ratio case).
+   - **C2** ✅ shipped v0.18.3 as **P16** (new independent pattern, not P11 extension). Status-gated to Ready-for-Merge / Done. NIT severity. Smoke fixtures #123 + #124.
 
 ### v0.18.0 (2026-04-23) — Drift-detection in /audit-merge + /audit-feature
 

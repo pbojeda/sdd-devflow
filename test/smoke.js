@@ -3,6 +3,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const assert = require('assert');
 
 const CLI = path.join(__dirname, '..', 'bin', 'cli.js');
@@ -4816,6 +4817,27 @@ function detectP1(ticketPath, prBodyPath) {
   return detectP1WithRegex(ticketPath, prBodyPath, P1_REGEX_FIXED);
 }
 
+// v0.18.3 (C1): walk ALL PR-body ratios and verify each appears in
+// ticket evidence. Subset direction: PR ⊆ ticket. Returns:
+//   true  → at least one PR ratio missing from ticket (drift)
+//   false → all PR ratios in ticket OR neither side has ratios (N/A)
+function detectP1V0183(ticketPath, prBodyPath) {
+  const ticket = fs.readFileSync(ticketPath, 'utf8');
+  const prBody = fs.readFileSync(prBodyPath, 'utf8');
+  const looksTestCount = (line) => P1_REGEX_FIXED.test(line);
+  const testCountRe = /[0-9]+\/[0-9]+/g;
+  const collect = (src) => new Set(
+    src.split('\n').filter(looksTestCount).flatMap(l => l.match(testCountRe) || [])
+  );
+  const prRatios = collect(prBody);
+  const ticketRatios = collect(ticket);
+  if (prRatios.size === 0 || ticketRatios.size === 0) return false; // N/A
+  for (const r of prRatios) {
+    if (!ticketRatios.has(r)) return true;
+  }
+  return false;
+}
+
 // v0.18.1 (B2 fix + Codex C3 + C4): MCE-as-last-section detection.
 // Parametric over old-range vs new-flag-based extraction so scenario 94
 // can compare regression-pair behaviour (Codex R1 C4). Per Codex R1 C3,
@@ -5002,6 +5024,65 @@ function extractStatusFixedSed(ticketPath) {
     .replace(/\s*\*?\*?\s*\|.*$/, '')
     .replace(/\s+$/, '');
   return s;
+}
+
+// v0.18.3 (B9 fix): extend the v0.18.1 sed chain with one extra pass that
+// strips post-`Done` parenthetical/em-dash/en-dash/hyphen detail. Mirrors
+// the bash sed in template/.claude/commands/audit-merge.md (P5 recipe).
+function extractStatusV0183Sed(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const lineMatch = content.match(/^\*\*Status:\*\*[^\n]*/m);
+  if (!lineMatch) return '';
+  return normalizeStatusV0183(lineMatch[0]);
+}
+
+function normalizeStatusV0183(rawStatusLine) {
+  return rawStatusLine
+    .replace(/^\*\*Status:\*\*\s*\*?\*?/, '')
+    .replace(/\s*\*?\*?\s*\|.*$/, '')
+    .replace(/\s+(\(.*\)|—.*|–.*|-.*)$/, '')
+    .replace(/\*\*\s*$/, '') // Codex R3 M1: strip trailing bold markers (`**Done**` form, no pipe suffix)
+    .replace(/\s+$/, '');
+}
+
+// v0.18.0/v0.18.1 P6 — buggy: extracts FIRST number from `AC: X/Y`,
+// compares to ACTUAL total (count of `[x]` + `[ ]`). For deferred-AC
+// tickets like `AC: 11/13 done` (11 marked + 2 deferred), claimed=11
+// vs actual=13 → spurious P6 flag at threshold ≥ 2.
+function detectP6V0181(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const acMatch = content.match(/## Acceptance Criteria[\s\S]*?(?=## Definition of Done)/);
+  const acBlock = acMatch ? acMatch[0] : '';
+  const actual = (acBlock.match(/^- \[[x ]\]/gm) || []).length;
+  const claimMatch = content.match(/all (\d+) marked|AC: (\d+)\/\d+/);
+  if (!claimMatch) return false;
+  const claimed = parseInt(claimMatch[1] || claimMatch[2], 10);
+  return Math.abs(claimed - actual) >= 2;
+}
+
+// v0.18.3 P6 — fixed: distinguishes claim forms. `AC: X/Y` parsed as
+// X=marked / Y=total; Y compared to actual total, X compared to actual
+// marked. `all N marked` compared to actual total.
+function detectP6V0183(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const acMatch = content.match(/## Acceptance Criteria[\s\S]*?(?=## Definition of Done)/);
+  const acBlock = acMatch ? acMatch[0] : '';
+  const actualTotal = (acBlock.match(/^- \[[x ]\]/gm) || []).length;
+  const actualMarked = (acBlock.match(/^- \[x\]/gm) || []).length;
+  const acXY = content.match(/AC: (\d+)\/(\d+)/);
+  if (acXY) {
+    const claimedMarked = parseInt(acXY[1], 10);
+    const claimedTotal = parseInt(acXY[2], 10);
+    if (Math.abs(claimedTotal - actualTotal) >= 2) return true;
+    if (Math.abs(claimedMarked - actualMarked) >= 2) return true;
+    return false;
+  }
+  const allN = content.match(/all (\d+) marked/);
+  if (allN) {
+    const claimed = parseInt(allN[1], 10);
+    return Math.abs(claimed - actualTotal) >= 2;
+  }
+  return false;
 }
 
 function testFixtureP1TriggersOnlyP1() {
@@ -5329,6 +5410,364 @@ function testAuditMergeFullMirrorParity() {
   }
 }
 
+// v0.18.3 P13 — key_facts.md delta vs ticket atom-count mismatch.
+// Whitespace-safe (multi-word deltas like `+8 atoms` iterated as one record).
+// FEATURE_ID-anchored block scan avoids false-pass on identical deltas in
+// other feature rows (regression guard against R1 finding).
+function detectP13(ticketPath, keyFactsPath) {
+  const ticketContent = fs.readFileSync(ticketPath, 'utf8');
+  const featureId = path.basename(ticketPath, '.md').replace(/-[a-z].*/, '');
+  const deltaRe = /\+[0-9]+ (atoms?|aliases?|dishes?|entries|rows)/g;
+  const ticketDeltas = new Set(ticketContent.match(deltaRe) || []);
+  if (ticketDeltas.size === 0) return false;
+  let keyFactsBlock = '';
+  try {
+    const kf = fs.readFileSync(keyFactsPath, 'utf8');
+    const lines = kf.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(featureId)) {
+        keyFactsBlock += lines.slice(i, i + 4).join('\n') + '\n';
+      }
+    }
+  } catch (_) {
+    keyFactsBlock = '';
+  }
+  for (const claim of ticketDeltas) {
+    if (!keyFactsBlock.includes(claim)) return true;
+  }
+  return false;
+}
+
+// v0.18.3 P14 — MCE Action 1 stale post-merge. Codex R3 M3 hardening:
+// - Block terminator widened from `## [^M]` to ANY next `## ` (sections
+//   starting with M like `## More Notes`, `## Merge Metadata` were being
+//   absorbed into MCE_BLOCK by the [^M] alternation).
+// - Standalone `(this merge)` clause removed — too noisy on past-tense
+//   narrative like `merged at SHA (this merge)`. Strict signal is now
+//   `Step 6 [ ]` / `Step 6 [-]` only; the empirical fx case has both,
+//   so this still flags it.
+function detectP14(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const status = normalizeStatusV0183(
+    (content.match(/^\*\*Status:\*\*[^\n]*/m) || [''])[0]
+  );
+  if (status !== 'Done') return false;
+  const mceMatch = content.match(/## Merge Checklist Evidence\n([\s\S]*?)(?=\n## |$)/);
+  const mceBlock = mceMatch ? mceMatch[1] : '';
+  return /Step 6 \[[ -]\]/.test(mceBlock);
+}
+
+// v0.18.3 P15 — AC with post-deploy keyword admitted [x] without
+// dated Completion Log entry mentioning the AC-ID. Line-safe iteration.
+// AC-ID charset includes lowercase (`AC-NEW-qa-battery` style observed in
+// fx F-CATALOG-COV-001) so the match does NOT truncate at first lowercase.
+function detectP15(ticketPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const lines = content.split('\n');
+  const completionMatch = content.match(/## Completion Log[\s\S]*?(?=## Merge Checklist|$)/);
+  const completion = completionMatch ? completionMatch[0] : '';
+  const keywordRe = /post-deploy|post-merge|production parity|prod verification|on dev API|on prod/i;
+  const datedLines = completion.split('\n').filter(l => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l));
+  for (const line of lines) {
+    if (!/^\s*-\s*\[[ x]\]\s+AC-[A-Za-z0-9_-]+/.test(line)) continue;
+    if (!keywordRe.test(line)) continue;
+    if (!/\[x\]/.test(line)) continue;
+    const acIdMatch = line.match(/AC-[A-Za-z0-9_-]+/);
+    if (!acIdMatch) continue;
+    const acId = acIdMatch[0];
+    if (!datedLines.some(l => l.includes(acId))) return true;
+  }
+  return false;
+}
+
+// v0.18.3 P16 — Feature missing from tracker Features tables. Codex R3
+// M2 hardening: requires the FEATURE_ID to appear as the FIRST cell of
+// a pipe-table row (`| FEATURE_ID |` with optional whitespace), NOT
+// just anywhere in the tracker. Narrative mentions / `**Active Feature:**`
+// references no longer silence the drift.
+function detectP16(ticketPath, trackerPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const status = normalizeStatusV0183(
+    (content.match(/^\*\*Status:\*\*[^\n]*/m) || [''])[0]
+  );
+  if (status !== 'Ready for Merge' && status !== 'Done') return false;
+  const featureId = path.basename(ticketPath, '.md').replace(/-[a-z].*/, '');
+  let tracker = '';
+  try {
+    tracker = fs.readFileSync(trackerPath, 'utf8');
+  } catch (_) {
+    return false;
+  }
+  const escaped = featureId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tableRowRe = new RegExp(`^\\|\\s*${escaped}\\s*\\|`, 'm');
+  return !tableRowRe.test(tracker);
+}
+
+function testFixtureB8DeferredAcPass() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B8-deferred-ac-pass.md');
+
+  // Regression evidence: v0.18.1 P6 recipe extracts FIRST number from
+  // `AC: 11/13 done` (= 11, marked count) and compares against actual
+  // total (13). 13 - 11 = 2 ≥ 2 → spurious P6 IMPORTANT flag on a
+  // legitimately-accurate deferred-AC claim.
+  assert.strictEqual(detectP6V0181(fixture), true,
+    'B8 fixture: v0.18.1 buggy P6 must spuriously flag deferred-AC ticket');
+
+  // v0.18.3 P6 distinguishes X (marked) vs Y (total). Y=13 vs actual=13 → no flag.
+  // X=11 vs marked=11 → no flag. Net: no P6 flag, as desired.
+  assert.strictEqual(detectP6V0183(fixture), false,
+    'B8 fixture: v0.18.3 fixed P6 must NOT flag accurate deferred-AC claim');
+}
+
+function testFixtureB8RealDivergence() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B8-real-divergence.md');
+
+  // Real divergence: claim AC: 12/17, actual total=14, actual marked=12.
+  // v0.18.1: claimed=12 (head -1 from grep), actual total=14, |12-14|=2 ≥ 2 → flags.
+  assert.strictEqual(detectP6V0181(fixture), true,
+    'B8 real-divergence fixture: v0.18.1 P6 flags (coincidentally — wrong axis)');
+
+  // v0.18.3: claimed total=17 vs actual total=14, |17-14|=3 ≥ 2 → flags
+  // (correctly on the total axis). X=12 vs marked=12 → no second flag.
+  assert.strictEqual(detectP6V0183(fixture), true,
+    'B8 real-divergence fixture: v0.18.3 P6 MUST still flag real total divergence');
+}
+
+function testFixtureB9DoneSuffixVariants() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const fixture = path.join(tickets, 'fixture-B9-done-suffix-variants.md');
+
+  // Regression evidence: v0.18.1 sed leaves `Done (code merged 2026-04-22; ...)`
+  // intact because no `|` suffix exists. `[ status = "Done" ]` then fails →
+  // ticket falsely counted as frozen in fx-style real-world tickets.
+  assert.notStrictEqual(extractStatusFixedSed(fixture), 'Done',
+    'B9 fixture: v0.18.1 sed must NOT extract bare `Done` from parenthetical form');
+
+  // v0.18.3 sed adds a strip pass for parens/em-dash/en-dash/hyphen → clean `Done`.
+  assert.strictEqual(extractStatusV0183Sed(fixture), 'Done',
+    'B9 fixture: v0.18.3 sed must extract `Done` from parenthetical form');
+
+  // All 5 variants normalize to `Done` under v0.18.3 sed.
+  const variants = [
+    '**Status:** Done (code merged 2026-04-22; prod DB migration executed 2026-04-23)',
+    '**Status:** Done — squash-merged 2026-04-13 (PR #113, commit `d8167d0`)',
+    '**Status:** Done – squash-merged 2026-04-13',
+    '**Status:** Done - merged at d8167d0',
+    '**Status:** Done',
+  ];
+  for (const v of variants) {
+    assert.strictEqual(normalizeStatusV0183(v), 'Done',
+      `B9 variant must normalize to "Done": ${JSON.stringify(v)}`);
+  }
+}
+
+function testFixtureP13KeyFactsDeltaDrift() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P13-DRIFT.md');
+  const keyFacts = path.join(tickets, 'fixture-P13-key-facts.md');
+  // Ticket claims `+8 atoms`, key_facts block for F-FIXTURE-P13-DRIFT says `+7 atoms`.
+  // The unrelated `+8 atoms` row for F-OTHER must NOT cause false-pass —
+  // FEATURE_ID-anchored block scan only walks the feature's neighborhood.
+  assert.strictEqual(detectP13(ticket, keyFacts), true,
+    'P13 fixture: ticket +8 vs key_facts +7 must flag despite unrelated +8 elsewhere in key_facts');
+}
+
+function testFixtureP13Clean() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P13-CLEAN.md');
+  const keyFacts = path.join(tickets, 'fixture-P13-key-facts.md');
+  // Ticket and key_facts both say `+5 atoms` for F-FIXTURE-P13-CLEAN.
+  assert.strictEqual(detectP13(ticket, keyFacts), false,
+    'P13 clean: matching deltas must NOT flag');
+}
+
+function testFixtureP14MceStalePostmerge() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P14-DRIFT.md');
+  assert.strictEqual(detectP14(ticket), true,
+    'P14 fixture: Status=Done + MCE row contains "Step 6 [ ] (this merge)" → flag');
+}
+
+function testFixtureP14Clean() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P14-CLEAN.md');
+  assert.strictEqual(detectP14(ticket), false,
+    'P14 clean: Status=Done + MCE has Step 6 [x] (no `(this merge)` marker) → no flag');
+  // Pre-merge case: status ≠ Done → P14 must not run.
+  const preMergeTicket = path.join(tickets, 'F-FIXTURE-P13-DRIFT.md');
+  assert.strictEqual(detectP14(preMergeTicket), false,
+    'P14 pre-merge: Status=Ready for Merge → P14 must not run (status gate)');
+}
+
+function testFixtureP15PostDeployNoEvidence() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P15-DRIFT.md');
+  // AC-POST-DEPLOY marked [x] with `post-deploy` keyword and no Completion Log row anchoring AC-POST-DEPLOY.
+  assert.strictEqual(detectP15(ticket), true,
+    'P15 fixture: post-deploy AC marked [x] without dated Completion Log entry → flag');
+}
+
+function testFixtureP15Clean() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P15-CLEAN.md');
+  assert.strictEqual(detectP15(ticket), false,
+    'P15 clean: post-deploy AC with dated Completion Log row anchoring AC-POST-DEPLOY → no flag');
+}
+
+function testFixtureP15MixedCaseId() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P15-MIXED.md');
+  // Empirical regression: AC-NEW-qa-battery is mixed-case (real fx F-CATALOG-COV-001
+  // case). A buggy regex `AC-[A-Z0-9_-]+` would truncate to `AC-NEW-` and match
+  // any Completion Log row containing that prefix. v0.18.3 extracts the full
+  // mixed-case ID; ticket Completion Log has NO row anchoring `AC-NEW-qa-battery`
+  // → P15 must flag.
+  assert.strictEqual(detectP15(ticket), true,
+    'P15 mixed-case fixture: full AC-ID must be extracted (no truncation at first lowercase char)');
+}
+
+function testFixtureP16OrphanFeature() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P16-ORPHAN.md');
+  const tracker = path.join(tickets, 'fixture-P16-tracker.md');
+  assert.strictEqual(detectP16(ticket, tracker), true,
+    'P16 fixture: Status=Ready for Merge + featureId not in any tracker Features table → flag');
+}
+
+function testFixtureP16Clean() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P16-LISTED.md');
+  const tracker = path.join(tickets, 'fixture-P16-tracker.md');
+  assert.strictEqual(detectP16(ticket, tracker), false,
+    'P16 clean: tracker contains a row for F-FIXTURE-P16-LISTED → no flag');
+}
+
+function testFixtureC1MultiWorkspaceClean() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-C1-MULTI.md');
+  const prClean = path.join(tickets, 'F-FIXTURE-C1-MULTI-pr-body-clean.md');
+  // PR body lists ratios 4272/4272, 487/487, 738/3, 1221/1221.
+  // Ticket has all four. v0.18.3 detector: PR ⊆ ticket → no flag.
+  assert.strictEqual(detectP1V0183(ticket, prClean), false,
+    'C1 clean: all PR ratios appear in ticket evidence → no flag');
+  // v0.18.0 head -1/tail -1 detector also passes coincidentally: first PR
+  // ratio 4272/4272 happens to equal ticket terminal 1221/1221 — wait no,
+  // tail -1 of ticket is 1221/1221 and head -1 of PR is 4272/4272 → mismatch.
+  // So v0.18.0 incorrectly flags. The v0.18.3 fix removes this false positive.
+  assert.strictEqual(detectP1(ticket, prClean), true,
+    'C1 evidence: v0.18.0 single-ratio comparison spuriously flags multi-workspace clean case');
+}
+
+function testFixtureC1MultiWorkspaceOrphan() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-C1-MULTI.md');
+  const prOrphan = path.join(tickets, 'F-FIXTURE-C1-MULTI-pr-body-orphan.md');
+  // PR body has 4272/4272, 487/487, 9999/9999. Ticket lacks 9999/9999.
+  // v0.18.3 detector: orphan PR ratio → flag.
+  assert.strictEqual(detectP1V0183(ticket, prOrphan), true,
+    'C1 orphan: PR ratio 9999/9999 not in ticket → flag');
+}
+
+function testB9NoCollapseOnInProgress() {
+  // Critical negative: `In Progress` must NOT collapse to `In`. The B9 strip
+  // requires `[[:space:]]+(\(.*\)|—.*|–.*|-.*)$` — i.e. the trailing detail
+  // must begin with a paren or dash char. Plain whitespace between words
+  // must not trigger. Same for `Ready for Merge`.
+  assert.strictEqual(normalizeStatusV0183('**Status:** In Progress'), 'In Progress',
+    'B9: `In Progress` must NOT collapse to `In`');
+  assert.strictEqual(normalizeStatusV0183('**Status:** Ready for Merge'), 'Ready for Merge',
+    'B9: `Ready for Merge` must NOT collapse');
+  // Pipe-suffix form (pre-existing) still works.
+  assert.strictEqual(normalizeStatusV0183('**Status:** Done | **Branch:** foo'), 'Done',
+    'B9: pipe-suffix form remains compatible');
+  // Bold-in-bold form (v0.18.1 B6) still works.
+  assert.strictEqual(normalizeStatusV0183('**Status:** **Done** | **Branch:** foo'), 'Done',
+    'B9: bold-in-bold form remains compatible (B6 + B9 cohabitation)');
+}
+
+// Codex R3 M1 regression guard — bold-in-bold WITHOUT pipe-suffix
+// previously normalized to `Done**` (extra trailing markers), breaking
+// the shared TICKET_STATUS used by P11 / P14 / P16 status gates.
+function testR3M1BoldStatusWithoutPipe() {
+  assert.strictEqual(normalizeStatusV0183('**Status:** **Done**'), 'Done',
+    'R3 M1: bare `**Done**` without pipe suffix must normalize to `Done`');
+  assert.strictEqual(normalizeStatusV0183('**Status:** **Done** — squash-merged 2026-04-13'), 'Done',
+    'R3 M1: `**Done** — ...` form must normalize to `Done`');
+  assert.strictEqual(normalizeStatusV0183('**Status:** **Done** (code merged 2026-04-22)'), 'Done',
+    'R3 M1: `**Done** (...)` form must normalize to `Done`');
+  // Non-Done bold form — must preserve full text without `**` artifacts.
+  assert.strictEqual(normalizeStatusV0183('**Status:** **Ready for Merge**'), 'Ready for Merge',
+    'R3 M1: bold multi-word status must normalize without leaving `**` markers');
+}
+
+// Codex R3 M3 regression guard — P14 must NOT flag when MCE block
+// terminator is a `## M*` sibling section. Also must NOT flag on
+// standalone `(this merge)` in past-tense narrative.
+function testR3M3P14FalsePositiveGuards() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p14-r3-'));
+  const ticketWithMoreSection = path.join(tmpDir, 'F-FIXTURE-P14-MORE.md');
+  fs.writeFileSync(ticketWithMoreSection, [
+    '# F-FIXTURE-P14-MORE',
+    '**Status:** Done',
+    '## Merge Checklist Evidence',
+    '| Action | Done | Evidence |',
+    '|--------|:----:|----------|',
+    '| 1. Mark all items | [x] | AC: 1/1. Workflow: 7/7 [x] (Step 6 [x] post-merge — squash at abc1234) |',
+    '',
+    '## More Notes',
+    '',
+    'Earlier draft said Step 6 [ ] (this merge); kept for history.',
+    '',
+  ].join('\n'));
+  assert.strictEqual(detectP14(ticketWithMoreSection), false,
+    'R3 M3: a `## More Notes` section starting with M must NOT be absorbed into MCE_BLOCK; `Step 6 [ ]` in that section must NOT flag P14');
+
+  const ticketWithNarrativeThisMerge = path.join(tmpDir, 'F-FIXTURE-P14-NARRATIVE.md');
+  fs.writeFileSync(ticketWithNarrativeThisMerge, [
+    '# F-FIXTURE-P14-NARRATIVE',
+    '**Status:** Done',
+    '## Merge Checklist Evidence',
+    '| Action | Done | Evidence |',
+    '|--------|:----:|----------|',
+    '| 1. Mark all items | [x] | merged at abc1234 (this merge); Workflow: 7/7 [x] |',
+    '',
+    '## Notes',
+    '',
+  ].join('\n'));
+  assert.strictEqual(detectP14(ticketWithNarrativeThisMerge), false,
+    'R3 M3: standalone `(this merge)` in past-tense narrative (no `Step 6 [ ]` / `[-]`) must NOT flag P14');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
+// Codex R3 M2 regression guard — P16 must require pipe-table row
+// membership, not arbitrary tracker substring match.
+function testR3M2P16NarrativeMentionDoesNotSilence() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p16-r3-'));
+  const ticket = path.join(tmpDir, 'F-FIXTURE-P16-NARRATIVE.md');
+  fs.writeFileSync(ticket, [
+    '# F-FIXTURE-P16-NARRATIVE',
+    '**Status:** Ready for Merge',
+    '## Spec',
+    'Body.',
+  ].join('\n'));
+  const trackerWithNarrativeOnly = path.join(tmpDir, 'tracker.md');
+  fs.writeFileSync(trackerWithNarrativeOnly, [
+    '# Tracker',
+    '**Active Feature:** F-FIXTURE-P16-NARRATIVE — narrative reference only, NOT a Features table row',
+    '## Features — Frontend',
+    '| ID | Description | Status |',
+    '|----|-------------|--------|',
+    '| F-FIXTURE-OTHER | Unrelated | done |',
+  ].join('\n'));
+  assert.strictEqual(detectP16(ticket, trackerWithNarrativeOnly), true,
+    'R3 M2: narrative mention in tracker must NOT silence P16 (requires pipe-table row in `| FEATURE_ID |` form)');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
 function testFixtureB6BoldStatusExtraction() {
   const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
   const fixture = path.join(tickets, 'fixture-B6-bold-status.md');
@@ -5519,6 +5958,32 @@ try {
   run('Scenario 107: P12 fixture — tracker HEAD references stale (must flag)', testFixtureP12TriggersOnlyP12);
   run('Scenario 107b: P12 clean case — actual HEAD matches all tracker SHAs (must NOT flag)', testFixtureP12CleanCase);
   run('Scenario 108: full mirror parity — ALL `^```bash` blocks byte-equal across Claude/Gemini audit-merge templates', testAuditMergeFullMirrorParity);
+
+  console.log('\n  v0.18.3 drift recipe hardening R2 (Phase 1 — B8 + B9):');
+  run('Scenario 113: B8 PASS fixture — `AC: 11/13 done` with 2 deferred ACs; v0.18.1 P6 spuriously flags, v0.18.3 P6 does NOT', testFixtureB8DeferredAcPass);
+  run('Scenario 114: B8 FAIL fixture — real total-axis divergence (claim AC: 12/17 vs actual total 14); v0.18.3 P6 MUST still flag', testFixtureB8RealDivergence);
+  run('Scenario 115: B9 fixture — `Done (code merged ...)` parenthetical form; v0.18.1 sed fails to extract `Done` (frozen false-positive), v0.18.3 sed extracts `Done`', testFixtureB9DoneSuffixVariants);
+  run('Scenario 116: B9 negative — `In Progress` / `Ready for Merge` / pipe-suffix / bold-in-bold must NOT collapse under v0.18.3 sed', testB9NoCollapseOnInProgress);
+
+  console.log('\n  v0.18.3 new drift advisory patterns (Phase 2 — P13 / P14 / P15 / P16):');
+  run('Scenario 117: P13 positive — ticket +8 atoms vs key_facts +7 (with unrelated +8 elsewhere — must not false-pass)', testFixtureP13KeyFactsDeltaDrift);
+  run('Scenario 118: P13 clean — ticket +5 atoms matches key_facts +5 for the same feature ID → no flag', testFixtureP13Clean);
+  run('Scenario 119: P14 positive — Status=Done + MCE contains "Step 6 [ ] (this merge)" → flag NIT', testFixtureP14MceStalePostmerge);
+  run('Scenario 120: P14 negative — Status=Done + MCE Step 6 [x] post-merge OR pre-merge Status≠Done → no flag (status gate + section scope)', testFixtureP14Clean);
+  run('Scenario 121: P15 positive — AC with post-deploy keyword marked [x] without dated Completion Log entry → flag IMPORTANT', testFixtureP15PostDeployNoEvidence);
+  run('Scenario 122: P15 negative — AC with post-deploy keyword AND dated Completion Log row anchoring AC-ID → no flag', testFixtureP15Clean);
+  run('Scenario 122b: P15 mixed-case AC-ID — `AC-NEW-qa-battery` (real fx case) extracted without truncation; missing Completion Log entry → flag', testFixtureP15MixedCaseId);
+  run('Scenario 123: P16 positive — Status=Ready for Merge + feature ID absent from all tracker Features tables → flag NIT', testFixtureP16OrphanFeature);
+  run('Scenario 124: P16 negative — tracker has a row for the feature ID → no flag', testFixtureP16Clean);
+
+  console.log('\n  v0.18.3 P1 multi-workspace enhancement (Phase 3 — C1):');
+  run('Scenario 125: C1 clean — PR body lists 4 monorepo workspace ratios, all present in ticket; v0.18.0 single-ratio compare spuriously flags, v0.18.3 walks all → no flag', testFixtureC1MultiWorkspaceClean);
+  run('Scenario 126: C1 orphan — PR body has 9999/9999 not in ticket evidence; v0.18.3 walks all PR ratios → flag the missing one', testFixtureC1MultiWorkspaceOrphan);
+
+  console.log('\n  v0.18.3 R3 cross-model regression guards (Codex findings):');
+  run('Scenario 127: R3 M1 — bold-in-bold `**Done**` without pipe / with em-dash / with parens must normalize to `Done` (regression: previously left `Done**`)', testR3M1BoldStatusWithoutPipe);
+  run('Scenario 128: R3 M3 — P14 must NOT absorb sibling `## More Notes` section into MCE_BLOCK; standalone `(this merge)` narrative must NOT flag', testR3M3P14FalsePositiveGuards);
+  run('Scenario 129: R3 M2 — P16 requires pipe-table row, not arbitrary tracker substring; narrative `**Active Feature:**` mention must NOT silence the drift', testR3M2P16NarrativeMentionDoesNotSilence);
 } finally {
   cleanup();
 }
