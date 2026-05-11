@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-05-11
+
+Drift recipe hardening R2 + new advisory drift patterns + P1 multi-workspace extension. Patch release in the v0.18.x drift-detection theme; no migrations, no doctor changes, no schema changes. Smoke total: 112 → 126 (+14 scenarios).
+
+### Fixed
+
+- **B8 — P6 false positive on deferred-AC tickets** (`template/.claude/commands/audit-merge.md` + Gemini twin). Pre-v0.18.3, the P6 recipe extracted the FIRST number from `AC: X/Y` form (= X, marked count) and compared against the actual TOTAL count of `[x]` + `[ ]` items. Tickets with intentionally-deferred ACs (e.g. `AC: 11/13 done` with 11 `[x]` + 2 `[ ]`) produced CLAIMED=11 vs ACTUAL=13 → spurious P6 IMPORTANT flag on a legitimately-accurate claim. v0.18.3 distinguishes `X = marked` and `Y = total`, compares Y to actual total (the structural axis) and X to actual marked count (the progress axis) separately. Canonical-form note added to `merge-checklist.md` (Claude + Gemini twin) clarifying `AC: <marked>/<total>` semantics.
+- **B9 — P5 sed does not handle parenthetical / em-dash / en-dash / hyphen post-`Done` in Status field** (`audit-merge.md` + Gemini twin, P5 recipe sed chain). Status lines like `**Status:** Done (code merged 2026-04-22; prod DB migration executed 2026-04-23)` or `**Status:** Done — squash-merged 2026-04-13` produced `status="Done (...)"` or `status="Done — ..."` after the v0.18.1 B6 harden. Subsequent `[ "$status" = "Done" ]` test failed → ticket counted as frozen. Empirical: fx F-WEB-MENU-VISION-001 audit 2026-05-06 surfaced ~10 false positives (BUG-PROD-009, F114, F-UX-B, BUG-PROD-008-FU1 …) feeding FROZEN_COUNT=52 noise. v0.18.3 prepends an extra sed pass: `sed -E 's/[[:space:]]+(\(.*\)|—.*|–.*|-.*)$//'`. Critical negative tests in smoke verify `In Progress` does NOT collapse to `In`, `Ready for Merge` stays intact, and the existing pipe-suffix + bold-in-bold forms (B6) remain compatible.
+
+### Added
+
+- **P13 — key_facts.md delta vs ticket atom-count mismatch** (advisory, IMPORTANT). When the ticket's Completion Log or MCE quantifies a delta (`+8 atoms`, `+5 aliases`, `+27 dishes`, etc.), the corresponding `key_facts.md` row for the same FEATURE_ID must record the same delta. Whitespace-safe iteration via `while IFS= read -r` (avoids splitting multi-word claims). FEATURE_ID-anchored block scan (`grep -A 3 -F`) prevents false-pass on identical deltas appearing in unrelated feature rows. English keyword set (`atoms?|aliases?|dishes?|entries|rows`); Spanish (`átomos`, `platos`) deferred to v0.19.x.
+- **P14 — MCE Action 1 row stale post-merge** (advisory, NIT). When ticket Status normalizes to `Done` AND the MCE table still contains `Step 6 [ ]` / `Step 6 [-]` / `(this merge)` phrasing, the row was written pre-merge and never updated post-squash. Strict section-scoping to the MCE block (between `## Merge Checklist Evidence` and the next `## ` header) prevents narrative SHAs or "Step 6" prose outside the table from false-firing.
+- **P15 — AC with `post-deploy` keyword admitted without Completion Log evidence** (advisory, IMPORTANT). ACs containing production-parity keywords (`post-deploy`, `post-merge`, `production parity`, `prod verification`, `on dev API`, `on prod`) marked `[x]` must have a dated Completion Log row anchoring the AC-ID. Empirical origin: fx F-CATALOG-COV-001 AC-NEW-qa-battery silent-PASS until external audit (2026-05-08) forced the evidence row (resolved at commit `81eea5c` PR #263). Line-safe iteration via `while IFS= read -r`.
+- **P16 — Feature missing from tracker Features table** (advisory, NIT). Ticket Status `Ready for Merge` / `Done` should have a row in some `## Features — *` table in `product-tracker.md`. Empirical origin: fx F-WEB-MENU-VISION-001 had no row in any Features table; agent claimed "by design standalone" which was incorrect.
+- **C1 — P1 multi-workspace test-count extension**. Pre-v0.18.3, P1 extracted the FIRST `N/N` ratio from the PR body and compared to the LAST ratio in the ticket. In monorepos with multiple workspaces (e.g. fx with api 4272, web 487, bot 738/3, scraper 1221, landing 232) this picked an arbitrary ratio and produced shallow signal. v0.18.3 walks ALL PR-body ratios and verifies each appears in ticket evidence. Subset direction: PR ⊆ ticket (Completion Log accumulates intermediate per-step ratios that the PR body legitimately omits). Three fallback cases: (a) ratios on both sides → walk each PR ratio; (b)/(c) ratios missing on either side → emit explicit `P1 N/A: no comparable test-count ratios extracted` (NOT a drift flag).
+- **Canonical-form note in `merge-checklist.md`** (Claude + Gemini twin). Clarifies that `AC: <marked>/<total>` is the canonical form for the row 1 claim, where `total` includes intentionally-deferred ACs. Mitigates B8 ambiguity and improves agent guidance.
+
+### Changed
+
+- Drift section header `Drift (12-23)` → `Drift (12-27)` in the output-format table (both templates).
+- Execution-discipline preamble: `For each of the 12 drift checks (P1–P12)` → `For each of the 16 drift checks (P1–P16)` (both templates).
+- Output-format example table extended with rows 24-27 for the four new advisory checks.
+- "Drift advisories fixes" section extended with remediation guidance for P13/P14/P15/P16.
+
+### Cross-model review
+
+- **R1** (plan v0.1): Gemini APPROVE WITH MINOR (2 findings) + Codex REVISE (5 findings — 2 M1 whitespace-splitting bugs in P13/P15 recipe sketches, 2 M2 invariant overclaim + Section 10 inconsistency, 1 M3 hardcoded-count site enumeration). All 5 addressed in v0.2.
+- **R2** (plan v0.2): Gemini APPROVE WITH MINOR (1 finding C1 fallback consistency) + Codex APPROVE WITH MINOR (1 finding Phase 1 file-list omission). Both addressed in v0.3. Plan v0.3 APPROVED. Plan: `dev/v0.18.3-plan.md`.
+- **R3** (against actual code, not plan): Gemini APPROVE WITH MINOR (2 low findings — both subsumed by Codex M3) + Codex REVISE (3 findings — M1/M2/M3, all real bugs reproduced empirically). All 3 Codex findings addressed:
+  - **R3 M1** — `normalizeStatusV0183` left `Done**` for bold-in-bold forms WITHOUT pipe suffix (e.g., `**Status:** **Done**`, `**Status:** **Done** — squash`). Added `sed -E 's/\*\*[[:space:]]*$//'` pass to both bash twins + JS mirror. Regression guard: Scenario 127.
+  - **R3 M2** — P16 used `grep -qF "$FEATURE_ID"` matching anywhere in tracker (narrative / `**Active Feature:**` mentions silenced the drift). Tightened to require pipe-table row (`^\|[[:space:]]*$FEATURE_ID[[:space:]]*\|`). Regression guard: Scenario 129.
+  - **R3 M3** — P14 awk terminator `^## [^M]` absorbed sibling `## M*` sections (e.g., `## More Notes`, `## Merge Metadata`); standalone `(this merge)` clause false-fired on past-tense narrative. Replaced with awk state machine terminating at ANY next `^## `; dropped standalone `(this merge)` signal (Step 6 `[ ]`/`[-]` patterns alone catch the empirical case). Regression guard: Scenario 128.
+
+### Known limitation
+
+- **P15 keyword in narrative**: an AC line that mentions `post-deploy` / `post-merge` in an explanation rather than as a verification gate can still trigger P15. Acceptable: operators review flagged ACs (NIT-level cost, IMPORTANT-level signal value). Mitigation deferred to v0.19.x — would require parsing AC line into "gate clause" vs "explanation clause" which is non-trivial heuristically.
+
+### Mirror parity
+
+Every shell-recipe edit applied byte-equal across `template/.claude/commands/audit-merge.md` and `template/.gemini/commands/audit-merge-instructions.md`. Scenario #108 enforces this programmatically across ALL fenced bash blocks.
+
+### Validation
+
+- All 130 smoke scenarios green (112 → 130: +14 for Phase 1-3 + 1 for P15 mixed-case AC-ID + 3 for R3 regression guards).
+- Empirical regression-pair coverage: every new pattern fixture has both positive (must flag) and negative (must NOT flag) test variants. B8/B9/P14/P15/P16 each tested against the pre-v0.18.3 behaviour to confirm the fix is a real change, not paper-only.
+- R3 cross-model findings each have a dedicated regression guard that fails on the pre-fix behaviour and passes on the post-fix.
+
 ## [0.18.2] - 2026-05-06
 
 Smart-diff coverage closure release. Closes the long-deferred ROADMAP "Known follow-ups" item 1 (since v0.17.1) AND fixes a critical v0.18.1 plumbing gap discovered during planning: the `.{claude,gemini}/commands/*` paths added to `expectedSmartDiffTrackedPaths` in v0.18.1 were tracked in `.sdd-meta.json` but the upgrade logic still wholesale-overwrote them, silently destroying user customizations. Empirically reproduced 2026-05-06: a marker line appended to `.claude/commands/audit-merge.md` was lost on `--upgrade --force --yes`. v0.18.2 wires the plumbing AND extends coverage to the previously-unprotected SKILL.md entry points + 11 reference files. Bonus: P12 advisory drift check for stale `HEAD: <sha>` references in the product tracker.
