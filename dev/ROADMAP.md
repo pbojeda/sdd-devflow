@@ -2,7 +2,35 @@
 
 > Internal development tracking. Not published to npm (`files` in package.json excludes this directory).
 
-## Current Version: 0.18.3
+## Current Version: 0.18.4
+
+### v0.18.4 (2026-05-13) — Smart-diff fallback bootstrapping + sub-scope ticket recognition
+
+Patch in the v0.18.x theme. Two empirically-surfaced fixes from the fx upgrade to v0.18.3 (PR #272, 2026-05-13). G1 closes a smart-diff plumbing gap where fallback Case 3c preserve never recorded a hash, causing same-files to fall to fallback indefinitely. P11-B closes a `/audit-merge` recipe false-positive on sub-scope tickets (`-lite` / `-FU` / `-FU[0-9]*` suffix), with a drive-by anchored tracker-row regex that hardens regular tickets too.
+
+- **G1 — Smart-diff fallback Case 3c preserve now records the TEMPLATE hash** (`lib/upgrade-generator.js` — 5 inline `newHashes[…]` writes at sites :557 agents, :669 commands, :855 workflow-core, :1001 standards, :1079 AGENTS.md). Bootstraps a previously-untracked path into the hash-based decision tree for future upgrades. If user later accepts `.new` → Case 2a clean replace; if user keeps customization → Case 2b preserve (Codex M1 invariant then applies — no further hash updates). Implementation is inline at each Case 3c call site, not inside helpers, so Case 2b callers remain governed by M1.
+- **P11-B — sub-scope ticket false positive eliminated** (`template/.claude/commands/audit-merge.md` + Gemini twin). Tickets matching `-lite` / `-lite-*` / `-FU` / `-FU-*` / `-FU[0-9]*` basename suffix now emit `P11 N/A: <basename> is a sub-scope ticket — parent tracker row status independent` instead of flagging the architectural decoupling as drift. Empirical: fx F116-lite-ci-hardening Status=Done vs F116 tracker `pending`.
+- **P11-B drive-by — anchored tracker-row regex** (`grep -E "^\|[[:space:]]*$FEATURE_ID[[:space:]]*\|"` replaces `grep -F "$FEATURE_ID"`). Prevents narrative mentions earlier in the tracker from shadowing the actual Features-table row lookup. Mirror of v0.18.3 P16 idiom. Hardens regular tickets too.
+- **`lib/meta.js:15-35` provenance contract comment rewritten** to document the Case 3c bootstrap exception explicitly while preserving the Case 2b safety guarantee. Replaces the imprecise v0.17.0 wording.
+- **Sub-scope ticket naming convention documented** in `merge-checklist.md` (Claude + Gemini twin) as a first-class supported pattern.
+
+#### Cross-model review
+
+- R1 (plan v0.1): Gemini APPROVE / Codex REVISE 3M (AGENTS.md scope, helper-call-site classification, meta.js comment) → addressed in v0.2.
+- R2 (plan v0.2): Codex APPROVE WITH MINOR 2 (line citation, stale Next Steps) / Gemini REVISE 1M (lowercase `-fu` pattern speculative) → addressed in v0.3.
+- R3 (post-implementation, against actual code): Gemini APPROVE / Codex APPROVE WITH MINOR 1 (M3 — JS `detectP11B` regex narrower than bash glob in empty-suffix edge case). Addressed + regression-guard #138 added.
+- Plan: `dev/v0.18.4-plan.md` (v0.3 APPROVED).
+
+#### Mirror parity
+
+P11 recipe edit applied byte-equal between Claude + Gemini twins. Scenario #108 enforces across ALL bash blocks.
+
+#### Validation
+
+- All 138 smoke scenarios green (130 → 138: 4 P11-B + 3 G1 + 1 R3 regression guard).
+- G1 tests verify: (a) hash bootstrapped on Case 3c preserve, (b) recorded hash equals template-not-user, (c) second upgrade enters Case 2b unchanged, (d) third upgrade after user-accepts-template enters Case 2a.
+- P11-B tests verify: (a) sub-scope `-lite` emits N/A, (b) regular ticket still flags drift, (c) bare `-FU` + numbered `-FU1` variants both N/A, (d) drive-by anchored regex catches narrative-before-table false-fire that v0.18.1 baseline missed.
+- Empirical fx validation pending v0.18.4 publish + fx upgrade.
 
 ### v0.18.3 (2026-05-11) — Drift recipe hardening R2 + new advisory drift patterns + P1 multi-workspace extension
 
@@ -135,6 +163,22 @@ Every shell-recipe edit applied byte-equal to both `template/.claude/commands/au
 
    - **C1** ✅ shipped v0.18.3 as P1 multi-workspace extension. Recipe now walks ALL PR-body ratios and verifies each appears in ticket evidence (PR ⊆ ticket). Three fallback cases (ratios on both sides → walk; missing on either side → explicit `P1 N/A` emission, not a drift flag). Smoke fixtures #125 + #126 (clean monorepo case + orphan-ratio case).
    - **C2** ✅ shipped v0.18.3 as **P16** (new independent pattern, not P11 extension). Status-gated to Ready-for-Merge / Done. NIT severity. Smoke fixtures #123 + #124.
+
+**10. Smart-diff fallback Case 3c does not record hash** ✅ **RESOLVED in v0.18.4 as G1**.
+
+   - Empirically reproduced: fx upgrade 2026-05-13 PR #272 wrote 7 `.new` files; without G1 the 5 customized files would re-trigger on every future upgrade. v0.18.4 records the template hash at all 5 Case 3c preserve sites (agents :557, commands :669, workflow-core :855, standards :1001, AGENTS.md :1079). Inline at call site (not inside helpers) so Case 2b callers remain governed by Codex M1 invariant. Smoke fixtures #135-#137.
+
+**11. P11 false positive on `-lite` / `-FU` sub-scope tickets** ✅ **RESOLVED in v0.18.4 as P11-B**.
+
+   - fx convention: `<FEATURE_ID>-lite-<descriptor>` for sub-scope closure, `<FEATURE_ID>-FU` / `<FEATURE_ID>-FU<N>` for follow-ups. Sub-scope tickets reach `Done` while parent tracker row stays at parent status. v0.18.4 detects basename suffix and emits `P11 N/A`. Drive-by anchored tracker-row regex hardens the lookup for regular tickets too. Smoke fixtures #131-#134. Documented in `merge-checklist.md` as a first-class supported convention.
+
+**12. Sub-scope ticket suffix expansion** (v0.18.5+ candidate).
+
+   - v0.18.4 covers `-lite` / `-FU` / `-FU[0-9]*` (empirically validated against fx). Future projects may introduce `-spike` / `-mini` / `-aux` / `-pico` variants. Add when empirical signal appears — do NOT add speculatively (R2 review correctly tightened the pattern to fx-empirical only).
+
+**13. Mixed-case sub-scope variants** (v0.18.5+ candidate).
+
+   - Mixed-case basenames like `-Fu1` or `-fU2` currently not matched (case statement is case-sensitive in shell). fx uses uppercase consistently. Reconsider if a future project uses mixed-case.
 
 ### v0.18.0 (2026-04-23) — Drift-detection in /audit-merge + /audit-feature
 

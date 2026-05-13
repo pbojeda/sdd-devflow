@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.18.4] - 2026-05-13
+
+Smart-diff fallback hardening + drift-detection sub-scope ticket recognition. Patch in the v0.18.x theme. Two fixes (G1 + P11-B), no migrations, no doctor changes, no schema changes. Smoke total: 130 → 137 (+7 scenarios).
+
+### Fixed
+
+- **G1 — Smart-diff fallback Case 3c preserve does not record hash in `.sdd-meta.json`** (`lib/upgrade-generator.js` — 5 call sites at `:557` agents, `:669` commands, `:855` workflow-core, `:1001` standards, `:1079` AGENTS.md). Pre-v0.18.4, when the fallback content-compare decided to preserve user content + write `.new`, no hash was recorded for the path. Same file fell to Case 3c fallback on every future upgrade, regenerating `.new` indefinitely. Empirically reproduced: fx upgrade 2026-05-13 (PR #272) wrote 7 `.new` files; 5 customized files would have re-triggered on every subsequent upgrade. v0.18.4 bootstraps the **template** hash (not the user's hash) at each Case 3c call site, so:
+  - If the user later accepts `.new` → `current_hash == stored_hash` → Case 2a clean replace.
+  - If the user keeps the customization → `current_hash != stored_hash` → Case 2b preserve (Codex M1 invariant then applies — no further hash updates).
+  Implementation is inline at each Case 3c call site, not inside the four preserve helpers, so Case 2b callers remain governed by M1.
+- **P11-B — sub-scope ticket false positive** (`template/.claude/commands/audit-merge.md` + Gemini twin, P11 recipe). Tickets matching the `-lite` / `-lite-*` / `-FU` / `-FU-*` / `-FU[0-9]*` basename suffix close a partial scope of a parent feature while the parent tracker row intentionally stays at its parent status. v0.18.3 P11 compared the sub-scope ticket's Status against the parent feature's tracker-row status and flagged the architectural decoupling as drift. v0.18.4 detects the suffix on the original basename (before `-[a-z].*` stripping) and emits `P11 N/A: <basename> is a sub-scope ticket — parent tracker row status independent` instead. Empirical: fx F116-lite-ci-hardening (`Status: Done`) vs F116 tracker row (`pending`).
+- **P11-B drive-by — narrative mention shadows tracker lookup**. The v0.18.1+ P11 recipe used `grep -F "$FEATURE_ID"` (substring), which matched the first occurrence in the tracker — potentially a narrative line earlier in the file rather than the actual Features-table row. Result: false drift readings on regular tickets when the tracker had narrative mentions of the feature before its table row. v0.18.4 anchors the lookup to the pipe-table row: `grep -E "^\|[[:space:]]*$FEATURE_ID[[:space:]]*\|"`. Mirrors the v0.18.3 P16 idiom.
+
+### Changed
+
+- **`lib/meta.js:15-35` provenance contract comment** rewritten to document the Case 3c bootstrap exception (situation 2) explicitly while preserving the Case 2b safety guarantee (situation 3). Replaces the v0.17.0 "Preserved files leave their hash entry untouched" wording that became imprecise under G1.
+- **`template/.claude/skills/development-workflow/references/merge-checklist.md` + Gemini twin**: documents the sub-scope ticket naming convention (`<FEATURE_ID>-lite-<descriptor>` / `<FEATURE_ID>-FU` / `<FEATURE_ID>-FU<N>`) as a first-class supported pattern, with the explicit guarantee that `/audit-merge` P11 detects it.
+
+### Cross-model review
+
+- **R1 (plan v0.1)**: Gemini APPROVE / Codex REVISE 3M (AGENTS.md omitted from G1 scope, enumeration method unsafe at helper level, `lib/meta.js` provenance comment becomes imprecise). All 3 addressed in plan v0.2.
+- **R2 (plan v0.2)**: Codex APPROVE WITH MINOR 2 (AGENTS.md cited at `:1057` instead of `:1058`, stale "send to R1" Next Steps section) / Gemini REVISE 1M (lowercase `-fu` pattern variants speculative without empirical signal). All 3 addressed in plan v0.3.
+- **R3 (post-implementation, against actual code)**: Gemini APPROVE / Codex APPROVE WITH MINOR 1 (M3 — JS `detectP11B` regex used `.+` where bash glob `*-lite-*` allows empty content; tightened to `.*` to mirror bash semantics faithfully). Addressed in commit before merge + regression-guard scenario #138 added per v0.18.x norm.
+- Plan: `dev/v0.18.4-plan.md` (v0.3 APPROVED).
+
+### Mirror parity
+
+P11 recipe edit applied byte-equal between Claude (`template/.claude/commands/audit-merge.md`) and Gemini (`template/.gemini/commands/audit-merge-instructions.md`). Scenario #108 auto-validates across ALL fenced bash blocks.
+
+### Validation
+
+- All 138 smoke scenarios green (130 → 138: 4 P11-B + 3 G1 + 1 R3 regression guard).
+- New regression-guard pair pattern for both G1 and P11-B: positive + negative + (where applicable) baseline-shows-old-bug variant. v0.18.1 baseline detector `detectP11V0181` proves the drive-by anchored regex change is a real behavior fix, not paper-only.
+- R3 regression guard (#138) locks the `detectP11B` JS regex to mirror bash glob `*-lite-*` semantics faithfully (Codex caught the `.+` vs `.*` divergence).
+- Empirical re-run on fx (PR #272 upgrade): confirmed 5 customized files in fx fell to Case 3c fallback PRESERVE. G1 fix would record hashes on the next upgrade so subsequent upgrades enter Case 2 path.
+
 ## [0.18.3] - 2026-05-11
 
 Drift recipe hardening R2 + new advisory drift patterns + P1 multi-workspace extension. Patch release in the v0.18.x drift-detection theme; no migrations, no doctor changes, no schema changes. Smoke total: 112 → 126 (+14 scenarios).
