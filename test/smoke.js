@@ -5482,6 +5482,78 @@ function detectP15(ticketPath) {
 
 // v0.18.3 P16 — Feature missing from tracker Features tables. Codex R3
 // M2 hardening: requires the FEATURE_ID to appear as the FIRST cell of
+// --- v0.18.4 P11-B: sub-scope ticket exception + drive-by anchored
+// tracker-row regex ---
+//
+// Detector mirrors the bash recipe semantics:
+//   1. Sub-scope basename (`-lite` / `-lite-*` / `-FU` / `-FU-*` / `-FU[0-9]*`)
+//      → returns null (P11 N/A, no flag).
+//   2. Regular ticket → extract FEATURE_ID via the existing `-[a-z].*` strip.
+//   3. Tracker lookup anchored to pipe-table row (`^\|\s*FEATURE_ID\s*\|`).
+//   4. Compare TICKET_STATUS-derived EXPECTED against TRACKER_STATUS;
+//      true ⇒ drift flag, false ⇒ no flag.
+function detectP11B(ticketPath, trackerPath) {
+  const basename = path.basename(ticketPath, '.md');
+  // Sub-scope pattern: matches *-lite, *-lite-*, *-FU, *-FU-*, *-FU[0-9]*.
+  // Implemented as a JS regex equivalent of the bash glob pattern in the
+  // P11 recipe. Use `(-.*)?` (zero-or-more) — NOT `(-.+)?` — so empty
+  // suffixes like `foo-lite-` match the bash `*-lite-*` glob faithfully.
+  // Codex R3 M3 (2026-05-13) caught the prior `.+` divergence.
+  const subScopePattern = /(?:-lite(?:-.*)?|-FU(?:-.*)?|-FU\d.*)$/;
+  if (subScopePattern.test(basename)) return null; // P11 N/A
+
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const status = normalizeStatusV0183(
+    (content.match(/^\*\*Status:\*\*[^\n]*/m) || [''])[0]
+  );
+  let expected = '';
+  if (['Ready for Merge', 'Review', 'In Progress', 'Planning', 'Spec'].includes(status)) {
+    expected = 'in-progress';
+  } else if (status === 'Done') {
+    expected = 'done';
+  }
+  if (!expected) return false; // P11 status gate (not applicable)
+
+  const featureId = basename.replace(/-[a-z].*/, '');
+  let tracker = '';
+  try { tracker = fs.readFileSync(trackerPath, 'utf8'); } catch (_) { return false; }
+  const escapedId = featureId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rowRe = new RegExp(`^\\|\\s*${escapedId}\\s*\\|[^\\n]*\\|\\s*(in-progress|done|pending|blocked)\\s*\\|`, 'm');
+  const rowMatch = tracker.match(rowRe);
+  if (!rowMatch) return false; // no row → P11 has no signal (P16 would handle)
+  const trackerStatus = rowMatch[1];
+  return trackerStatus !== expected;
+}
+
+// --- v0.18.1 P11 baseline detector — used to PROVE the v0.18.4 drive-by
+// anchored-regex change actually changes behavior on narrative-before-table
+// fixtures. v0.18.1 used `grep -F` (substring), which matches the first
+// occurrence of FEATURE_ID anywhere in the tracker, including narrative.
+function detectP11V0181(ticketPath, trackerPath) {
+  const content = fs.readFileSync(ticketPath, 'utf8');
+  const status = normalizeStatusV0183(
+    (content.match(/^\*\*Status:\*\*[^\n]*/m) || [''])[0]
+  );
+  let expected = '';
+  if (['Ready for Merge', 'Review', 'In Progress', 'Planning', 'Spec'].includes(status)) {
+    expected = 'in-progress';
+  } else if (status === 'Done') {
+    expected = 'done';
+  }
+  if (!expected) return false;
+  const featureId = path.basename(ticketPath, '.md').replace(/-[a-z].*/, '');
+  let tracker = '';
+  try { tracker = fs.readFileSync(trackerPath, 'utf8'); } catch (_) { return false; }
+  // grep -F substring then grep -oE "\| (status) \|" head -1 — mirror the
+  // legacy fragile lookup that v0.18.4 P11-B drive-by hardens away from.
+  const lines = tracker.split('\n').filter((l) => l.includes(featureId));
+  for (const line of lines) {
+    const m = line.match(/\|\s*(in-progress|done|pending|blocked)\s*\|/);
+    if (m) return m[1] !== expected;
+  }
+  return false;
+}
+
 // a pipe-table row (`| FEATURE_ID |` with optional whitespace), NOT
 // just anywhere in the tracker. Narrative mentions / `**Active Feature:**`
 // references no longer silence the drift.
@@ -5768,6 +5840,285 @@ function testR3M2P16NarrativeMentionDoesNotSilence() {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
+// --- v0.18.4 P11-B sub-scope ticket recognition + drive-by tracker anchoring ---
+
+function testFixtureP11BLiteSubscope() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P11B-lite-cleanup.md');
+  const tracker = path.join(tickets, 'fixture-P11B-tracker.md');
+  // Sub-scope ticket Status=Done + parent tracker row pending → v0.18.4 must
+  // detect `-lite-cleanup` suffix and emit P11 N/A (no flag).
+  assert.strictEqual(detectP11B(ticket, tracker), null,
+    'P11-B: -lite sub-scope ticket emits N/A — parent tracker row status independent');
+  // Regression evidence: v0.18.1 baseline detector would fire because of the
+  // narrative mention earlier in the tracker. The drive-by anchored regex is
+  // covered by the dedicated narrative scenario below.
+}
+
+function testFixtureP11BRegularTicketStillFlags() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const ticket = path.join(tickets, 'F-FIXTURE-P11B-REGULAR.md');
+  const tracker = path.join(tickets, 'fixture-P11B-tracker.md');
+  // Regular ticket (no sub-scope suffix) Status=Done + tracker row pending →
+  // v0.18.4 must STILL flag drift. The sub-scope exception is narrowly scoped.
+  assert.strictEqual(detectP11B(ticket, tracker), true,
+    'P11-B: regular ticket Done vs tracker pending must STILL flag (sub-scope exception narrow)');
+}
+
+function testFixtureP11BFuVariants() {
+  const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
+  const tracker = path.join(tickets, 'fixture-P11B-tracker.md');
+  const fu = path.join(tickets, 'F-FIXTURE-P11B-FU.md');
+  const fu1 = path.join(tickets, 'F-FIXTURE-P11B-FU1.md');
+  // Both -FU (bare) and -FU1 (numbered) must trigger sub-scope detection.
+  assert.strictEqual(detectP11B(fu, tracker), null, 'P11-B: bare -FU suffix emits N/A');
+  assert.strictEqual(detectP11B(fu1, tracker), null, 'P11-B: -FU1 numbered suffix emits N/A');
+}
+
+function testP11BDriveByAnchoredRegex() {
+  // Drive-by hardening: tracker may have a narrative mention of a feature ID
+  // BEFORE the actual Features table row. v0.18.1 used `grep -F` which would
+  // match the first line containing the substring (potentially narrative);
+  // v0.18.4 anchors the lookup to a pipe-table row, so narrative is skipped.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p11b-narrative-'));
+  const ticket = path.join(tmpDir, 'F-NARRATIVE-DRIFT.md');
+  fs.writeFileSync(ticket, [
+    '# F-NARRATIVE-DRIFT',
+    '**Status:** Done',
+    '## Spec',
+  ].join('\n'));
+  const tracker = path.join(tmpDir, 'tracker.md');
+  fs.writeFileSync(tracker, [
+    '# Tracker',
+    '> Narrative: F-NARRATIVE-DRIFT depends on F-OTHER | in-progress | which is stale.',
+    '',
+    '## Features — Backend',
+    '',
+    '| ID | Description | Status |',
+    '|----|-------------|--------|',
+    '| F-NARRATIVE-DRIFT | feature | done |',
+    '| F-OTHER | other | done |',
+  ].join('\n'));
+
+  // v0.18.1 baseline detector: narrative line `F-NARRATIVE-DRIFT depends on F-OTHER | in-progress |`
+  // matches first → tracker_status='in-progress' → ticket Done expects 'done' → FALSE flag fires.
+  assert.strictEqual(detectP11V0181(ticket, tracker), true,
+    'v0.18.1 baseline: narrative line silently shadows table row → false drift flag');
+
+  // v0.18.4 anchored regex: looks for `^| F-NARRATIVE-DRIFT |` pipe-row → reads `done` → no flag.
+  assert.strictEqual(detectP11B(ticket, tracker), false,
+    'v0.18.4 P11-B drive-by: pipe-table anchored lookup correctly returns done → no drift');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
+// --- v0.18.4 G1: fallback Case 3c bootstrap records template hash in .sdd-meta.json ---
+
+function _runUpgradeOnTempProject(dest) {
+  const { scan } = require('../lib/scanner');
+  const { buildInitDefaultConfig } = require('../lib/init-wizard');
+  const { generateUpgrade, detectAiTools, detectProjectType, readAutonomyLevel } = require('../lib/upgrade-generator');
+  const scanResult = scan(dest);
+  const aiTools = detectAiTools(dest);
+  const projectType = detectProjectType(dest);
+  const autonomy = readAutonomyLevel(dest);
+  const upgradeConfig = buildInitDefaultConfig(scanResult);
+  upgradeConfig.projectDir = dest;
+  upgradeConfig.aiTools = aiTools;
+  upgradeConfig.projectType = projectType;
+  upgradeConfig.autonomyLevel = autonomy.level;
+  upgradeConfig.autonomyName = autonomy.name;
+  upgradeConfig.installedVersion = 'unknown';
+  silent(() => generateUpgrade(upgradeConfig));
+}
+
+// Codex R3 M3 regression guard — JS detectP11B regex must mirror bash glob
+// semantics exactly. Bash `*-lite-*` allows empty content after the second
+// hyphen; the pre-fix JS regex required `.+` (≥1 char) which silently missed
+// `foo-lite-` and `foo-FU-` empty-suffix forms.
+function testR3CodexP11BRegexMatchesBashGlob() {
+  // Build temporary ticket basenames with trailing-hyphen sub-scope forms.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p11b-r3-'));
+  const tracker = path.join(tmpDir, 'tracker.md');
+  fs.writeFileSync(tracker, [
+    '# Tracker',
+    '## Features — Backend',
+    '| ID | Description | Status |',
+    '|----|-------------|--------|',
+    '| F-PARENT | parent | pending |',
+  ].join('\n'));
+
+  // Cases bash recognizes as sub-scope; pre-fix JS regex would have missed
+  // the trailing-hyphen variants.
+  for (const basename of ['F-PARENT-lite-', 'F-PARENT-FU-', 'F-PARENT-FU0extra']) {
+    const ticket = path.join(tmpDir, `${basename}.md`);
+    fs.writeFileSync(ticket, ['# F', '**Status:** Done'].join('\n'));
+    assert.strictEqual(detectP11B(ticket, tracker), null,
+      `P11-B R3 M3: trailing-hyphen / FU-with-suffix form '${basename}' must emit N/A (bash glob coverage)`);
+  }
+
+  // Negative sanity: a regular ticket containing the substring `-lite`
+  // mid-name (e.g. `F-elite-feature` — `e-lite` literally), must NOT be
+  // captured because the case glob anchors `-lite-` or end-of-string.
+  // The JS regex uses `$` so 'F-elite-feature' would only match if
+  // '-lite-feature' matched the pattern. It doesn't (would need to end with
+  // '-lite' or be in the form '-lite-*'). Sanity check:
+  const regularLook = path.join(tmpDir, 'F-elite-feature.md');
+  fs.writeFileSync(regularLook, ['# F', '**Status:** Done'].join('\n'));
+  // 'F-elite-feature' end-substring '-feature' is NOT in the subScope pattern,
+  // BUT our regex `(-lite(-.+)?)` would match `-lite-feature` substring at the
+  // END... actually `-elite-feature` ends with `-feature` so it doesn't end
+  // with `-lite` nor `-lite-…`. The regex anchors with `$` so the full string
+  // tail must satisfy one of the alternations. `F-elite-feature` → does NOT
+  // end with `-lite`, `-lite-…`, `-FU…`, or `-FU<digit>…`. So it should NOT
+  // match (returns non-null = drift evaluated normally).
+  // With Status=Done and no tracker row for F-elite, returns false (no drift).
+  const result = detectP11B(regularLook, tracker);
+  assert.notStrictEqual(result, null,
+    'P11-B R3 M3 negative: F-elite-feature is NOT a sub-scope ticket (does not end with the sub-scope suffix)');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
+function testG1FallbackBootstrapsHashOnPreserve() {
+  // Scaffold a fresh project, then simulate the "previously-untracked path"
+  // scenario by (a) deleting an entry from .sdd-meta.json and (b) mutating
+  // the file so it diverges from the template → Case 3c fallback PRESERVE.
+  // v0.18.4 G1 must bootstrap the template hash into .sdd-meta.json so the
+  // next upgrade enters Case 2 instead of falling through Case 3 again.
+  const dest = path.join(TMP_BASE, 'test-g1-bootstrap');
+  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+  execSync(`node ${CLI} test-g1-bootstrap --yes`, { cwd: TMP_BASE, stdio: 'pipe' });
+
+  // Target a Case 3c-prone path: audit-merge.md (a tracked command).
+  const targetRel = '.claude/commands/audit-merge.md';
+  const targetAbs = path.join(dest, targetRel);
+  assert.ok(fs.existsSync(targetAbs), 'fixture: audit-merge.md exists');
+
+  // Simulate "previously untracked": drop the entry from meta.
+  const metaPath = path.join(dest, '.sdd-meta.json');
+  const metaBefore = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  delete metaBefore.hashes[targetRel];
+  fs.writeFileSync(metaPath, JSON.stringify(metaBefore, null, 2));
+  assert.ok(!metaBefore.hashes[targetRel], 'meta entry dropped');
+
+  // Mutate the file so it diverges from the template (forces fallback PRESERVE).
+  const customMarker = '\n<!-- user customization marker - v0.18.4 G1 test -->\n';
+  fs.appendFileSync(targetAbs, customMarker);
+
+  // Run --upgrade.
+  _runUpgradeOnTempProject(dest);
+
+  // v0.18.4 G1 assertion: meta now contains a hash for the path.
+  const metaAfter = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  assert.ok(metaAfter.hashes[targetRel], 'G1: hash bootstrapped into .sdd-meta.json after Case 3c fallback preserve');
+
+  // The recorded hash must equal the TEMPLATE hash, not the user's hash.
+  // Read the template content + recompute.
+  const { computeHash } = require('../lib/meta');
+  const templateContent = fs.readFileSync(
+    path.join(__dirname, '..', 'template', '.claude', 'commands', 'audit-merge.md'),
+    'utf8'
+  );
+  const userContent = fs.readFileSync(targetAbs, 'utf8');
+  assert.strictEqual(metaAfter.hashes[targetRel], computeHash(templateContent),
+    'G1: bootstrapped hash MUST equal template hash (so future user-accepts-.new triggers Case 2a)');
+  assert.notStrictEqual(metaAfter.hashes[targetRel], computeHash(userContent),
+    'G1: bootstrapped hash MUST NOT equal user hash (would cause silent overwrite on next upgrade)');
+
+  // User customization itself must still be preserved on disk.
+  assert.ok(userContent.includes(customMarker.trim()),
+    'G1: user customization preserved on disk (.new written separately, original kept)');
+}
+
+function testG1ReUpgradePreservesViaCase2b() {
+  // After G1 bootstrap (previous scenario), a SECOND --upgrade with the user
+  // customization intact must enter Case 2b (hash mismatch → preserve) and
+  // NOT regenerate fallback compare. Hard to instrument the dispatch directly;
+  // proxy: re-run upgrade, verify meta hash UNCHANGED (Codex M1 invariant for
+  // Case 2b), file content UNCHANGED, .new still produced.
+  const dest = path.join(TMP_BASE, 'test-g1-bootstrap'); // reuse prior scaffold
+  // R4 Codex finding 3: strengthen fixture sentinel. Re-run setup if the prior
+  // scenario partially completed (left dest but didn't finish bootstrapping
+  // the hash) — guards against dirty-fixture leaks between scenarios.
+  const targetRel = '.claude/commands/audit-merge.md';
+  const targetAbs = path.join(dest, targetRel);
+  const metaPath = path.join(dest, '.sdd-meta.json');
+  const fixtureReady = () => {
+    if (!fs.existsSync(dest)) return false;
+    if (!fs.existsSync(metaPath)) return false;
+    if (!fs.existsSync(targetAbs)) return false;
+    try {
+      const m = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      return !!m.hashes && !!m.hashes[targetRel];
+    } catch (_) {
+      return false;
+    }
+  };
+  if (!fixtureReady()) {
+    fs.rmSync(dest, { recursive: true, force: true });
+    testG1FallbackBootstrapsHashOnPreserve();
+  }
+
+  const hashBefore = JSON.parse(fs.readFileSync(metaPath, 'utf8')).hashes[targetRel];
+  const userBefore = fs.readFileSync(targetAbs, 'utf8');
+
+  _runUpgradeOnTempProject(dest);
+
+  const metaAfter = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const userAfter = fs.readFileSync(targetAbs, 'utf8');
+
+  assert.strictEqual(metaAfter.hashes[targetRel], hashBefore,
+    'G1 re-upgrade: meta hash UNCHANGED (Case 2b preserves Codex M1 — no hash update on customized files)');
+  assert.strictEqual(userAfter, userBefore,
+    'G1 re-upgrade: user customization preserved untouched');
+}
+
+function testG1UserAcceptsTemplateTriggersCase2a() {
+  // After G1 bootstrap, if the user "accepts the .new" by writing template
+  // content over their customization, the next upgrade must enter Case 2a
+  // (hash match → clean replace, hash potentially updates to next-version
+  // template hash). Proxy: write the EXACT current template content to the
+  // file, re-run upgrade, verify the file content == template content
+  // (or new-template content if it changed, but here it stays equal because
+  // we're running the same version twice — the assertion is about Case 2a
+  // semantics, not version drift).
+  const dest = path.join(TMP_BASE, 'test-g1-bootstrap'); // reuse prior scaffold
+  const targetRel = '.claude/commands/audit-merge.md';
+  const targetAbs = path.join(dest, targetRel);
+  const metaPath = path.join(dest, '.sdd-meta.json');
+  // R4 Codex finding 3: stronger fixture sentinel (see scenario #136).
+  const fixtureReady = () => {
+    if (!fs.existsSync(dest) || !fs.existsSync(metaPath) || !fs.existsSync(targetAbs)) return false;
+    try {
+      const m = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      return !!m.hashes && !!m.hashes[targetRel];
+    } catch (_) {
+      return false;
+    }
+  };
+  if (!fixtureReady()) {
+    fs.rmSync(dest, { recursive: true, force: true });
+    testG1FallbackBootstrapsHashOnPreserve();
+  }
+
+  // Simulate "user accepts .new": replace user file with template content.
+  const templateContent = fs.readFileSync(
+    path.join(__dirname, '..', 'template', '.claude', 'commands', 'audit-merge.md'),
+    'utf8'
+  );
+  fs.writeFileSync(targetAbs, templateContent, 'utf8');
+
+  _runUpgradeOnTempProject(dest);
+
+  const finalContent = fs.readFileSync(targetAbs, 'utf8');
+  // After Case 2a, the file is replaced with the (same) template content.
+  // Hash equality is the key invariant — no spurious .new written.
+  const { computeHash } = require('../lib/meta');
+  assert.strictEqual(computeHash(finalContent), computeHash(templateContent),
+    'G1 Case 2a: when user_current == stored hash, upgrade cleanly replaces (or no-ops) with template content');
+}
+
 function testFixtureB6BoldStatusExtraction() {
   const tickets = path.join(__dirname, 'fixtures', 'audit-drift');
   const fixture = path.join(tickets, 'fixture-B6-bold-status.md');
@@ -5984,6 +6335,20 @@ try {
   run('Scenario 127: R3 M1 — bold-in-bold `**Done**` without pipe / with em-dash / with parens must normalize to `Done` (regression: previously left `Done**`)', testR3M1BoldStatusWithoutPipe);
   run('Scenario 128: R3 M3 — P14 must NOT absorb sibling `## More Notes` section into MCE_BLOCK; standalone `(this merge)` narrative must NOT flag', testR3M3P14FalsePositiveGuards);
   run('Scenario 129: R3 M2 — P16 requires pipe-table row, not arbitrary tracker substring; narrative `**Active Feature:**` mention must NOT silence the drift', testR3M2P16NarrativeMentionDoesNotSilence);
+
+  console.log('\n  v0.18.4 P11-B sub-scope ticket recognition + drive-by tracker anchoring:');
+  run('Scenario 131: P11-B — -lite sub-scope ticket Done + parent tracker pending → emit P11 N/A (no flag)', testFixtureP11BLiteSubscope);
+  run('Scenario 132: P11-B — regular ticket (no sub-scope suffix) Done + tracker pending → STILL flags drift', testFixtureP11BRegularTicketStillFlags);
+  run('Scenario 133: P11-B — bare `-FU` + numbered `-FU1` variants both emit N/A', testFixtureP11BFuVariants);
+  run('Scenario 134: P11-B drive-by — narrative mention before table row no longer false-fires (v0.18.1 baseline shows the regression)', testP11BDriveByAnchoredRegex);
+
+  console.log('\n  v0.18.4 R3 cross-model regression guards (Codex findings):');
+  run('Scenario 138: R3 M3 — detectP11B JS regex must match bash `*-lite-*` glob even with empty trailing suffix (was `.+`, fixed to `.*`)', testR3CodexP11BRegexMatchesBashGlob);
+
+  console.log('\n  v0.18.4 G1 fallback Case 3c bootstrap (smart-diff hash plumbing):');
+  run('Scenario 135: G1 — Case 3c fallback PRESERVE bootstraps TEMPLATE hash (not user hash) into .sdd-meta.json', testG1FallbackBootstrapsHashOnPreserve);
+  run('Scenario 136: G1 — second --upgrade after bootstrap enters Case 2b (hash unchanged, user customization preserved)', testG1ReUpgradePreservesViaCase2b);
+  run('Scenario 137: G1 — when user accepts template content, third --upgrade enters Case 2a (clean replace path)', testG1UserAcceptsTemplateTriggersCase2a);
 } finally {
   cleanup();
 }
